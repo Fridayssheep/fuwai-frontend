@@ -223,7 +223,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { setSystemCurrentTime, getSystemCurrentTime, getRuntimeAISettings, type RuntimeAISettingsResponse } from '../api/system'
+import { setSystemCurrentTime, getRuntimeAISettings, type RuntimeAISettingsResponse } from '../api/system'
 
 const notifySettings = reactive([
   { title: '异常预警提醒', desc: '能耗突变破预设阈值时即时通知', icon: '⚠️', iconClass: 'red', enabled: true },
@@ -336,22 +336,22 @@ const reverseTimezoneMap: Record<string, string> = {
   'America/New_York': 'GMT-05:00'
 }
 
-const fetchCurrentTimeSetting = async () => {
+const fetchCurrentTimeSetting = () => {
   try {
-    const res = await getSystemCurrentTime() as any
-    if (res && res.source === 'custom_time' && res.current_time) {
+    const savedTime = localStorage.getItem('manualTime')
+    const savedTimezone = localStorage.getItem('timezone')
+    const savedTargetTime = localStorage.getItem('targetTime')
+    
+    if (savedTime) {
       isManualTime = true
-      manualDate = new Date(res.current_time)
+      manualDate = new Date(savedTime)
       formatAndDisplayTime(manualDate)
-      if (res.timezone && reverseTimezoneMap[res.timezone]) {
-        timezone.value = reverseTimezoneMap[res.timezone]
+      if (savedTimezone) {
+        timezone.value = savedTimezone
       }
-      const y = manualDate.getFullYear()
-      const mo = String(manualDate.getMonth() + 1).padStart(2, '0')
-      const d = String(manualDate.getDate()).padStart(2, '0')
-      const h = String(manualDate.getHours()).padStart(2, '0')
-      const mi = String(manualDate.getMinutes()).padStart(2, '0')
-      targetTime.value = `${y}-${mo}-${d}T${h}:${mi}`
+      if (savedTargetTime) {
+        targetTime.value = savedTargetTime
+      }
     }
   } catch (err) {
     console.error('获取当前时间设置失败:', err)
@@ -387,6 +387,12 @@ const applyTime = async () => {
     isManualTime = true
     manualDate = new Date(targetTime.value)
     formatAndDisplayTime(manualDate)
+    
+    // 保存到本地存储
+    localStorage.setItem('manualTime', manualDate.toISOString())
+    localStorage.setItem('timezone', timezone.value)
+    localStorage.setItem('targetTime', targetTime.value)
+    
     alert(`系统时间已修改为：${currentDate.value} ${currentTime.value}（来源：${res.source}）`)
   } catch (err) {
     console.error('设置时间失败:', err)
