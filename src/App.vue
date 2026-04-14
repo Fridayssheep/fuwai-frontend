@@ -12,6 +12,15 @@ import Header from './components/Header.vue'
 import MainContent from './components/MainContent.vue'
 </script>
 
+<style>
+html, body, #app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+</style>
+
 <style scoped>
 .app-layout {
   display: grid;

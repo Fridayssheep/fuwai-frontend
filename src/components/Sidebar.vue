@@ -25,10 +25,10 @@ import { Icon } from '@iconify/vue'
         <Icon icon="lucide:bar-chart-2" class="icon" />
         <span class="nav-text">统计</span>
       </a>
-      <a href="#" class="nav-item">
+      <router-link to="/fault-analysis" class="nav-item" exact-active-class="active">
         <Icon icon="lucide:alert-triangle" class="icon" />
         <span class="nav-text">故障分析</span>
-      </a>
+      </router-link>
       <router-link to="/knowledge" class="nav-item" exact-active-class="active">
         <Icon icon="lucide:book-open" class="icon" />
         <span class="nav-text">知识库</span>
