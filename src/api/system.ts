@@ -13,10 +13,6 @@ export interface SystemCurrentTimeResponse {
   source: 'server_now' | 'custom_time'
 }
 
-export const getSystemCurrentTime = () => {
-  return request.get<SystemCurrentTimeResponse>('/system/current-time')
-}
-
 export const setSystemCurrentTime = (data: SystemCurrentTimeRequest) => {
   return request.post<SystemCurrentTimeResponse>('/system/current-time', data)
 }
