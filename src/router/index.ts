@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Setting from '../components/Setting.vue'
 import MainContent from '../components/MainContent.vue'
+import KnowledgeBase from '../components/KnowledgeBase.vue'
 
 const routes = [
   {
@@ -12,6 +13,11 @@ const routes = [
     path: '/setting',
     name: 'Setting',
     component: Setting
+  },
+  {
+    path: '/knowledge',
+    name: 'Knowledge',
+    component: KnowledgeBase
   }
 ]
 
