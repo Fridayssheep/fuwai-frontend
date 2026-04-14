@@ -15,7 +15,7 @@
       <a href="#" class="nav-item"><span class="icon">🔍</span> 查询</a>
       <a href="#" class="nav-item"><span class="icon">📊</span> 统计</a>
       <a href="#" class="nav-item"><span class="icon">⚠️</span> 故障分析</a>
-      <a href="#" class="nav-item"><span class="icon">📖</span> 知识库</a>
+      <router-link to="/knowledge" class="nav-item" exact-active-class="active"><span class="icon">📖</span> 知识库</router-link>
       <router-link to="/setting" class="nav-item" exact-active-class="active"><span class="icon">⚙️</span> 设置</router-link>
     </nav>
 
