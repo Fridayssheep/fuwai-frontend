@@ -56,17 +56,31 @@
       </table>
     </div>
 
-    <div class="panel-footer" v-if="tableData.length > 0">
-      <button class="expand-btn" @click="loadMore">
-        查看完整建筑列表
-        <Icon icon="lucide:chevron-down" />
-      </button>
+    <div class="panel-footer pagination" v-if="paginationInfo.total > 0">
+      <div class="pagination-info">
+        共计 {{ paginationInfo.total }} 栋建筑
+      </div>
+      <div class="pagination-controls">
+        <button 
+          class="page-btn" 
+          :disabled="currentPage === 1" 
+          @click="changePage(currentPage - 1)">
+          上一页
+        </button>
+        <span class="page-indicator">第 {{ currentPage }} / {{ totalPages }} 页</span>
+        <button 
+          class="page-btn" 
+          :disabled="currentPage >= totalPages" 
+          @click="changePage(currentPage + 1)">
+          下一页
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getBuildings, getMeters, getEnergyQuery } from '../../api/statistics'
 
@@ -88,6 +102,11 @@ const tableData = ref<BuildingRow[]>([])
 const loading = ref(false)
 const lastUpdated = ref('')
 
+const currentPage = ref(1)
+const pageSize = ref(5)
+const paginationInfo = ref({ total: 0 })
+const totalPages = computed(() => Math.ceil(paginationInfo.value.total / pageSize.value))
+
 const unwrap = (res: any) => res?.data ?? res
 
 const formatNumber = (val: number | null | undefined): string => {
@@ -95,15 +114,23 @@ const formatNumber = (val: number | null | undefined): string => {
   return val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 
+const changePage = (p: number) => {
+  if (p < 1 || p > totalPages.value) return
+  currentPage.value = p
+  fetchData()
+}
+
 const fetchData = async () => {
   if (!props.startTime || !props.endTime) return
   
   loading.value = true
   try {
-    // 1. 获取主建筑列表
-    const buildRaw = await getBuildings({ page: 1, page_size: 5 })
+    // 1. 获取主建筑列表，带上分页参数
+    const buildRaw = await getBuildings({ page: currentPage.value, page_size: pageSize.value })
     const buildData = unwrap(buildRaw)
     const items = buildData?.items || []
+    
+    paginationInfo.value.total = buildData?.pagination?.total || 0
     
     // 2. 并发组装每栋建筑的数据
     const promises = items.map(async (b: any) => {
@@ -174,10 +201,6 @@ const fetchData = async () => {
   }
 }
 
-const loadMore = () => {
-  alert('功能开发中: 跳转至完整建筑列表页')
-}
-
 const viewDetails = (row: BuildingRow) => {
   alert(`功能开发中: 跳转至建筑详情 (${row.building_id})`)
 }
@@ -185,6 +208,7 @@ const viewDetails = (row: BuildingRow) => {
 watch(
   () => [props.startTime, props.endTime],
   () => {
+    currentPage.value = 1
     fetchData()
   }
 )
@@ -361,28 +385,53 @@ onMounted(() => {
   color: #1e6fd0;
 }
 
-.panel-footer {
+.panel-footer.pagination {
   margin-top: 16px;
-  text-align: center;
   border-top: 1px dashed #e8ecf1;
   padding-top: 16px;
-}
-
-.expand-btn {
-  background: none;
-  border: none;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 4px;
-  transition: color 0.2s;
 }
 
-.expand-btn:hover {
+.pagination-info {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-btn {
+  background: white;
+  border: 1px solid #cbd5e1;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 13px;
   color: #0f172a;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.page-btn:hover:not(:disabled) {
+  border-color: #0b4582;
+  color: #0b4582;
+}
+
+.page-btn:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+}
+
+.page-indicator {
+  font-size: 13px;
+  color: #334155;
+  font-weight: 500;
 }
 
 /* ─── Empty & Loading ──────────────────────────────────────── */
