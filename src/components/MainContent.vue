@@ -152,27 +152,126 @@
         <div class="report-section">
           <div class="report-divider">
             <Icon icon="lucide:file-text" class="divider-icon" />
-            <span>报表</span>
+            <span>快捷导出</span>
           </div>
-          <div class="report-quick-actions">
-            <button
-              v-for="rpt in reportTypes"
-              :key="rpt.key"
-              class="report-chip"
-              @click="handleReportClick(rpt)"
-            >
-              <Icon :icon="rpt.icon" class="rpt-icon" />
-              {{ rpt.label }}
-            </button>
-          </div>
+          <button class="export-trigger" @click="openReportModal">
+            <Icon icon="lucide:file-down" class="export-trigger-icon" />
+            导出统计报表
+            <Icon icon="lucide:chevron-right" class="export-trigger-arrow" />
+          </button>
         </div>
       </div>
     </section>
+
+    <!-- ═══ Report Export Modal ═══ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="reportModal.visible" class="modal-backdrop" @click.self="closeReportModal">
+          <div class="modal-container" @click.stop>
+            <!-- Modal Header -->
+            <div class="modal-header">
+              <div class="modal-title-row">
+                <Icon icon="lucide:file-bar-chart" class="modal-title-icon" />
+                <h2>导出统计报表</h2>
+              </div>
+              <button class="modal-close" @click="closeReportModal">
+                <Icon icon="lucide:x" />
+              </button>
+            </div>
+
+            <!-- Report Type Selection -->
+            <div class="modal-body">
+              <label class="field-label">选择报告类型</label>
+              <div class="report-type-grid">
+                <button
+                  v-for="rt in reportTypeOptions"
+                  :key="rt.value"
+                  class="type-card"
+                  :class="{ selected: reportModal.reportType === rt.value }"
+                  @click="reportModal.reportType = rt.value"
+                >
+                  <Icon :icon="rt.icon" class="type-card-icon" />
+                  <div class="type-card-text">
+                    <strong>{{ rt.label }}</strong>
+                    <span>{{ rt.desc }}</span>
+                  </div>
+                </button>
+              </div>
+
+              <!-- Time Range -->
+              <label class="field-label">时间范围</label>
+              <div class="time-range-row">
+                <div class="time-input-group">
+                  <Icon icon="lucide:calendar" class="input-icon" />
+                  <input type="date" v-model="reportModal.startDate" />
+                </div>
+                <span class="time-sep">至</span>
+                <div class="time-input-group">
+                  <Icon icon="lucide:calendar" class="input-icon" />
+                  <input type="date" v-model="reportModal.endDate" />
+                </div>
+              </div>
+
+              <!-- AI Summary Toggle -->
+              <div class="ai-toggle-row">
+                <div class="ai-toggle-info">
+                  <Icon icon="lucide:sparkles" class="ai-toggle-icon" />
+                  <div>
+                    <strong>包含 AI 分析摘要</strong>
+                    <span>在报表中自动生成 AI 数据洞察与建议</span>
+                  </div>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="reportModal.includeAI" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <!-- Error -->
+              <div v-if="reportModal.error" class="modal-error">
+                <Icon icon="lucide:alert-circle" class="modal-error-icon" />
+                {{ reportModal.error }}
+              </div>
+
+              <!-- Success -->
+              <div v-if="reportModal.success" class="modal-success">
+                <Icon icon="lucide:check-circle-2" class="modal-success-icon" />
+                <div>
+                  <strong>报表生成成功</strong>
+                  <span>{{ reportModal.successDetail }}</span>
+                </div>
+                <button class="download-btn" @click="handleDownloadReport">
+                  <Icon icon="lucide:download" />
+                  下载报表
+                </button>
+              </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="modal-footer">
+              <button class="btn-cancel" @click="closeReportModal">取消</button>
+              <button
+                class="btn-generate"
+                :disabled="reportModal.generating"
+                @click="handleGenerateReport"
+              >
+                <Icon
+                  :icon="reportModal.generating ? 'lucide:loader-2' : 'lucide:file-down'"
+                  class="btn-icon"
+                  :class="{ spin: reportModal.generating }"
+                />
+                {{ reportModal.generating ? '生成中…' : '生成并导出' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </main>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { getCurrentTimeString } from '../utils/timeManager'
@@ -181,11 +280,14 @@ import {
   getDashboardOverview,
   getHighlights,
   getEnergyTrend,
+  generateReport,
+  getReportDetail,
   type MetricCard,
   type AnomalySummary,
   type HighlightItem,
   type EnergySeries,
-  type DashboardOverviewResponse
+  type DashboardOverviewResponse,
+  type ReportType
 } from '../api/dashboard'
 
 const router = useRouter()
@@ -281,16 +383,116 @@ const goToFaultAnalysis = (anomaly: AnomalySummary) => {
   })
 }
 
-// ─── Reports (partially kept) ────────────────────────────────────
-const reportTypes = [
-  { key: 'energy', icon: 'lucide:bar-chart-2', label: '能耗分析' },
-  { key: 'anomaly', icon: 'lucide:alert-triangle', label: '异常报告' },
-  { key: 'carbon', icon: 'lucide:trees', label: '碳排统计' }
+// ─── Report Export Modal ─────────────────────────────────────────
+const reportTypeOptions: { value: ReportType; label: string; desc: string; icon: string }[] = [
+  { value: 'weekly_summary', label: '周度能耗报告', desc: '按周汇总各建筑能耗数据', icon: 'lucide:calendar-range' },
+  { value: 'monthly_summary', label: '月度统计报告', desc: '按月聚合能耗与碳排趋势', icon: 'lucide:calendar-days' },
+  { value: 'daily_summary', label: '每日能耗快报', desc: '当日各建筑用电用水概览', icon: 'lucide:calendar-clock' },
+  { value: 'anomaly_report', label: '异常分析报告', desc: '异常建筑诊断与偏离分析', icon: 'lucide:shield-alert' }
 ]
 
-const handleReportClick = (rpt: { key: string; label: string }) => {
-  console.log('报表生成请求:', rpt.key)
-  alert(`${rpt.label}报表生成功能即将上线`)
+const reportModal = reactive({
+  visible: false,
+  reportType: 'weekly_summary' as ReportType,
+  startDate: '',
+  endDate: '',
+  includeAI: true,
+  generating: false,
+  error: '',
+  success: false,
+  successDetail: '',
+  generatedReportId: ''
+})
+
+// Initialize modal dates from virtual time
+const initReportDates = () => {
+  const now = new Date(getCurrentTimeString())
+  const end = now.toISOString().split('T')[0] || ''
+  const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] || ''
+  reportModal.startDate = start
+  reportModal.endDate = end
+}
+
+const openReportModal = () => {
+  initReportDates()
+  reportModal.error = ''
+  reportModal.success = false
+  reportModal.generating = false
+  reportModal.generatedReportId = ''
+  reportModal.visible = true
+}
+
+const closeReportModal = () => {
+  reportModal.visible = false
+}
+
+const handleGenerateReport = async () => {
+  if (!reportModal.startDate || !reportModal.endDate) {
+    reportModal.error = '请选择时间范围'
+    return
+  }
+  if (new Date(reportModal.startDate) > new Date(reportModal.endDate)) {
+    reportModal.error = '开始时间不能晚于结束时间'
+    return
+  }
+
+  reportModal.error = ''
+  reportModal.success = false
+  reportModal.generating = true
+
+  try {
+    const raw = await generateReport({
+      report_type: reportModal.reportType,
+      time_range: {
+        start: new Date(reportModal.startDate).toISOString(),
+        end: new Date(reportModal.endDate + 'T23:59:59').toISOString()
+      },
+      include_ai_summary: reportModal.includeAI
+    })
+    const data = unwrap(raw)
+    const reportId = data?.report_id
+
+    if (!reportId) {
+      reportModal.error = '报表生成失败：未返回报表 ID'
+      return
+    }
+
+    reportModal.generatedReportId = reportId
+
+    // Poll for report completion (max 10 attempts)
+    let attempts = 0
+    const maxAttempts = 10
+    let status = data?.status || 'queued'
+
+    while (['queued', 'processing'].includes(status) && attempts < maxAttempts) {
+      await new Promise(r => setTimeout(r, 1500))
+      const detail = unwrap(await getReportDetail(reportId))
+      status = detail?.status || 'failed'
+      attempts++
+    }
+
+    if (status === 'ready') {
+      const typeLabel = reportTypeOptions.find(t => t.value === reportModal.reportType)?.label || '报表'
+      reportModal.success = true
+      reportModal.successDetail = `${typeLabel} 已就绪 (ID: ${reportId.slice(0, 8)}…)`
+    } else if (status === 'failed') {
+      reportModal.error = '报表生成失败，请稍后重试'
+    } else {
+      reportModal.success = true
+      reportModal.successDetail = `报表仍在处理中 (ID: ${reportId.slice(0, 8)}…)，可稍后下载`
+    }
+  } catch (err: any) {
+    reportModal.error = err?.message || '报表生成请求失败'
+  } finally {
+    reportModal.generating = false
+  }
+}
+
+const handleDownloadReport = () => {
+  if (!reportModal.generatedReportId) return
+  // Open download URL in new window
+  const downloadUrl = `/api/reports/${reportModal.generatedReportId}?download=true&format=md`
+  window.open(downloadUrl, '_blank')
 }
 
 // ─── Data fetching ───────────────────────────────────────────────
@@ -817,6 +1019,7 @@ onUnmounted(() => {
   color: var(--color-text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -1021,21 +1224,16 @@ onUnmounted(() => {
 
 .divider-icon { font-size: 14px; display: flex; }
 
-.report-quick-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.report-chip {
+.export-trigger {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
   border: 1.5px solid var(--color-border);
   border-radius: 10px;
   background: var(--color-surface);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-text);
   cursor: pointer;
@@ -1043,12 +1241,447 @@ onUnmounted(() => {
   font-family: var(--font);
 }
 
-.report-chip:hover {
+.export-trigger:hover {
   border-color: var(--color-primary);
   color: var(--color-primary);
   background: #f0f7ff;
+}
+
+.export-trigger-icon { font-size: 18px; display: flex; color: var(--color-primary); }
+.export-trigger-arrow { font-size: 16px; display: flex; margin-left: auto; opacity: 0.4; transition: all 0.2s; }
+.export-trigger:hover .export-trigger-arrow { opacity: 1; transform: translateX(3px); }
+</style>
+
+<!-- Modal styles are unscoped because the Teleport renders outside this component's scope -->
+<style>
+/* ═══ Modal ═══════════════════════════════════════════════════════ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(6px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Plus Jakarta Sans', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.modal-container {
+  background: #ffffff;
+  border-radius: 18px;
+  width: 540px;
+  max-width: 92vw;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.06);
+  animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalSlideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-fade-enter-active { transition: opacity 0.25s ease; }
+.modal-fade-leave-active { transition: opacity 0.2s ease; }
+.modal-fade-enter-from,
+.modal-fade-leave-to { opacity: 0; }
+
+/* Modal Header */
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 28px 18px;
+  border-bottom: 1px solid #e8ecf1;
+}
+
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-title-icon {
+  font-size: 22px;
+  color: #0b4582;
+  display: flex;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.modal-close {
+  border: none;
+  background: transparent;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 20px;
+  display: flex;
+  transition: all 0.15s;
+}
+
+.modal-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* Modal Body */
+.modal-body {
+  padding: 22px 28px;
+}
+
+.field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  margin-bottom: 10px;
+}
+
+.field-label:not(:first-child) {
+  margin-top: 20px;
+}
+
+/* Report Type Grid */
+.report-type-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.type-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1.5px solid #e8ecf1;
+  border-radius: 12px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  font-family: inherit;
+}
+
+.type-card:hover {
+  border-color: #c7d2fe;
+  background: #f8faff;
+}
+
+.type-card.selected {
+  border-color: #0b4582;
+  background: #eff6ff;
+  box-shadow: 0 0 0 3px rgba(11, 69, 130, 0.08);
+}
+
+.type-card-icon {
+  font-size: 20px;
+  color: #64748b;
+  display: flex;
+  margin-top: 2px;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.type-card.selected .type-card-icon {
+  color: #0b4582;
+}
+
+.type-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.type-card-text strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.type-card-text span {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.type-card.selected .type-card-text strong {
+  color: #0b4582;
+}
+
+/* Time Range */
+.time-range-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.time-input-group {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1.5px solid #e8ecf1;
+  border-radius: 10px;
+  padding: 8px 14px;
+  transition: border-color 0.2s;
+}
+
+.time-input-group:focus-within {
+  border-color: #0b4582;
+}
+
+.input-icon {
+  font-size: 16px;
+  color: #94a3b8;
+  display: flex;
+  flex-shrink: 0;
+}
+
+.time-input-group input {
+  border: none;
+  outline: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  font-family: inherit;
+  background: transparent;
+  width: 100%;
+}
+
+.time-sep {
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* AI Toggle */
+.ai-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border: 1.5px solid #e8ecf1;
+  border-radius: 12px;
+  margin-top: 20px;
+  transition: border-color 0.2s;
+}
+
+.ai-toggle-row:has(input:checked) {
+  border-color: #c7d2fe;
+  background: #fafbff;
+}
+
+.ai-toggle-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ai-toggle-icon {
+  font-size: 20px;
+  color: #7c3aed;
+  display: flex;
+}
+
+.ai-toggle-info strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ai-toggle-info span {
+  display: block;
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #cbd5e1;
+  border-radius: 24px;
+  transition: all 0.25s ease;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: all 0.25s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #0b4582, #7c3aed);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
+/* Error / Success */
+.modal-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 16px;
+}
+
+.modal-error-icon { font-size: 16px; display: flex; }
+
+.modal-success {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  margin-top: 16px;
+}
+
+.modal-success-icon {
+  font-size: 24px;
+  color: #059669;
+  display: flex;
+  flex-shrink: 0;
+}
+
+.modal-success strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #059669;
+}
+
+.modal-success span {
+  display: block;
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.modal-success div { flex: 1; }
+
+.download-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #059669;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.download-btn:hover {
+  background: #047857;
   transform: translateY(-1px);
 }
 
-.rpt-icon { font-size: 15px; display: flex; }
+/* Modal Footer */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 18px 28px 22px;
+  border-top: 1px solid #e8ecf1;
+}
+
+.btn-cancel {
+  padding: 10px 22px;
+  border: 1.5px solid #e8ecf1;
+  border-radius: 10px;
+  background: white;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.btn-generate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0b4582, #1e6fd0);
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.btn-generate:hover:not(:disabled) {
+  box-shadow: 0 4px 14px rgba(11, 69, 130, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-generate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-icon { font-size: 16px; display: flex; }
+.btn-icon.spin { animation: spin 1s linear infinite; }
+@keyframes modalSpin { to { transform: rotate(360deg); } }
 </style>
