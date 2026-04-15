@@ -140,7 +140,7 @@
     <!-- 能耗趋势图 -->
     <EnergyTrendChart :start-time="activeStart" :end-time="activeEnd" />
 
-    <!-- 分站点与分建筑效绩表 -->
+    <!-- 分设备与分建筑效绩表 -->
     <SitePerformanceTable :start-time="activeStart" :end-time="activeEnd" />
     <BuildingPerformanceTable :start-time="activeStart" :end-time="activeEnd" />
 

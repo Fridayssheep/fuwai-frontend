@@ -1,20 +1,9 @@
 <template>
   <div v-if="visible" class="modal-overlay" @click.self="handleClose">
     <div class="modal-content">
-      <!-- 头部 -->
+      <!-- 头部 - 白色背景 -->
       <div class="modal-header">
-        <div class="header-title">
-          <div class="icon-box">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#005BAC" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-          </div>
-          <div>
-            <h3>时间维度配置</h3>
-            <p class="subtitle">配置数据查询的时间范围</p>
-          </div>
-        </div>
+        <h3 class="modal-title">导出报表</h3>
         <button class="close-btn" @click="handleClose">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -22,236 +11,60 @@
           </svg>
         </button>
       </div>
-
+      
       <!-- 内容区域 -->
       <div class="modal-body">
-        <!-- 快捷范围 -->
-        <div class="section">
-          <div class="section-title">
-            <span class="title-dot"></span>
-            <span>快捷范围</span>
+        <div class="format-card" @click="selectFormat('md')">
+          <!-- 导出/下载图标（无圆圈） -->
+          <div class="format-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
           </div>
-          <div class="quick-range">
-            <button 
-              v-for="range in timeRanges" 
-              :key="range.value"
-              @click="form.timeRange = range.value"
-              :class="['range-btn', { active: form.timeRange === range.value }]"
-            >
-              {{ range.label }}
-            </button>
-          </div>
-        </div>
-
-        <!-- 精确时间 -->
-        <div class="section">
-          <div class="section-title">
-            <span class="title-dot"></span>
-            <span>精确时间</span>
-          </div>
-          <div class="precise-time">
-            <div class="time-block">
-              <label>开始时间</label>
-              <div class="time-inputs">
-                <input type="text" v-model="form.startTime.year" class="time-input" placeholder="2023" />
-                <span class="time-unit">年</span>
-                <input type="text" v-model="form.startTime.month" class="time-input" placeholder="10" />
-                <span class="time-unit">月</span>
-                <input type="text" v-model="form.startTime.day" class="time-input" placeholder="01" />
-                <span class="time-unit">日</span>
-                <input type="text" v-model="form.startTime.hour" class="time-input" placeholder="00" />
-                <span class="time-unit">时</span>
-              </div>
-            </div>
-            <div class="time-block">
-              <label>结束时间</label>
-              <div class="time-inputs">
-                <input type="text" v-model="form.endTime.year" class="time-input" placeholder="2023" />
-                <span class="time-unit">年</span>
-                <input type="text" v-model="form.endTime.month" class="time-input" placeholder="10" />
-                <span class="time-unit">月</span>
-                <input type="text" v-model="form.endTime.day" class="time-input" placeholder="31" />
-                <span class="time-unit">日</span>
-                <input type="text" v-model="form.endTime.hour" class="time-input" placeholder="23" />
-                <span class="time-unit">时</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 时间特征 -->
-        <div class="section">
-          <div class="section-title">
-            <span class="title-dot"></span>
-            <span>时间特征</span>
-          </div>
-          <div class="time-features">
-            <label class="feature-checkbox">
-              <input type="checkbox" v-model="form.timeFeatures.workday" />
-              <span class="check-box"></span>
-              <span>工作日</span>
-              <select v-model="form.timeFeatures.workdayPrice" class="feature-select">
-                <option value="peak">电价高峰</option>
-                <option value="valley">电价低谷</option>
-                <option value="normal">全部</option>
-              </select>
-            </label>
-            
-            <label class="feature-checkbox">
-              <input type="checkbox" v-model="form.timeFeatures.weekend" />
-              <span class="check-box"></span>
-              <span>周末</span>
-              <select v-model="form.timeFeatures.weekendPrice" class="feature-select">
-                <option value="valley">电价低谷</option>
-                <option value="peak">电价高峰</option>
-                <option value="normal">全部</option>
-              </select>
-            </label>
-            
-            <label class="feature-checkbox">
-              <input type="checkbox" v-model="form.timeFeatures.holiday" />
-              <span class="check-box"></span>
-              <span>节假日</span>
-              <select v-model="form.timeFeatures.holidayPrice" class="feature-select">
-                <option value="valley">电价低谷</option>
-                <option value="peak">电价高峰</option>
-                <option value="normal">全部</option>
-              </select>
-            </label>
-          </div>
+          <span class="format-name">Markdown (.md)</span>
         </div>
       </div>
-
-      <!-- 底部 - 修改按钮文本为"开始查询" -->
+      
+      <!-- 底部 -->
       <div class="modal-footer">
-        <span class="status-text">配置时间筛选</span>
-        <div class="footer-buttons">
-          <button class="btn btn-default" @click="handleClose">取消</button>
-          <button class="btn btn-primary" @click="handleQuery">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            开始查询
-          </button>
-        </div>
+        <button class="btn btn-default" @click="handleClose">取消</button>
+        <button class="btn btn-primary" @click="handleExport">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          开始导出
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { ref } from 'vue'
 
 const props = defineProps<{
   visible: boolean
 }>()
 
-const emit = defineEmits(['update:visible', 'query'])
+const emit = defineEmits(['update:visible', 'export'])
 
-const timeRanges = [
-  { label: '今日', value: 'today' },
-  { label: '昨日', value: 'yesterday' },
-  { label: '上周', value: 'lastWeek' },
-  { label: '本月', value: 'month' },
-  { label: '上月', value: 'lastMonth' },
-  { label: '本季度', value: 'quarter' },
-  { label: '本年', value: 'year' }
-]
+const selectedFormat = ref('md')
 
-const form = reactive({
-  timeRange: 'month',
-  startTime: { year: '2023', month: '10', day: '01', hour: '00' },
-  endTime: { year: '2023', month: '10', day: '31', hour: '23' },
-  timeFeatures: {
-    workday: true,
-    workdayPrice: 'peak',
-    weekend: false,
-    weekendPrice: 'valley',
-    holiday: false,
-    holidayPrice: 'valley'
-  }
-})
-
-// 当快捷范围改变时，自动计算精确时间
-watch(() => form.timeRange, (newRange) => {
-  const now = new Date('2026-04-15T20:06:11') // 使用设置页面的当前时间
-  let start = new Date(now)
-  let end = new Date(now)
-  
-  switch(newRange) {
-    case 'today':
-      start.setHours(0, 0, 0, 0)
-      end.setHours(23, 59, 59, 999)
-      break
-    case 'yesterday':
-      start.setDate(start.getDate() - 1)
-      start.setHours(0, 0, 0, 0)
-      end.setDate(end.getDate() - 1)
-      end.setHours(23, 59, 59, 999)
-      break
-    case 'lastWeek':
-      start.setDate(start.getDate() - 7)
-      start.setHours(0, 0, 0, 0)
-      end.setHours(23, 59, 59, 999)
-      break
-    case 'month':
-      start.setDate(1)
-      start.setHours(0, 0, 0, 0)
-      end.setHours(23, 59, 59, 999)
-      break
-    case 'lastMonth':
-      start.setMonth(start.getMonth() - 1)
-      start.setDate(1)
-      start.setHours(0, 0, 0, 0)
-      end.setDate(0) // 上个月的最后一天
-      end.setHours(23, 59, 59, 999)
-      break
-    case 'quarter':
-      const quarter = Math.floor(start.getMonth() / 3)
-      start.setMonth(quarter * 3)
-      start.setDate(1)
-      start.setHours(0, 0, 0, 0)
-      end.setHours(23, 59, 59, 999)
-      break
-    case 'year':
-      start.setMonth(0)
-      start.setDate(1)
-      start.setHours(0, 0, 0, 0)
-      end.setHours(23, 59, 59, 999)
-      break
-  }
-  
-  form.startTime = {
-    year: start.getFullYear().toString(),
-    month: (start.getMonth() + 1).toString().padStart(2, '0'),
-    day: start.getDate().toString().padStart(2, '0'),
-    hour: start.getHours().toString().padStart(2, '0')
-  }
-  form.endTime = {
-    year: end.getFullYear().toString(),
-    month: (end.getMonth() + 1).toString().padStart(2, '0'),
-    day: end.getDate().toString().padStart(2, '0'),
-    hour: end.getHours().toString().padStart(2, '0')
-  }
-}, { immediate: true })
+const selectFormat = (format: string) => {
+  selectedFormat.value = format
+}
 
 const handleClose = () => {
   emit('update:visible', false)
 }
 
-// 修改：改为开始查询，自动关闭弹窗
-const handleQuery = () => {
-  // 构建时间范围对象
-  const timeConfig = {
-    range: form.timeRange,
-    startTime: `${form.startTime.year}-${form.startTime.month}-${form.startTime.day} ${form.startTime.hour}:00:00`,
-    endTime: `${form.endTime.year}-${form.endTime.month}-${form.endTime.day} ${form.endTime.hour}:59:59`,
-    features: form.timeFeatures
-  }
-  
-  emit('query', timeConfig)
-  handleClose() // 自动关闭弹窗
+const handleExport = () => {
+  emit('export', { format: selectedFormat.value })
+  handleClose()
 }
 </script>
 
@@ -272,51 +85,29 @@ const handleQuery = () => {
 
 .modal-content {
   background: white;
-  border-radius: 12px;
+  border-radius: 8px;
   width: 100%;
-  max-width: 700px;
-  max-height: 90vh;
+  max-width: 480px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
+/* 头部样式 - 白色背景 */
 .modal-header {
   padding: 20px 24px;
-  border-bottom: 1px solid #E5E7EB;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-}
-
-.header-title {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.icon-box {
-  width: 40px;
-  height: 40px;
-  background: #EFF6FF;
-  border-radius: 8px;
-  display: flex;
   align-items: center;
-  justify-content: center;
+  background: white;
+  border-bottom: 1px solid #F0F0F0;
 }
 
-h3 {
-  margin: 0 0 4px 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-}
-
-.subtitle {
+.modal-title {
   margin: 0;
-  font-size: 13px;
-  color: #6B7280;
+  font-size: 20px;
+  font-weight: 600;
+  color: #002B54;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 .close-btn {
@@ -329,221 +120,112 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9CA3AF;
+  color: #666;
   transition: all 0.2s;
 }
 
 .close-btn:hover {
-  background: #F3F4F6;
-  color: #374151;
+  background: rgba(0, 0, 0, 0.05);
 }
 
+/* 内容区域 */
 .modal-body {
-  flex: 1;
-  overflow-y: auto;
   padding: 24px;
+  background: white;
 }
 
-.section {
-  margin-bottom: 24px;
-}
-
-.section-title {
+/* 格式卡片 - 浅蓝色背景 */
+.format-card {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1F2937;
-  margin-bottom: 16px;
-}
-
-.title-dot {
-  width: 3px;
-  height: 16px;
-  background: #005BAC;
-  border-radius: 2px;
-}
-
-.quick-range {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.range-btn {
-  padding: 8px 16px;
-  border: 1px solid #D1D5DB;
-  background: white;
-  border-radius: 6px;
-  font-size: 14px;
-  color: #374151;
+  gap: 16px;
+  padding: 20px;
+  background: #F0F7FF; /* 浅蓝色背景 */
+  border-radius: 8px;
+  border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.range-btn:hover {
+.format-card:hover {
   border-color: #005BAC;
-  color: #005BAC;
+  box-shadow: 0 2px 8px rgba(0, 91, 172, 0.1);
 }
 
-.range-btn.active {
-  background: #002B54;
-  color: white;
-  border-color: #002B54;
-}
-
-.precise-time {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.time-block {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.time-block label {
-  width: 70px;
-  font-size: 14px;
-  color: #6B7280;
-  flex-shrink: 0;
-}
-
-.time-inputs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
-}
-
-.time-input {
-  width: 60px;
-  height: 36px;
-  border: 1px solid #D1D5DB;
-  border-radius: 4px;
-  text-align: center;
-  font-size: 14px;
-  color: #374151;
-  outline: none;
-}
-
-.time-input:focus {
-  border-color: #005BAC;
-}
-
-.time-unit {
-  font-size: 14px;
-  color: #9CA3AF;
-  padding: 0 4px;
-}
-
-.time-features {
-  display: flex;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-
-.feature-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #374151;
-}
-
-.feature-checkbox input {
-  display: none;
-}
-
-.feature-checkbox .check-box {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #D1D5DB;
-  border-radius: 3px;
+/* 导出图标 - 无圆圈 */
+.format-icon {
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  color: #4A5568;
+  flex-shrink: 0;
 }
 
-.feature-checkbox input:checked + .check-box {
-  background: #005BAC;
-  border-color: #005BAC;
+.format-icon svg {
+  width: 22px;
+  height: 22px;
 }
 
-.feature-checkbox input:checked + .check-box::after {
-  content: '';
-  width: 5px;
-  height: 8px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-  margin-bottom: 2px;
+.format-name {
+  font-size: 16px;
+  color: #2D3748;
+  font-weight: 500;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-.feature-select {
-  margin-left: 8px;
-  padding: 4px 8px;
-  border: 1px solid #D1D5DB;
-  border-radius: 4px;
-  font-size: 13px;
-  color: #374151;
-  background: white;
-  outline: none;
-}
-
+/* 底部样式 */
 .modal-footer {
   padding: 16px 24px;
-  border-top: 1px solid #E5E7EB;
-  background: #F9FAFB;
+  background: #F7F7F7; /* 浅灰色背景 */
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-}
-
-.status-text {
-  font-size: 14px;
-  color: #6B7280;
-}
-
-.footer-buttons {
-  display: flex;
   gap: 12px;
+  border-top: 1px solid #EEEEEE;
 }
 
 .btn {
-  height: 36px;
-  padding: 0 20px;
+  height: 40px;
+  padding: 0 24px;
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
-  border: none;
+  border: 1px solid transparent;
   transition: all 0.2s;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 .btn-default {
   background: white;
   color: #374151;
-  border: 1px solid #D1D5DB;
+  border-color: #D1D5DB;
 }
 
 .btn-default:hover {
-  background: #F3F4F6;
+  background: #F9FAFB;
+  border-color: #9CA3AF;
 }
 
 .btn-primary {
   background: #005BAC;
   color: white;
+  border-color: #005BAC;
+  box-shadow: 0 2px 4px rgba(0, 91, 172, 0.2);
 }
 
 .btn-primary:hover {
   background: #004a8d;
+  border-color: #004a8d;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 91, 172, 0.3);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
 }
 </style>
