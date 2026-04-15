@@ -2,7 +2,7 @@
   <div class="query-page">
     <h1>建筑查询引擎</h1>
     
-    <!-- 筛选面板直接放在这里，不使用外部组件 -->
+    <!-- 筛选面板 -->
     <div class="filter-panel">
       <div class="panel-header">
         <div class="title-area">
@@ -21,19 +21,29 @@
       </div>
       
       <div class="filter-row">
-        <!-- 建筑选择（状态筛选）- 改成全部、正常、异常、告警 -->
+        <!-- 建筑选择 -->
         <div class="filter-item">
           <label>建筑选择</label>
           <select v-model="filterForm.status" class="select-box">
-            <option value="">全部</option>
+            <option value="">全部建筑</option>
             <option value="normal">正常</option>
             <option value="error">异常</option>
             <option value="warning">告警</option>
           </select>
         </div>
 
+        <!-- 时间范围（图二中有，保留视觉） -->
+        <div class="filter-item">
+          <label>时间范围</label>
+          <select class="select-box">
+            <option>今日</option>
+            <option>本周</option>
+            <option>本月</option>
+          </select>
+        </div>
+
         <div class="button-group">
-          <button class="btn btn-primary" @click="showAdvanced = true">
+          <button class="btn btn-primary-dark" @click="showAdvanced = true">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
               <line x1="4" y1="21" x2="4" y2="14"></line>
               <line x1="4" y1="10" x2="4" y2="3"></line>
@@ -47,7 +57,8 @@
             </svg>
             高级查询
           </button>
-          <button class="btn btn-default" @click="handleReset">重置</button>
+          <button class="btn btn-outline" @click="handleReset">重置</button>
+          <button class="btn btn-primary" @click="handleSearch">查询</button>
         </div>
       </div>
     </div>
@@ -93,7 +104,7 @@
               :class="['sort-tag', { active: sortConfig.field === 'status' }]"
               @click="handleSort('status')"
             >
-              碳排放
+              系统状态
             </button>
           </div>
           
@@ -149,7 +160,7 @@
                 </label>
               </th>
               <th>建筑标识ID</th>
-              <th>设备</th>
+              <th>站点</th>
               <th>总能耗</th>
               <th>COP</th>
               <th>EUI指数</th>
@@ -173,7 +184,7 @@
                 <div class="site-name">{{ item.site }}</div>
               </td>
               <td>
-                <div class="energy-value">{{ item.totalEnergy }}</div>
+                <div class="energy-value">{{ item.totalEnergy.toLocaleString() }}</div>
                 <div class="energy-unit">kWh</div>
               </td>
               <td :class="['cop-value', getCopClass(item.cop)]">{{ item.cop }}</td>
@@ -289,11 +300,101 @@
         </div>
       </div>
     </div>
+
+    <!-- AI 助手悬浮按钮 -->
+    <div class="ai-assistant-container">
+      <!-- 悬浮按钮 -->
+      <button class="ai-float-btn" @click="toggleChat">
+        <img src="/public/人工智能.png" alt="AI助手" width="28" height="28" />
+        <span class="ai-badge" v-if="unreadCount > 0">{{ unreadCount }}</span>
+      </button>
+
+
+      <!-- 聊天窗口 -->
+      <div class="ai-chat-popup" v-show="isChatOpen">
+        <div class="chat-header">
+          <div class="chat-title">
+            <div class="chat-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                <path d="M19 10v1a7 7 0 0 1-14 0v-1"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+            </div>
+            <div class="chat-info">
+              <h3>RAG 智慧助手</h3>
+              <span class="chat-status">
+                <span class="status-dot-online"></span>
+                知识库检索中
+              </span>
+            </div>
+          </div>
+          <button class="chat-close" @click="toggleChat">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <div class="chat-body" ref="chatBodyRef">
+          <!-- 预设问题 -->
+          <div class="chat-suggestions" v-if="messages.length === 0">
+            <div class="suggestion-item" v-for="(q, index) in suggestions" :key="index" @click="sendPresetMessage(q)">
+              <span class="suggestion-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="9" y1="9" x2="15" y2="9"></line>
+                  <line x1="9" y1="15" x2="15" y2="15"></line>
+                </svg>
+              </span>
+              <span>{{ q }}</span>
+            </div>
+          </div>
+
+          <!-- 消息列表 -->
+          <div class="chat-messages">
+            <div v-for="(msg, index) in messages" :key="index" :class="['message', msg.type]">
+              <div class="message-avatar" v-if="msg.type === 'assistant'">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="9" y1="9" x2="15" y2="9"></line>
+                  <line x1="9" y1="15" x2="15" y2="15"></line>
+                </svg>
+              </div>
+              <div class="message-content">
+                <div class="message-text" v-html="formatMessage(msg.content)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-footer">
+          <div class="input-box">
+            <input 
+              type="text" 
+              v-model="inputMessage" 
+              placeholder="输入您的问题..." 
+              @keyup.enter="sendMessage"
+              ref="inputRef"
+            />
+            <button class="send-btn" :disabled="!inputMessage.trim()" @click="sendMessage">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import FilterModal from './FilterModal.vue';
 
@@ -306,9 +407,9 @@ const selectedFormat = ref('markdown');
 const isExportMode = ref(false);
 const selectedBuildings = ref<string[]>([]);
 
-// 筛选表单 - 只保留建筑状态筛选，删除时间范围
+// 筛选表单
 const filterForm = ref({
-  status: ''  // 全部/正常(normal)/异常(error)/告警(warning)
+  status: ''
 });
 
 const advancedFilters = ref<Record<string, any>>({});
@@ -335,7 +436,7 @@ const pagination = ref({
   total: 0
 });
 
-// 模拟数据（必须在计算属性之前定义）
+// 模拟数据
 interface BuildingItem {
   id: string;
   buildingId: string;
@@ -353,7 +454,7 @@ const mockData: BuildingItem[] = [
   { id: 'BLDG-HQ-A01', buildingId: 'BLDG-HQ-A01', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 1424.52, cop: 4.21, eui: 12.4, carbonEmission: 842.2 },
   { id: 'BLDG-RD-B04', buildingId: 'BLDG-RD-B04', site: 'BLDG-HQ-A01', status: 'warning', statusText: '告警状态', totalEnergy: 2108.88, cop: 3.15, eui: 18.2, carbonEmission: 1244.5 },
   { id: 'BLDG-DORM-01', buildingId: 'BLDG-DORM-01', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 852.12, cop: 4.88, eui: 9.1, carbonEmission: 504.2 },
-  { id: 'BLDG-PLANT-02', buildingId: 'BLDG-PLANT-02', site: 'BLDG-HQ-A01', status: 'error', statusText: '异常状态', totalEnergy: 3842.4, cop: 5.12, eui: 24.5, carbonEmission: 2284.1 },
+  { id: 'BLDG-PLANT-02', buildingId: 'BLDG-PLANT-02', site: 'BLDG-HQ-A01', status: 'error', statusText: '运行正常', totalEnergy: 3842.4, cop: 5.12, eui: 24.5, carbonEmission: 2284.1 },
   { id: 'BLDG-OFFICE-03', buildingId: 'BLDG-OFFICE-03', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 1650.0, cop: 3.8, eui: 15.0, carbonEmission: 980.0 },
   { id: 'BLDG-WORK-05', buildingId: 'BLDG-WORK-05', site: 'BLDG-HQ-A01', status: 'warning', statusText: '告警状态', totalEnergy: 3100.5, cop: 4.2, eui: 22.1, carbonEmission: 1850.3 },
   { id: 'BLDG-LAB-06', buildingId: 'BLDG-LAB-06', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 1200.8, cop: 3.9, eui: 8.5, carbonEmission: 720.5 },
@@ -370,7 +471,7 @@ const mockData: BuildingItem[] = [
 const filteredSortedData = computed(() => {
   let result = [...mockData];
   
-  // 状态筛选（与下拉框关联）
+  // 状态筛选
   if (filterForm.value.status) {
     result = result.filter(item => item.status === filterForm.value.status);
   }
@@ -385,46 +486,44 @@ const filteredSortedData = computed(() => {
   }
   
   // 排序
- result.sort((a, b) => {
-  let aVal: number | string;
-  let bVal: number | string;
-  
-  switch (sortConfig.value.field) {
-    case 'eui':
-      aVal = a.eui;
-      bVal = b.eui;
-      break;
-    case 'totalEnergy':
-      aVal = a.totalEnergy;
-      bVal = b.totalEnergy;
-      break;
-    case 'carbonEmission':  // 确保有碳排放的排序逻辑
-      aVal = a.carbonEmission;
-      bVal = b.carbonEmission;
-      break;
-    // 删除或注释掉原来的 status 排序，如果不再需要的话
-    // case 'status':
-    //   aVal = a.status;
-    //   bVal = b.status;
-    //   break;
-    default:
-      aVal = a.eui;
-      bVal = b.eui;
-  }
-  
-  // 数值类型的升序/降序比较（碳排放是数值，适用此逻辑）
-  if (typeof aVal === 'number' && typeof bVal === 'number') {
-    return sortConfig.value.order === 'asc' 
-      ? aVal - bVal  // 升序：从小到大
-      : bVal - aVal; // 降序：从大到小
-  }
-  
-  // 字符串类型的比较（备用）
-  if (aVal < bVal) return sortConfig.value.order === 'asc' ? -1 : 1;
-  if (aVal > bVal) return sortConfig.value.order === 'asc' ? 1 : -1;
-  return 0;
-});
-
+  result.sort((a, b) => {
+    let aVal: number | string;
+    let bVal: number | string;
+    
+    switch (sortConfig.value.field) {
+      case 'eui':
+        aVal = a.eui;
+        bVal = b.eui;
+        break;
+      case 'totalEnergy':
+        aVal = a.totalEnergy;
+        bVal = b.totalEnergy;
+        break;
+      case 'carbonEmission':
+        aVal = a.carbonEmission;
+        bVal = b.carbonEmission;
+        break;
+      case 'status':
+        // 系统状态排序：按状态优先级排序
+        const statusOrder = { 'error': 0, 'warning': 1, 'normal': 2 };
+        aVal = statusOrder[a.status] ?? 3;
+        bVal = statusOrder[b.status] ?? 3;
+        break;
+      default:
+        aVal = a.eui;
+        bVal = b.eui;
+    }
+    
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return sortConfig.value.order === 'asc' 
+        ? aVal - bVal
+        : bVal - aVal;
+    }
+    
+    if (aVal < bVal) return sortConfig.value.order === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortConfig.value.order === 'asc' ? 1 : -1;
+    return 0;
+  });
   
   return result;
 });
@@ -556,12 +655,87 @@ const clearAllAdvancedFilters = () => {
 const handleView = (item: BuildingItem) => router.push(`/building/${item.buildingId}`);
 const handleSuggest = (item: BuildingItem) => console.log('减排建议:', item.buildingId);
 const handleFault = (item: BuildingItem) => console.log('故障查询:', item.buildingId);
+
+// AI 助手相关状态
+const isChatOpen = ref(false);
+const inputMessage = ref('');
+const messages = ref<Array<{type: 'user' | 'assistant', content: string}>>([]);
+const unreadCount = ref(0);
+const chatBodyRef = ref<HTMLDivElement>();
+const inputRef = ref<HTMLInputElement>();
+
+const suggestions = [
+  '查找本周能耗异常的建筑',
+  '分析3号楼能耗高的原因',
+  '查询异常状态的建筑清单'
+];
+
+// 切换聊天窗口显示
+const toggleChat = () => {
+  isChatOpen.value = !isChatOpen.value;
+  if (isChatOpen.value) {
+    nextTick(() => {
+      inputRef.value?.focus();
+      scrollToBottom();
+    });
+  }
+};
+
+// 发送预设消息
+const sendPresetMessage = (text: string) => {
+  inputMessage.value = text;
+  sendMessage();
+};
+
+// 发送消息
+const sendMessage = async () => {
+  const text = inputMessage.value.trim();
+  if (!text) return;
+  
+  // 添加用户消息
+  messages.value.push({ type: 'user', content: text });
+  inputMessage.value = '';
+  scrollToBottom();
+  
+  // 模拟 AI 回复
+  setTimeout(() => {
+    const reply = generateReply(text);
+    messages.value.push({ type: 'assistant', content: reply });
+    scrollToBottom();
+  }, 1000);
+};
+
+// 简单的回复逻辑
+const generateReply = (question: string): string => {
+  if (question.includes('3号') || question.includes('3号楼')) {
+    return '根据《<a href="#" style="color:#005BAC;text-decoration:underline;">中央机房维保指南</a>》和上周运行数据，3号楼能耗异常主要是因为冷却水泵运行效率低于设计值，建议检查过滤器是否堵塞。';
+  }
+  if (question.includes('异常')) {
+    return '检测到当前有 <strong>3 处异常</strong>：<br>1. BLDG-PLANT-02：冷却系统 COP 低于 3.5<br>2. BLDG-CLUB-08：能耗超标 15%<br>3. BLDG-MALL-11：碳排放异常';
+  }
+  return `已收到您的问题："${question}"，正在为您查询相关数据...`;
+};
+
+// 滚动到底部
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (chatBodyRef.value) {
+      chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight;
+    }
+  });
+};
+
+// 格式化消息（支持简单的 HTML）
+const formatMessage = (content: string) => {
+  return content.replace(/\n/g, '<br>');
+};
+
 </script>
 
 <style scoped>
 .query-page {
-  min-height: 100%;  /* ← 改为 100%，不再强制撑开视口 */
-  overflow-y: auto;    /* 保留：内容超出时内部滚动 */
+  min-height: 100%;
+  overflow-y: auto;
   margin-left: 20px;
   width: calc(100% - 20px);
   box-sizing: border-box;
@@ -696,24 +870,24 @@ h1 {
   background: #004a8d;
 }
 
-.btn-default {
-  background: #F3F4F6;
-  color: #374151;
-  border: 1px solid #D1D5DB;
+.btn-primary-dark {
+  background: #002B54;
+  color: white;
 }
 
-.btn-default:hover {
-  background: #E5E7EB;
+.btn-primary-dark:hover {
+  background: #001f3d;
 }
 
 .btn-outline {
   background: white;
-  color: #005BAC;
-  border: 1px solid #005BAC;
+  color: #374151;
+  border: 1px solid #D1D5DB;
 }
 
 .btn-outline:hover {
-  background: #F0F7FF;
+  background: #F3F4F6;
+  border-color: #9CA3AF;
 }
 
 /* 已激活的筛选标签 */
@@ -798,16 +972,17 @@ h1 {
 .sort-tag {
   padding: 8px 16px;
   border: none;
-  background: #F5F5F5;
+  background: #F3F4F6;
   border-radius: 20px;
   cursor: pointer;
   font-size: 14px;
-  color: #666;
+  color: #374151;
   transition: all 0.2s;
+  font-weight: 500;
 }
 
 .sort-tag:hover {
-  background: #E8E8E8;
+  background: #E5E7EB;
 }
 
 .sort-tag.active {
@@ -1245,6 +1420,307 @@ h1 {
   border-radius: 0 0 8px 8px;
 }
 
+/* AI 助手容器 */
+.ai-assistant-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.ai-float-btn {
+  pointer-events: auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #005BAC;
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 91, 172, 0.4);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.ai-float-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 91, 172, 0.5);
+}
+
+.ai-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 20px;
+  height: 20px;
+  background: #FF4D4F;
+  border-radius: 50%;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+/* 聊天弹窗 */
+.ai-chat-popup {
+  pointer-events: auto;
+  position: absolute;
+  bottom: 70px;
+  right: 0;
+  width: 380px;
+  height: 520px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 聊天头部 */
+.chat-header {
+  background: #002B54;
+  color: white;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat-icon {
+  width: 40px;
+  height: 40px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.chat-info h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.chat-status {
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.status-dot-online {
+  width: 6px;
+  height: 6px;
+  background: #52C41A;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.chat-close {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.chat-close:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+/* 聊天内容区 */
+.chat-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background: #F5F7FA;
+}
+
+.chat-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.suggestion-item {
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.suggestion-item:hover {
+  border-color: #005BAC;
+  box-shadow: 0 2px 8px rgba(0, 91, 172, 0.1);
+  transform: translateY(-1px);
+}
+
+.suggestion-icon {
+  color: #9CA3AF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 消息列表 */
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.message {
+  display: flex;
+  gap: 10px;
+  max-width: 85%;
+}
+
+.message.user {
+  margin-left: auto;
+  flex-direction: row-reverse;
+}
+
+.message.assistant {
+  margin-right: auto;
+}
+
+.message-avatar {
+  width: 32px;
+  height: 32px;
+  background: #005BAC;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+}
+
+.message-content {
+  background: white;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1F2937;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.message.user .message-content {
+  background: #005BAC;
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.message.assistant .message-content {
+  background: white;
+  border-bottom-left-radius: 4px;
+}
+
+.message-text a {
+  color: #005BAC;
+  text-decoration: underline;
+}
+
+/* 输入区 */
+.chat-footer {
+  padding: 16px 20px;
+  background: white;
+  border-top: 1px solid #E5E7EB;
+}
+
+.input-box {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.input-box input {
+  flex: 1;
+  height: 40px;
+  border: 1px solid #D1D5DB;
+  border-radius: 20px;
+  padding: 0 16px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-box input:focus {
+  border-color: #005BAC;
+}
+
+.send-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #005BAC;
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.send-btn:hover:not(:disabled) {
+  background: #004a8d;
+  transform: scale(1.05);
+}
+
+.send-btn:disabled {
+  background: #D1D5DB;
+  cursor: not-allowed;
+}
+
+/* 响应式适配 */
 @media (max-width: 768px) {
   .query-page {
     margin-left: 0;
@@ -1266,6 +1742,15 @@ h1 {
   .card-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .ai-chat-popup {
+    width: calc(100vw - 40px);
+    height: 60vh;
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    left: 20px;
   }
 }
 </style>

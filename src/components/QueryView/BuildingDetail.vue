@@ -839,7 +839,7 @@ onMounted(() => {
 
 <style scoped>
 .building-detail {
-  min-height: 100vh;
+  min-height: 100%;
   background: #f5f7fa;
   padding: 24px;
 }
