@@ -8,7 +8,7 @@
       <div class="header-info">
         <h3>{{ anomaly.title || anomaly.building_id }}</h3>
         <div class="header-tags">
-          <span class="tag severity" :class="anomaly.severity">{{ severityLabel(anomaly.severity) }}</span>
+          <span class="tag severity" :class="severityClass(anomaly.severity)">{{ severityLabel(anomaly.severity) }}</span>
           <span class="tag meter-tag">
             <Icon icon="lucide:gauge" class="tag-icon" /> {{ meterLabel(anomaly.meter) }}
           </span>
@@ -35,20 +35,19 @@
 
     <!-- Content -->
     <div v-else-if="detail" class="detail-content">
-      <!-- 分析概况 -->
-      <div class="summary-card" :class="{ anomalous: detail.is_anomalous }">
+      <!-- 分析概况：已被离线检测标记为异常 -->
+      <div class="summary-card anomalous">
         <div class="summary-status">
-          <Icon
-            :icon="detail.is_anomalous ? 'lucide:triangle-alert' : 'lucide:check-circle'"
-            class="status-icon"
-          />
-          <span class="status-text">{{ detail.is_anomalous ? '检测到异常' : '数据正常' }}</span>
+          <Icon icon="lucide:triangle-alert" class="status-icon" />
+          <span class="status-text">离线检测已标记异常</span>
+          <span class="severity-inline" :class="severityClass(anomaly!.severity)">{{ severityLabel(anomaly!.severity) }}</span>
         </div>
+        <p class="summary-title">{{ anomaly!.title }}</p>
         <p class="summary-desc">{{ detail.summary }}</p>
         <div class="summary-stats" v-if="detail.event_count">
           <div class="stat">
             <span class="stat-value">{{ detail.event_count }}</span>
-            <span class="stat-label">异常事件</span>
+            <span class="stat-label">时序异常事件</span>
           </div>
           <div v-if="detail.detector_breakdown?.length" class="stat" v-for="db in detail.detector_breakdown" :key="db.detected_by">
             <span class="stat-value">{{ db.count }}</span>
@@ -63,7 +62,11 @@
           <Icon icon="lucide:line-chart" class="label-icon" />
           能耗偏差曲线
         </div>
-        <div ref="chartRef" class="chart-container"></div>
+        <div v-if="!hasChartData" class="chart-empty">
+          <Icon icon="lucide:bar-chart-3" class="chart-empty-icon" />
+          <span>暂无能耗数据</span>
+        </div>
+        <div v-else ref="chartRef" class="chart-container"></div>
       </div>
 
       <!-- 事件时间线 -->
@@ -79,7 +82,7 @@
             :key="ev.event_id"
             class="event-item"
           >
-            <div class="event-dot" :class="ev.severity"></div>
+            <div class="event-dot" :class="severityClass(ev.severity)"></div>
             <div class="event-body">
               <div class="event-title">{{ ev.description }}</div>
               <div class="event-meta">
@@ -120,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import * as echarts from 'echarts'
 import AIDiagnosis from './AIDiagnosis.vue'
@@ -153,23 +156,54 @@ defineEmits<{
 const chartRef = ref<HTMLDivElement>()
 let chartInstance: echarts.ECharts | null = null
 
+// 检查是否有真实数据可绘图
+const hasChartData = computed(() => {
+  return props.detail?.series?.points?.length && props.detail.series.points.length > 0
+})
+
 const renderChart = () => {
-  if (!chartRef.value || !props.detail?.series) return
+  if (!chartRef.value || !props.detail?.series?.points?.length) return
 
   if (chartInstance) chartInstance.dispose()
   chartInstance = echarts.init(chartRef.value)
 
   const s = props.detail.series
-  const timestamps = s.timestamps?.map(t => {
-    const d = new Date(t)
-    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:00`
-  }) || []
+  const points = s.points
 
-  const series: any[] = [
+  // 从 points 数组提取 timestamps 和 values
+  const timestamps = points.map(p => {
+    const d = new Date(p.timestamp)
+    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:00`
+  })
+  const values = points.map(p => p.value)
+
+  // 检测异常点（来自 detected_events 的时间范围）
+  const anomalyMarkers: any[] = []
+  if (props.detail.detected_events?.length) {
+    for (const ev of props.detail.detected_events) {
+      const evStart = new Date(ev.start_time).getTime()
+      const evEnd = new Date(ev.end_time).getTime()
+      for (let i = 0; i < points.length; i++) {
+        const pt = points[i]
+        if (!pt) continue
+        const t = new Date(pt.timestamp).getTime()
+        if (t >= evStart && t <= evEnd) {
+          anomalyMarkers.push({
+            coord: [i, pt.value],
+            itemStyle: {
+              color: ev.severity === 'high' ? '#ef4444' : ev.severity === 'medium' ? '#f59e0b' : '#22c55e'
+            }
+          })
+        }
+      }
+    }
+  }
+
+  const seriesData: any[] = [
     {
-      name: '实际值',
+      name: '实际能耗',
       type: 'line',
-      data: s.values || [],
+      data: values,
       smooth: true,
       lineStyle: { width: 2, color: '#0b4582' },
       itemStyle: { color: '#0b4582' },
@@ -179,39 +213,14 @@ const renderChart = () => {
           { offset: 1, color: 'rgba(11, 69, 130, 0.01)' }
         ])
       },
-      symbol: 'none'
+      symbol: 'none',
+      markPoint: anomalyMarkers.length ? {
+        data: anomalyMarkers,
+        symbol: 'circle',
+        symbolSize: 8
+      } : undefined
     }
   ]
-
-  if (s.baseline_values?.length) {
-    series.push({
-      name: '基线值',
-      type: 'line',
-      data: s.baseline_values,
-      smooth: true,
-      lineStyle: { width: 1.5, color: '#94a3b8', type: 'dashed' },
-      itemStyle: { color: '#94a3b8' },
-      symbol: 'none'
-    })
-  }
-
-  // 异常点标记
-  if (s.anomaly_points?.length) {
-    const anomalyData = s.anomaly_points.map(p => {
-      const idx = s.timestamps.findIndex(t => t === p.timestamp)
-      return {
-        coord: [idx >= 0 ? idx : 0, p.actual_value],
-        itemStyle: {
-          color: p.severity === 'high' ? '#ef4444' : p.severity === 'medium' ? '#f59e0b' : '#22c55e'
-        }
-      }
-    })
-    series[0].markPoint = {
-      data: anomalyData,
-      symbol: 'circle',
-      symbolSize: 8
-    }
-  }
 
   chartInstance.setOption({
     tooltip: {
@@ -241,7 +250,7 @@ const renderChart = () => {
       axisLabel: { fontSize: 10, color: '#999' },
       splitLine: { lineStyle: { color: '#f0f0f0', type: 'dashed' } }
     },
-    series
+    series: seriesData
   })
 }
 
@@ -259,7 +268,17 @@ onUnmounted(() => {
 })
 
 // ─── Utils ───────────────────────────────────────
-const severityLabel = (s: string) => ({ high: '严重', medium: '中级', low: '低级' }[s] || s)
+const SEVERITY_MAP: Record<string, { label: string; cls: string }> = {
+  critical: { label: '严重', cls: 'critical' },
+  high: { label: '严重', cls: 'high' },
+  medium: { label: '中级', cls: 'medium' },
+  warning: { label: '警告', cls: 'medium' },
+  low: { label: '低级', cls: 'low' },
+  info: { label: '信息', cls: 'low' }
+}
+const severityLabel = (s: string) => SEVERITY_MAP[s]?.label || s
+const severityClass = (s: string) => SEVERITY_MAP[s]?.cls || 'low'
+
 const meterLabel = (m?: string) => {
   const map: Record<string, string> = {
     electricity: '电力', water: '用水', gas: '燃气', steam: '蒸汽',
@@ -290,11 +309,6 @@ const formatRange = (start: string, end: string) => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  animation: slideIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-}
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(16px); }
-  to { opacity: 1; transform: translateX(0); }
 }
 
 /* Header */
@@ -337,6 +351,7 @@ const formatRange = (start: string, end: string) => {
   gap: 4px;
 }
 .tag-icon { font-size: 12px; display: flex; }
+.severity.critical { background: #fef2f2; color: #b91c1c; }
 .severity.high { background: #fef2f2; color: #dc2626; }
 .severity.medium { background: #fffbeb; color: #d97706; }
 .severity.low { background: #f0fdf4; color: #16a34a; }
@@ -377,23 +392,29 @@ const formatRange = (start: string, end: string) => {
 .summary-card {
   padding: 18px 20px;
   border-radius: 14px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-}
-.summary-card.anomalous {
   background: #fef2f2;
-  border-color: #fecaca;
+  border: 1px solid #fecaca;
 }
 .summary-status {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
 }
-.status-icon { font-size: 20px; display: flex; }
-.summary-card.anomalous .status-icon { color: #ef4444; }
-.summary-card:not(.anomalous) .status-icon { color: #22c55e; }
+.status-icon { font-size: 20px; display: flex; color: #ef4444; }
 .status-text { font-size: 15px; font-weight: 700; color: #111; }
+.severity-inline {
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+.severity-inline.critical { background: #fecaca; color: #b91c1c; }
+.severity-inline.high { background: #fecaca; color: #dc2626; }
+.severity-inline.medium { background: #fef3c7; color: #d97706; }
+.severity-inline.low { background: #dcfce7; color: #16a34a; }
+.summary-title { margin: 0 0 6px; font-size: 14px; font-weight: 700; color: #222; line-height: 1.5; }
 .summary-desc { margin: 0; font-size: 13px; color: #555; line-height: 1.7; }
 
 .summary-stats {
@@ -430,6 +451,17 @@ const formatRange = (start: string, end: string) => {
   width: 100%;
   height: 260px;
 }
+.chart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 180px;
+  color: #aaa;
+  font-size: 13px;
+}
+.chart-empty-icon { font-size: 32px; display: flex; color: #ccc; }
 
 /* Event timeline */
 .event-count {
@@ -462,6 +494,7 @@ const formatRange = (start: string, end: string) => {
   margin-top: 5px;
   flex-shrink: 0;
 }
+.event-dot.critical { background: #b91c1c; }
 .event-dot.high { background: #ef4444; }
 .event-dot.medium { background: #f59e0b; }
 .event-dot.low { background: #22c55e; }

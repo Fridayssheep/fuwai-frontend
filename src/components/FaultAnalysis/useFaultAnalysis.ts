@@ -1,4 +1,5 @@
 import { ref, reactive, computed, onUnmounted } from 'vue'
+import { getCurrentTimeString } from '../../utils/timeManager'
 import {
   triggerDetection,
   getDashboardOverview,
@@ -15,7 +16,34 @@ import {
   type AICandidateCause
 } from '../../api/anomaly'
 
+export type ChartRange = 'day' | 'week' | 'month'
+
 export function useFaultAnalysis() {
+  // ─── 时间范围选择 ──────────────────────────────────
+  const chartRange = ref<ChartRange>('week')
+
+  const RANGE_MS: Record<ChartRange, number> = {
+    day: 1 * 86400000,
+    week: 7 * 86400000,
+    month: 30 * 86400000
+  }
+
+  /** 根据 timeManager 的"现在时间"和选中范围计算时间区间 */
+  const getTimeRange = () => {
+    const now = new Date(getCurrentTimeString())
+    const start = new Date(now.getTime() - RANGE_MS[chartRange.value])
+    return {
+      end_time: now.toISOString(),
+      start_time: start.toISOString()
+    }
+  }
+
+  /** 切换范围并自动重新拉取 */
+  const setChartRange = (range: ChartRange) => {
+    chartRange.value = range
+    fetchOverview()
+  }
+
   // ─── 概览数据 ──────────────────────────────────────
   const overviewLoading = ref(false)
   const overviewError = ref('')
@@ -27,7 +55,12 @@ export function useFaultAnalysis() {
     overviewLoading.value = true
     overviewError.value = ''
     try {
-      const res = await getDashboardOverview() as any
+      const { start_time, end_time } = getTimeRange()
+      const res = await getDashboardOverview({
+        start_time,
+        end_time,
+        chart_range: chartRange.value
+      }) as any
       overview.value = res
     } catch (err: any) {
       console.error('获取异常总览失败:', err)
@@ -99,13 +132,16 @@ export function useFaultAnalysis() {
 
     try {
       // 用异常的 building_id 和 meter 请求详细分析
+      // 时间范围：以异常发生时间为中心，前3天到后30天作为分析窗口
+      const anomalyStart = new Date(anomaly.start_time)
+      const rangeStart = new Date(anomalyStart.getTime() - 3 * 86400000)
+      const rangeEnd = new Date(anomalyStart.getTime() + 30 * 86400000)
       const res = await getAnomalyAnalysis({
         building_id: anomaly.building_id,
         meter: anomaly.meter || 'electricity',
         time_range: {
-          start: anomaly.start_time,
-          // 默认分析到开始时间的 7 天后
-          end: new Date(new Date(anomaly.start_time).getTime() + 7 * 86400000).toISOString()
+          start: rangeStart.toISOString(),
+          end: rangeEnd.toISOString()
         }
       }) as any
       detailData.value = res
@@ -205,9 +241,9 @@ export function useFaultAnalysis() {
     const list = anomalyList.value
     return {
       total: list.length,
-      high: list.filter(a => a.severity === 'high').length,
-      medium: list.filter(a => a.severity === 'medium').length,
-      low: list.filter(a => a.severity === 'low').length
+      high: list.filter(a => a.severity === 'high' || a.severity === 'critical').length,
+      medium: list.filter(a => a.severity === 'medium' || a.severity === 'warning').length,
+      low: list.filter(a => a.severity === 'low' || a.severity === 'info').length
     }
   })
 
@@ -217,6 +253,9 @@ export function useFaultAnalysis() {
   })
 
   return {
+    // 时间范围
+    chartRange,
+    setChartRange,
     // 概览
     overviewLoading,
     overviewError,

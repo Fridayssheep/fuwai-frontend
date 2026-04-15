@@ -20,7 +20,7 @@
         @click="$emit('select', item)"
         :style="{ animationDelay: `${idx * 40}ms` }"
       >
-        <div class="severity-dot" :class="item.severity"></div>
+        <div class="severity-dot" :class="severityClass(item.severity)"></div>
         <div class="item-body">
           <div class="item-title">{{ item.title || item.building_id }}</div>
           <div class="item-meta">
@@ -34,7 +34,7 @@
             </span>
           </div>
         </div>
-        <div class="severity-badge" :class="item.severity">
+        <div class="severity-badge" :class="severityClass(item.severity)">
           {{ severityLabel(item.severity) }}
         </div>
         <Icon icon="lucide:chevron-right" class="item-arrow" />
@@ -70,10 +70,16 @@ const meterLabel = (meter?: string) => {
   return map[meter || ''] || meter || '未知'
 }
 
-const severityLabel = (s: string) => {
-  const map: Record<string, string> = { high: '严重', medium: '中级', low: '低级' }
-  return map[s] || s
+const SEVERITY_MAP: Record<string, { label: string; cls: string }> = {
+  critical: { label: '严重', cls: 'critical' },
+  high: { label: '严重', cls: 'high' },
+  medium: { label: '中级', cls: 'medium' },
+  warning: { label: '警告', cls: 'medium' },
+  low: { label: '低级', cls: 'low' },
+  info: { label: '信息', cls: 'low' }
 }
+const severityLabel = (s: string) => SEVERITY_MAP[s]?.label || s
+const severityClass = (s: string) => SEVERITY_MAP[s]?.cls || 'low'
 
 const formatTime = (iso: string) => {
   try {
@@ -90,7 +96,6 @@ const formatTime = (iso: string) => {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
-  min-height: 0;
 }
 
 .panel-header {
@@ -121,7 +126,7 @@ const formatTime = (iso: string) => {
 
 .empty-state {
   text-align: center;
-  padding: 60px 20px;
+  padding: 40px 20px;
   color: #999;
 }
 .empty-icon {
@@ -141,10 +146,12 @@ const formatTime = (iso: string) => {
   color: #aaa;
 }
 
+/* 最多显示5条，少于5条时自适应内容高度 */
 .list-scroll {
-  flex: 1;
   overflow-y: auto;
   padding: 8px 12px 12px;
+  /* 每个 item 约 70px 高（14px padding*2 + 内容），最多 5 条 + 一些间距 */
+  max-height: 390px;
 }
 
 .anomaly-item {
@@ -179,6 +186,7 @@ const formatTime = (iso: string) => {
   border-radius: 50%;
   flex-shrink: 0;
 }
+.severity-dot.critical { background: #b91c1c; box-shadow: 0 0 6px rgba(185, 28, 28, 0.4); }
 .severity-dot.high { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
 .severity-dot.medium { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
 .severity-dot.low { background: #22c55e; box-shadow: 0 0 6px rgba(34, 197, 94, 0.4); }
@@ -214,6 +222,7 @@ const formatTime = (iso: string) => {
   font-weight: 700;
   flex-shrink: 0;
 }
+.severity-badge.critical { background: #fef2f2; color: #b91c1c; }
 .severity-badge.high { background: #fef2f2; color: #dc2626; }
 .severity-badge.medium { background: #fffbeb; color: #d97706; }
 .severity-badge.low { background: #f0fdf4; color: #16a34a; }

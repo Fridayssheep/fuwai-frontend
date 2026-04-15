@@ -10,6 +10,19 @@
         <span class="page-subtitle">建筑能源异常检测与 AI 智能诊断</span>
       </div>
       <div class="header-right">
+        <!-- 时间范围切换 -->
+        <div class="range-selector">
+          <button
+            v-for="r in rangeOptions"
+            :key="r.value"
+            class="range-btn"
+            :class="{ active: chartRange === r.value }"
+            @click="setChartRange(r.value)"
+          >
+            {{ r.label }}
+          </button>
+        </div>
+
         <button
           class="trigger-btn"
           :class="{ running: detecting }"
@@ -45,10 +58,10 @@
     <!-- KPI 概览卡片 -->
     <OverviewCards :stats="severityStats" />
 
-    <!-- 主内容区 -->
-    <div class="main-area" :class="{ 'has-detail': !!selectedAnomaly }">
-      <!-- 左侧列表 -->
-      <div class="list-column">
+    <!-- 主内容区：flexbox 布局，避免 grid 切换导致闪跳 -->
+    <div class="main-area">
+      <!-- 列表列 -->
+      <div class="list-column" :class="{ shrink: !!selectedAnomaly }">
         <div v-if="overviewLoading && anomalyList.length === 0" class="loading-placeholder">
           <Icon icon="lucide:loader-2" class="spin-icon" />
           <span>加载中…</span>
@@ -66,38 +79,27 @@
         />
       </div>
 
-      <!-- 右侧详情 -->
-      <Transition name="detail-slide">
-        <div v-if="selectedAnomaly" class="detail-column" :key="selectedAnomaly.anomaly_id">
-          <AnomalyDetail
-            :anomaly="selectedAnomaly"
-            :loading="detailLoading"
-            :error="detailError"
-            :detail="detailData"
-            :aiLoading="aiLoading"
-            :aiError="aiError"
-            :aiResult="aiResult"
-            :selectedCause="selectedCause"
-            :feedbackLoading="feedbackLoading"
-            :feedbackError="feedbackError"
-            :feedbackResult="feedbackResult"
-            :feedbackComment="feedbackComment"
-            @close="clearSelection"
-            @runAI="runAIDiagnosis"
-            @selectCause="selectCause"
-            @submitFeedback="submitFeedback"
-            @update:feedbackComment="(v: string) => feedbackComment = v"
-          />
-        </div>
-      </Transition>
-
-      <!-- 未选中空状态 -->
-      <div v-if="!selectedAnomaly && anomalyList.length > 0" class="empty-detail">
-        <div class="empty-visual">
-          <Icon icon="lucide:mouse-pointer-click" class="empty-icon" />
-        </div>
-        <p>选择左侧异常项查看详情</p>
-        <span>点击异常条目以加载完整分析数据与 AI 诊断</span>
+      <!-- 详情列 -->
+      <div v-if="selectedAnomaly" class="detail-column" :key="selectedAnomaly.anomaly_id">
+        <AnomalyDetail
+          :anomaly="selectedAnomaly"
+          :loading="detailLoading"
+          :error="detailError"
+          :detail="detailData"
+          :aiLoading="aiLoading"
+          :aiError="aiError"
+          :aiResult="aiResult"
+          :selectedCause="selectedCause"
+          :feedbackLoading="feedbackLoading"
+          :feedbackError="feedbackError"
+          :feedbackResult="feedbackResult"
+          :feedbackComment="feedbackComment"
+          @close="clearSelection"
+          @runAI="runAIDiagnosis"
+          @selectCause="selectCause"
+          @submitFeedback="submitFeedback"
+          @update:feedbackComment="(v: string) => feedbackComment = v"
+        />
       </div>
     </div>
   </div>
@@ -110,9 +112,17 @@ import OverviewCards from './OverviewCards.vue'
 import AnomalyList from './AnomalyList.vue'
 import AnomalyDetail from './AnomalyDetail.vue'
 import ProgressOverlay from './ProgressOverlay.vue'
-import { useFaultAnalysis } from './useFaultAnalysis'
+import { useFaultAnalysis, type ChartRange } from './useFaultAnalysis'
+
+const rangeOptions: { value: ChartRange; label: string }[] = [
+  { value: 'day', label: '近 1 天' },
+  { value: 'week', label: '近 1 周' },
+  { value: 'month', label: '近 1 月' }
+]
 
 const {
+  chartRange,
+  setChartRange,
   overviewLoading,
   overviewError,
   anomalyList,
@@ -181,6 +191,44 @@ onMounted(() => {
 
 .header-right { display: flex; gap: 10px; align-items: center; }
 
+/* Range selector */
+.range-selector {
+  display: flex;
+  background: white;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.range-btn {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+.range-btn:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20%;
+  height: 60%;
+  width: 1px;
+  background: #e2e8f0;
+}
+.range-btn:hover {
+  color: #0b4582;
+  background: #f8faff;
+}
+.range-btn.active {
+  background: #0b4582;
+  color: white;
+}
+.range-btn.active::after { display: none; }
+
 .trigger-btn {
   display: flex;
   align-items: center;
@@ -240,29 +288,33 @@ onMounted(() => {
 }
 .de-icon { font-size: 16px; display: flex; }
 
-/* Main area */
+/* Main area — flexbox instead of grid to avoid reflow flash */
 .main-area {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
   gap: 20px;
   flex: 1;
   min-height: 0;
 }
-.main-area.has-detail {
-  grid-template-columns: 380px 1fr;
-}
 
 .list-column {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
+  flex: 1;
+  min-width: 0;
+  transition: flex 0.3s ease;
+}
+.list-column.shrink {
+  flex: 0 0 380px;
+  max-width: 380px;
 }
 
 .detail-column {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
+  flex: 1;
+  min-width: 0;
   overflow-y: auto;
+  animation: detailFadeIn 0.3s ease;
+}
+@keyframes detailFadeIn {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 /* Loading / error placeholders */
@@ -296,59 +348,13 @@ onMounted(() => {
   cursor: pointer;
 }
 
-/* Empty detail */
-.empty-detail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-  padding: 60px 20px;
-}
-.empty-visual {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: #eff6ff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 8px;
-}
-.empty-icon { font-size: 32px; color: #0b4582; display: flex; }
-.empty-detail p {
-  margin: 0;
-  font-size: 15px;
-  color: #555;
-  font-weight: 600;
-}
-.empty-detail span {
-  font-size: 12px;
-  color: #aaa;
-}
-
-/* Detail slide transition */
-.detail-slide-enter-active {
-  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.detail-slide-leave-active {
-  transition: all 0.25s ease;
-}
-.detail-slide-enter-from {
-  opacity: 0;
-  transform: translateX(20px);
-}
-.detail-slide-leave-to {
-  opacity: 0;
-  transform: translateX(20px);
-}
-
 @media (max-width: 900px) {
-  .main-area.has-detail {
-    grid-template-columns: 1fr;
+  .main-area {
+    flex-direction: column;
+  }
+  .list-column.shrink {
+    flex: none;
+    max-width: none;
   }
   .fault-analysis-page {
     padding: 16px;

@@ -18,7 +18,7 @@
         <span class="kpi-label">严重</span>
         <span class="kpi-value">{{ stats.high }}</span>
       </div>
-      <div class="kpi-bar">
+      <div v-if="stats.total > 0" class="kpi-bar">
         <div class="kpi-bar-fill high-fill" :style="{ width: barWidth(stats.high) }"></div>
       </div>
     </div>
@@ -31,7 +31,7 @@
         <span class="kpi-label">中级</span>
         <span class="kpi-value">{{ stats.medium }}</span>
       </div>
-      <div class="kpi-bar">
+      <div v-if="stats.total > 0" class="kpi-bar">
         <div class="kpi-bar-fill medium-fill" :style="{ width: barWidth(stats.medium) }"></div>
       </div>
     </div>
@@ -44,7 +44,7 @@
         <span class="kpi-label">低级</span>
         <span class="kpi-value">{{ stats.low }}</span>
       </div>
-      <div class="kpi-bar">
+      <div v-if="stats.total > 0" class="kpi-bar">
         <div class="kpi-bar-fill low-fill" :style="{ width: barWidth(stats.low) }"></div>
       </div>
     </div>

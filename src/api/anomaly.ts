@@ -67,14 +67,18 @@ export interface DetectedAnomalyPoint {
   severity: 'low' | 'medium' | 'high'
 }
 
+export interface EnergyPoint {
+  timestamp: string
+  building_id?: string | null
+  meter?: string | null
+  value: number
+}
+
 export interface EnergySeries {
   building_id?: string | null
   meter: string
   unit?: string | null
-  timestamps: string[]
-  values: number[]
-  baseline_values?: number[]
-  anomaly_points?: DetectedAnomalyPoint[]
+  points: EnergyPoint[]
 }
 
 export interface EnergyAnomalyAnalysisResponse {
@@ -221,13 +225,16 @@ export const getDashboardOverview = (params?: {
   chart_range?: 'day' | 'week' | 'month'
 }) => {
   return request.get<DashboardOverviewResponse>('/dashboard/overview', {
-    params: { chart_range: 'week', ...params }
+    params: { chart_range: 'week', ...params },
+    timeout: 60000 // 大数据量分析后响应可能较慢
   })
 }
 
 /** 获取建筑异常分析详情 */
 export const getAnomalyAnalysis = (data: EnergyAnomalyAnalysisRequest) => {
-  return request.post<EnergyAnomalyAnalysisResponse>('/energy/anomaly-analysis', data)
+  return request.post<EnergyAnomalyAnalysisResponse>('/energy/anomaly-analysis', data, {
+    timeout: 60000 // 异常分析可能涉及大量数据计算
+  })
 }
 
 /** AI 故障诊断 */

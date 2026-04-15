@@ -65,8 +65,8 @@ watch(() => props.currentMessage, (msg) => {
   // 匹配 "进度: 123/456" 或 "进度：123/456" 格式
   const match = msg.match(/进度[：:]\s*(\d+)\s*\/\s*(\d+)/)
   if (match) {
-    progressCurrent.value = parseInt(match[1], 10)
-    progressTotal.value = parseInt(match[2], 10)
+    progressCurrent.value = parseInt(match[1] || '0', 10)
+    progressTotal.value = parseInt(match[2] || '0', 10)
   }
 })
 
