@@ -37,3 +37,5 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+# Openapi Docs
+Building Energy AI & Backend API.openapi.json

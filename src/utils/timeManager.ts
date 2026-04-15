@@ -8,11 +8,23 @@ interface TimeState {
   timezone: string | null;
 }
 
-const state = reactive<TimeState>({
-  isCustomTime: false,
-  timeOffset: 0,
-  timezone: null,
-});
+const STORAGE_KEY = 'fw_time_manager_state';
+
+const loadState = (): TimeState => {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch { }
+  }
+  return { isCustomTime: false, timeOffset: 0, timezone: null };
+};
+
+const state = reactive<TimeState>(loadState());
+
+const saveState = () => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+};
 
 /**
  * 获取当前时间字符串
@@ -20,10 +32,10 @@ const state = reactive<TimeState>({
  */
 export const getCurrentTimeString = (): string => {
   if (!state.isCustomTime) {
-    return new Date().toISOString();
+    const d = new Date();
+    // 原生返回类似 2026-04-10T10:00:00.000Z，或者基于时区返回带偏移的串
+    return d.toISOString();
   }
-  const fakeTimeMillis = Date.now() + state.stateOffset;
-  // 这里修复个小typo, 直接用 state.timeOffset
   return new Date(Date.now() + state.timeOffset).toISOString();
 };
 
@@ -38,6 +50,7 @@ export const startCustomTime = (customTime: string, timezone: string | null = nu
   state.isCustomTime = true;
   state.timeOffset = targetTime - now;
   state.timezone = timezone;
+  saveState();
 };
 
 /**
@@ -47,6 +60,7 @@ export const resetToNaturalTime = () => {
   state.isCustomTime = false;
   state.timeOffset = 0;
   state.timezone = null;
+  saveState();
 };
 
 /**

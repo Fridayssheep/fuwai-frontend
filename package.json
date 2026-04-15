@@ -11,6 +11,7 @@
     "type-check": "vue-tsc --build"
   },
   "dependencies": {
+    "@iconify/vue": "^5.0.0",
     "axios": "^1.15.0",
     "echarts": "^6.0.0",
     "vue": "^3.5.31",
