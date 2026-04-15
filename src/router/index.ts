@@ -3,6 +3,7 @@ import Setting from '../components/Setting.vue'
 import MainContent from '../components/MainContent.vue'
 import KnowledgeBase from '../components/KnowledgeBase/index.vue'
 import FaultAnalysis from '../components/FaultAnalysis/index.vue'
+import QueryView from '../components/QueryView/index.vue'
 
 const routes = [
   {
@@ -24,6 +25,18 @@ const routes = [
     path: '/fault-analysis',
     name: 'FaultAnalysis',
     component: FaultAnalysis
+  },
+  {
+  path: '/query',
+  name: 'Query',
+  component: QueryView
+  },
+  {
+    path: '/building/:id',
+    name: 'BuildingDetail',
+    // 注意路径指向 components/QueryView
+    component: () => import('../components/QueryView/BuildingDetail.vue'),
+    meta: { title: '建筑详情' }
   }
 ]
 
