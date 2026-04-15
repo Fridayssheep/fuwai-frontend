@@ -17,10 +17,10 @@ import { Icon } from '@iconify/vue'
         <Icon icon="lucide:layout-dashboard" class="icon" />
         <span class="nav-text">首页</span>
       </router-link>
-      <a href="#" class="nav-item">
+      <router-link to="/query" class="nav-item" exact-active-class="active">
         <Icon icon="lucide:search" class="icon" />
         <span class="nav-text">查询</span>
-      </a>
+      </router-link>
       <router-link to="/statistics" class="nav-item" exact-active-class="active">
         <Icon icon="lucide:bar-chart-2" class="icon" />
         <span class="nav-text">统计</span>
