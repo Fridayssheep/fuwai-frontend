@@ -21,10 +21,10 @@ import { Icon } from '@iconify/vue'
         <Icon icon="lucide:search" class="icon" />
         <span class="nav-text">查询</span>
       </router-link>
-      <a href="#" class="nav-item">
+      <router-link to="/statistics" class="nav-item" exact-active-class="active">
         <Icon icon="lucide:bar-chart-2" class="icon" />
         <span class="nav-text">统计</span>
-      </a>
+      </router-link>
       <router-link to="/fault-analysis" class="nav-item" exact-active-class="active">
         <Icon icon="lucide:alert-triangle" class="icon" />
         <span class="nav-text">故障分析</span>
