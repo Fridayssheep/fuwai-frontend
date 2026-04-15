@@ -3,6 +3,7 @@ import Setting from '../components/Setting.vue'
 import MainContent from '../components/MainContent.vue'
 import KnowledgeBase from '../components/KnowledgeBase/index.vue'
 import FaultAnalysis from '../components/FaultAnalysis/index.vue'
+import Statistics from '../components/Statistics/index.vue'
 
 const routes = [
   {
@@ -24,6 +25,11 @@ const routes = [
     path: '/fault-analysis',
     name: 'FaultAnalysis',
     component: FaultAnalysis
+  },
+  {
+    path: '/statistics',
+    name: 'Statistics',
+    component: Statistics
   }
 ]
 
