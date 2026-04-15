@@ -63,7 +63,10 @@
               </thead>
               <tbody v-if="hourlyData.length > 0">
                 <tr v-for="(item, idx) in hourlyData" :key="idx">
-                  <td>{{ formatTime(item.timestamp) }}</td>
+                  <td :title="item.timestamp">
+                    {{ formatTime(item.timestamp) }}
+                    <div style="font-size: 10px; color: #94a3b8;">{{ item.meter || '总能耗' }}</div>
+                  </td>
                   <td class="font-bold font-numeric">{{ formatNumber(item.value) }}</td>
                   <td><button class="link-btn" @click="viewDetailAction(item)">查看</button></td>
                 </tr>
@@ -189,6 +192,7 @@ const fetchHourlyOnly = async () => {
     
     const qRaw = await getEnergyQuery({ 
       building_ids: [props.buildingId],
+      meter: 'electricity',
       granularity: 'hour',
       start_time: startStr,
       end_time: endStr,
