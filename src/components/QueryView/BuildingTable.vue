@@ -6,7 +6,7 @@
         <thead>
           <tr>
             <th>建筑标识ID</th>
-            <th>站点</th>
+            <th>设备</th>
             <th class="text-right">总能耗</th>
             <th class="text-center">COP</th>
             <th class="text-right">EUI 指数</th>

@@ -122,16 +122,17 @@
         </div>
       </div>
 
-      <!-- 底部 -->
+      <!-- 底部 - 修改按钮文本为"开始查询" -->
       <div class="modal-footer">
         <span class="status-text">配置时间筛选</span>
         <div class="footer-buttons">
           <button class="btn btn-default" @click="handleClose">取消</button>
-          <button class="btn btn-primary" @click="handleSave">
+          <button class="btn btn-primary" @click="handleQuery">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-              <polyline points="20 6 9 17 4 12"></polyline>
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            保存配置
+            开始查询
           </button>
         </div>
       </div>
@@ -140,13 +141,13 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
 
 const props = defineProps<{
   visible: boolean
 }>()
 
-const emit = defineEmits(['update:visible', 'save'])
+const emit = defineEmits(['update:visible', 'query'])
 
 const timeRanges = [
   { label: '今日', value: 'today' },
@@ -172,13 +173,85 @@ const form = reactive({
   }
 })
 
+// 当快捷范围改变时，自动计算精确时间
+watch(() => form.timeRange, (newRange) => {
+  const now = new Date('2026-04-15T20:06:11') // 使用设置页面的当前时间
+  let start = new Date(now)
+  let end = new Date(now)
+  
+  switch(newRange) {
+    case 'today':
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'yesterday':
+      start.setDate(start.getDate() - 1)
+      start.setHours(0, 0, 0, 0)
+      end.setDate(end.getDate() - 1)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'lastWeek':
+      start.setDate(start.getDate() - 7)
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'month':
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'lastMonth':
+      start.setMonth(start.getMonth() - 1)
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+      end.setDate(0) // 上个月的最后一天
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'quarter':
+      const quarter = Math.floor(start.getMonth() / 3)
+      start.setMonth(quarter * 3)
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'year':
+      start.setMonth(0)
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+  }
+  
+  form.startTime = {
+    year: start.getFullYear().toString(),
+    month: (start.getMonth() + 1).toString().padStart(2, '0'),
+    day: start.getDate().toString().padStart(2, '0'),
+    hour: start.getHours().toString().padStart(2, '0')
+  }
+  form.endTime = {
+    year: end.getFullYear().toString(),
+    month: (end.getMonth() + 1).toString().padStart(2, '0'),
+    day: end.getDate().toString().padStart(2, '0'),
+    hour: end.getHours().toString().padStart(2, '0')
+  }
+}, { immediate: true })
+
 const handleClose = () => {
   emit('update:visible', false)
 }
 
-const handleSave = () => {
-  emit('save', form)
-  handleClose()
+// 修改：改为开始查询，自动关闭弹窗
+const handleQuery = () => {
+  // 构建时间范围对象
+  const timeConfig = {
+    range: form.timeRange,
+    startTime: `${form.startTime.year}-${form.startTime.month}-${form.startTime.day} ${form.startTime.hour}:00:00`,
+    endTime: `${form.endTime.year}-${form.endTime.month}-${form.endTime.day} ${form.endTime.hour}:59:59`,
+    features: form.timeFeatures
+  }
+  
+  emit('query', timeConfig)
+  handleClose() // 自动关闭弹窗
 }
 </script>
 
