@@ -108,3 +108,55 @@ export const getEnergyTrend = (params?: {
     timeout: 30000
   })
 }
+
+// ─── Types: Reports ──────────────────────────────────────────────
+export type ReportType = 'daily_summary' | 'weekly_summary' | 'monthly_summary' | 'anomaly_report'
+
+export interface GenerateReportRequest {
+  report_type: ReportType
+  building_id?: string | null
+  time_range: TimeRange
+  include_ai_summary: boolean
+}
+
+export interface GenerateReportResponse {
+  report_id: string
+  status: string
+  include_ai_summary: boolean
+  ai_summary_applied: boolean
+  ai_summary_skipped_reason?: string | null
+}
+
+export interface ReportDetailResponse {
+  report_id: string
+  report_type: string
+  status: string
+  time_range: TimeRange
+  building_id?: string | null
+  summary?: string | null
+  download_url?: string | null
+  generated_at?: string | null
+  exports: { format: string; download_url: string; content_type: string }[]
+}
+
+// ─── API: Reports ────────────────────────────────────────────────
+
+/** 生成报表 */
+export const generateReport = (payload: GenerateReportRequest) => {
+  return request.post<GenerateReportResponse>('/reports/generate', payload, {
+    timeout: 120000
+  })
+}
+
+/** 获取报表详情 */
+export const getReportDetail = (reportId: string) => {
+  return request.get<ReportDetailResponse>(`/reports/${reportId}`)
+}
+
+/** 下载报表文件 (返回 blob) */
+export const downloadReport = (reportId: string, format: string = 'md') => {
+  return request.get(`/reports/${reportId}`, {
+    params: { download: true, format },
+    responseType: 'blob'
+  })
+}
