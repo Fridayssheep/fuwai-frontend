@@ -1,7 +1,7 @@
 <template>
   <div class="performance-panel">
     <div class="panel-header">
-      <h3>分站点用能效绩表</h3>
+      <h3>分设备用能效绩表</h3>
       <div class="header-right">
         <span class="update-time">数据最后更新: {{ lastUpdated }}</span>
         <button class="refresh-btn" @click="fetchData" :disabled="loading">
@@ -14,7 +14,7 @@
       <table class="performance-table">
         <thead>
           <tr>
-            <th>站点</th>
+            <th>设备</th>
             <th>建筑数量</th>
             <th>期间累计 (KWH)</th>
             <th>单位面积能耗</th>
@@ -34,7 +34,7 @@
           <!-- 完全无数据 -->
           <tr v-else-if="!loading && tableData.length === 0">
             <td colspan="6" class="empty-cell">
-              暂无站点数据
+              暂无设备数据
             </td>
           </tr>
 
@@ -64,7 +64,7 @@
     <!-- 底部查看完整列表按钮 -->
     <div class="panel-footer" v-if="tableData.length > 0">
       <button class="expand-btn" @click="toggleExpand">
-        {{ expanded ? '收起完整站点列表' : '查看完整站点列表' }}
+        {{ expanded ? '收起完整设备列表' : '查看完整设备列表' }}
         <Icon :icon="expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'" />
       </button>
     </div>
@@ -82,7 +82,7 @@ const props = defineProps<{
   endTime: string
 }>()
 
-// 所有支持的站点列表 (Top 5+ default view)
+// 所有支持的设备列表 (Top 5+ default view)
 const ALL_SITES = [
   'Rat', 'Hog', 'Lamb', 'Fox', 'Panther', 
   'Bear', 'Bobcat', 'Bull', 'Cockatoo', 'Crow', 
@@ -190,7 +190,7 @@ const fetchData = async () => {
     const d = new Date(getCurrentTimeString())
     lastUpdated.value = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
   } catch (err) {
-    console.error('站点效绩聚合失败:', err)
+    console.error('设备效绩聚合失败:', err)
   } finally {
     loading.value = false
   }
@@ -201,7 +201,7 @@ const toggleExpand = () => {
 }
 
 const viewDetails = (row: SiteRow) => {
-  alert(`功能开发中: 跳转至 ${row.site_id} 站点详情页`)
+  alert(`功能开发中: 跳转至 ${row.site_id} 设备详情页`)
 }
 
 watch(

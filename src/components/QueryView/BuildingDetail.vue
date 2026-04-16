@@ -52,7 +52,7 @@
               <span class="meta-value">{{ buildingInfo.buildingId }}</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">站点标识</span>
+              <span class="meta-label">设备标识</span>
               <span class="meta-value">{{ buildingInfo.siteId }}</span>
             </div>
             <div class="meta-item">

@@ -1,754 +1,480 @@
 <template>
-  <div class="building-detail">
-    <!-- 顶部标题栏 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h1>建筑ID- {{ buildingId }}</h1>
-        <span :class="['status-badge', statusClass]">
-          <span class="status-dot"></span>
-          {{ statusText }}
-        </span>
-      </div>
-      <div class="header-right">
-        <button class="btn-back" @click="handleBack">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-          返回
-        </button>
-        <button class="btn-primary" @click="handleViewStats">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 20V10M12 20V4M6 20v-6"/>
-          </svg>
-          查看统计数据
-        </button>
-      </div>
-    </div>
-
-    <div class="content-grid">
-      <!-- 左侧信息面板 -->
-      <div class="left-panel">
-        <!-- 标签页切换 -->
-        <div class="tab-header">
-          <button 
-            :class="['tab-btn', { active: activeTab === 'metadata' }]"
-            @click="activeTab = 'metadata'"
-          >
-            建筑元数据
-          </button>
-          <button 
-            :class="['tab-btn', { active: activeTab === 'derived' }]"
-            @click="activeTab = 'derived'"
-          >
-            建筑衍生数据
-          </button>
+  <div v-if="visible" class="modal-overlay" @click.self="handleClose">
+    <div class="modal-content">
+      <!-- 头部 -->
+      <div class="modal-header">
+        <div class="header-title">
+          <div class="icon-box">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#005BAC" stroke-width="2">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+            </svg>
+          </div>
+          <div>
+            <h3>高级筛选</h3>
+            <p class="subtitle">主要用于查询符合条件的建筑</p>
+          </div>
         </div>
+        <button class="close-btn" @click="handleClose">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
 
-        <!-- 建筑元数据面板 -->
-        <div v-show="activeTab === 'metadata'" class="info-card">
-          <div class="metadata-grid">
-            <div class="meta-item">
-              <span class="meta-label">建筑标识ID</span>
-              <span class="meta-value">{{ buildingInfo.buildingId }}</span>
+      <!-- Tab 切换 -->
+      <div class="modal-tabs">
+        <button 
+          v-for="tab in tabs" 
+          :key="tab.key"
+          @click="activeTab = tab.key"
+          :class="['tab-btn', { active: activeTab === tab.key }]"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+
+      <!-- 内容区域 -->
+      <div class="modal-body">
+        <!-- ========== 建筑属性筛选 Tab ========== -->
+        <div v-show="activeTab === 'property'" class="tab-content">
+          <div class="section">
+            <div class="section-title">
+              <span class="title-dot"></span>
+              <span>标识定位</span>
             </div>
-            <div class="meta-item">
-              <span class="meta-label">设备标识</span>
-              <span class="meta-value">{{ buildingInfo.siteId }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">主要用途</span>
-              <span class="meta-value">{{ buildingInfo.primaryUse }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">建筑面积</span>
-              <span class="meta-value">
-                {{ buildingInfo.area }} m²
-                <span class="sub-value">({{ buildingInfo.areaFt }} ft²)</span>
-              </span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">细分用途</span>
-              <span class="meta-value">{{ buildingInfo.subUse }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">建造年份</span>
-              <span class="meta-value">{{ buildingInfo.buildYear }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">楼层数</span>
-              <span class="meta-value">{{ buildingInfo.floors }} 层</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">时区</span>
-              <span class="meta-value">{{ buildingInfo.timezone }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">启用日期</span>
-              <span class="meta-value">{{ buildingInfo.startDate }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">入住/使用人数</span>
-              <span class="meta-value">{{ buildingInfo.occupancy }} 人</span>
-            </div>
-            <div class="meta-item full-width">
-              <span class="meta-label">地理坐标</span>
-              <span class="meta-value">{{ buildingInfo.coordinates }}</span>
+            <div class="form-row">
+              <div class="form-item">
+                <label>建筑ID：</label>
+                <input type="text" placeholder="请输入文字" class="input-box" v-model="form.buildingId" />
+              </div>
+              <div class="form-item">
+                <label>设备：</label>
+                <input type="text" placeholder="请输入文字" class="input-box" v-model="form.site" />
+              </div>
             </div>
           </div>
 
-          <!-- 认证标识 -->
-          <div class="certifications">
-            <div class="cert-item">
-              <span class="cert-label">LEED 认证</span>
-              <span class="cert-badge platinum">PLATINUM</span>
+          <div class="section">
+            <div class="section-title">
+              <span class="title-dot"></span>
+              <span>物理属性</span>
             </div>
-            <div class="cert-item">
-              <span class="cert-label">ENERGY STAR</span>
-              <div class="energy-star">
-                <span class="star-value">94</span>
-                <svg class="star-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
-                </svg>
+            <div class="checkbox-row">
+              <label>建筑类型：</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="form.buildingType" value="education" />
+                  <span class="check-box"></span>
+                  <span>教育</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="form.buildingType" value="office" />
+                  <span class="check-box"></span>
+                  <span>办公</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="form.buildingType" value="dormitory" />
+                  <span class="check-box"></span>
+                  <span>住宿</span>
+                </label>
+              </div>
+              <label style="margin-left: 40px;">细分用途：</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="form.subUsage" value="research" />
+                  <span class="check-box"></span>
+                  <span>研究</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="form.subUsage" value="classroom" />
+                  <span class="check-box"></span>
+                  <span>教室</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="form.subUsage" value="dorm" />
+                  <span class="check-box"></span>
+                  <span>宿舍</span>
+                </label>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-item">
+                <label>建造年份：</label>
+                <input type="text" placeholder="请输入年份数字" class="input-box" v-model="form.builtYear" />
+              </div>
+              <div class="form-item">
+                <label>建造面积：</label>
+                <div class="input-with-unit">
+                  <input type="text" placeholder="请输入面积数字" class="input-box" v-model="form.area" />
+                  <button class="unit-toggle" @click="toggleAreaUnit">
+                    {{ form.areaUnit === 'm2' ? 'm²' : 'ft²' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-item">
+                <label>楼层数：</label>
+                <input type="text" placeholder="请输入楼层数字" class="input-box" v-model="form.floors" />
+              </div>
+              <div class="form-item">
+                <label>容纳人数：</label>
+                <input type="text" placeholder="请输入使用者数量" class="input-box" v-model="form.occupancy" />
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              <span class="title-dot"></span>
+              <span>能效基准</span>
+            </div>
+            <div class="checkbox-row">
+              <label>LEED等级：</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="form.leedLevel" value="gold" />
+                  <span class="check-box"></span>
+                  <span>金奖</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="form.leedLevel" value="silver" />
+                  <span class="check-box"></span>
+                  <span>银奖</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="form.leedLevel" value="none" />
+                  <span class="check-box"></span>
+                  <span>无</span>
+                </label>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-item">
+                <label>EnergyStar：</label>
+                <input type="text" placeholder="请输入评分数字" class="input-box" v-model="form.energyStar" />
+              </div>
+              <div class="form-item">
+                <label>EUI：</label>
+                <input type="text" placeholder="请输入基准数值" class="input-box" v-model="form.euiMin" />
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 建筑衍生数据面板 -->
-        <div v-show="activeTab === 'derived'" class="info-card derived-card">
-          <div class="derived-grid">
-            <div class="derived-item">
-              <span class="derived-label">COP</span>
-              <span class="derived-value">{{ derivedData.cop }}</span>
+        <!-- ========== 能耗指标筛选 Tab ========== -->
+        <div v-show="activeTab === 'energy'" class="tab-content">
+          <!-- 能效指标 -->
+          <div class="section">
+            <div class="section-title">
+              <span class="title-dot"></span>
+              <span>能效指标</span>
             </div>
-            <div class="derived-item">
-              <span class="derived-label">建筑年度总碳排放量(KgCO2e)</span>
-              <span class="derived-value">{{ derivedData.annualCarbon }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">单位面积碳排放量(KgCO2e/m²)</span>
-              <span class="derived-value">{{ derivedData.carbonPerArea }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">人均碳排放量(KgCO2e/人)</span>
-              <span class="derived-value">{{ derivedData.carbonPerPerson }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">碳减排量（相对于基准）</span>
-              <span class="derived-value">{{ derivedData.carbonReduction }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">碳减排率</span>
-              <span class="derived-value">{{ derivedData.carbonReductionRate }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">可再生能源替代率</span>
-              <span class="derived-value">{{ derivedData.renewableRate }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">能耗强度基准值EUI(kWh/m²/年)</span>
-              <span class="derived-value">{{ derivedData.euiBaseline }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">源头级EUI(kWh/m²/年)</span>
-              <span class="derived-value">{{ derivedData.euiSource }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">场地级EUI(kWh/m²/年)</span>
-              <span class="derived-value">{{ derivedData.euiSite }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">单位面积水耗(m³/m²)</span>
-              <span class="derived-value">{{ derivedData.waterPerArea }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">人均能耗强度(kWh/m²/年/人)</span>
-              <span class="derived-value">{{ derivedData.energyPerPerson }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">能耗类别</span>
-              <span class="derived-value">{{ derivedData.energyType }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">对应总能耗(kWh)</span>
-              <span class="derived-value">{{ derivedData.totalEnergy }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">分项能耗占比</span>
-              <span class="derived-value">{{ derivedData.energyRatio }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">总能耗(kWh)</span>
-              <span class="derived-value">{{ derivedData.totalEnergyAll }}</span>
-            </div>
-          </div>
-
-          <!-- 认证标识 -->
-          <div class="certifications">
-            <div class="cert-item">
-              <span class="cert-label">LEED 认证</span>
-              <span class="cert-badge platinum">PLATINUM</span>
-            </div>
-            <div class="cert-item">
-              <span class="cert-label">ENERGY STAR</span>
-              <div class="energy-star">
-                <span class="star-value">94</span>
-                <svg class="star-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 运行关键指标 -->
-        <div class="metrics-card">
-          <h3>运行关键指标</h3>
-          <div class="metrics-grid">
-            <div class="metric-item">
-              <span class="metric-label">能耗异常率</span>
-              <span class="metric-value abnormal">{{ metrics.abnormalRate }}%</span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">EUI 达标率</span>
-              <span class="metric-value eui">{{ metrics.euiRate }}%</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 右侧监控数据 -->
-      <div class="right-panel">
-        <div class="monitor-card">
-          <div class="monitor-header">
-            <div class="header-title">
-              <svg class="monitor-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 6v6l4 2"/>
-              </svg>
-              <h3>小时级多维监控数据</h3>
-            </div>
-            <button class="btn-download">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-              </svg>
-            </button>
-          </div>
-
-          <div class="monitor-table-wrapper">
-            <table class="monitor-table">
-              <thead>
-                <tr>
-                  <th class="col-time">时间</th>
-                  <th class="col-energy">动态详耗数据</th>
-                  <th class="col-env">环境数据</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(item, index) in displayData" :key="index">
-                  <td class="col-time">{{ item.time }}</td>
-                  <td class="col-energy">
-                    <button class="btn-view" @click="handleViewEnergy(item)">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                      </svg>
-                      查看
-                    </button>
-                  </td>
-                  <td class="col-env">
-                    <button class="btn-view green" @click="handleViewEnv(item)">
-                      <!-- 温度计图标 -->
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
-                        <circle cx="11.5" cy="16.5" r="1.5" fill="currentColor"/>
-                        <path d="M11.5 9v6"/>
-                      </svg>
-                      查看
-                    </button>
-                  </td>
-                </tr>
-                <!-- 空白填充行（当数据不足8条时保持高度） -->
-                <tr v-for="n in emptyRows" :key="`empty-${n}`" class="empty-row">
-                  <td colspan="3">&nbsp;</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- 分页 -->
-          <div class="pagination-wrapper">
-            <div class="pagination-info">
-              显示 {{ pagination.start }}-{{ pagination.end }} 到 {{ pagination.total }} 条记录
-            </div>
-            <div class="pagination-controls">
-              <button 
-                class="page-btn" 
-                :disabled="pagination.current === 1"
-                @click="handlePrevPage"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="15 18 9 12 15 6"/>
-                </svg>
-              </button>
-              <button 
-                v-for="page in visiblePages" 
-                :key="page"
-                :class="['page-btn', { active: page === pagination.current }]"
-                @click="handlePageChange(page)"
-              >
-                {{ page }}
-              </button>
-              <button 
-                class="page-btn" 
-                :disabled="pagination.current === totalPages"
-                @click="handleNextPage"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 页面最底部占位条 -->
-    <div class="page-bottom-spacer"></div>
-
-    <!-- 能源消耗详情弹窗 -->
-    <teleport to="body">
-      <div v-if="showEnergyModal" class="modal-overlay" @click.self="closeEnergyModal">
-        <div class="modal-card energy-modal">
-          <div class="modal-header">
-            <div class="modal-title">
-              <svg class="modal-icon energy" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
-              </svg>
-              <h3>能源消耗详情</h3>
-            </div>
-            <button class="btn-close" @click="closeEnergyModal">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-          <div class="modal-body">
+            
             <div class="energy-grid">
               <div class="energy-item">
-                <div class="item-icon blue">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
-                  </svg>
+                <label>EUI 范围 (KWH/M²/年)</label>
+                <div class="range-inputs">
+                  <input type="text" placeholder="最小" v-model="form.euiRange.min" />
+                  <span class="separator">—</span>
+                  <input type="text" placeholder="最大" v-model="form.euiRange.max" />
                 </div>
-                <span class="item-name">电力</span>
-                <span class="item-value">1,245.2<span class="unit">kWh</span></span>
               </div>
+              
               <div class="energy-item">
-                <div class="item-icon red">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M8.56 2.9A7 7 0 0 1 19 9v4m-2 4H2a3 3 0 0 1 3-3h5a2 2 0 0 0 2-2V9a5 5 0 0 1 5-5h.05"/>
-                    <path d="M12 12v10"/>
-                    <path d="M8 22h8"/>
-                    <path d="M7 10h10"/>
-                  </svg>
+                <label>场地级EUI 范围 (KWH/M²/年)</label>
+                <div class="range-inputs">
+                  <input type="text" placeholder="最小" v-model="form.siteEuiRange.min" />
+                  <span class="separator">—</span>
+                  <input type="text" placeholder="最大" v-model="form.siteEuiRange.max" />
                 </div>
-                <span class="item-name">热水</span>
-                <span class="item-value">84.5<span class="unit">m³</span></span>
               </div>
+              
               <div class="energy-item">
-                <div class="item-icon cyan">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 2v20M2 12h20"/>
-                    <path d="M8 8l8 8M16 8l-8 8" stroke-opacity="0.3"/>
-                  </svg>
+                <label>源头级EUI 范围 (KWH/M²/年)</label>
+                <div class="range-inputs">
+                  <input type="text" placeholder="最小" v-model="form.sourceEuiRange.min" />
+                  <span class="separator">—</span>
+                  <input type="text" placeholder="最大" v-model="form.sourceEuiRange.max" />
                 </div>
-                <span class="item-name">冷冻水</span>
-                <span class="item-value">312.1<span class="unit">GJ</span></span>
               </div>
-              <div class="energy-item">
-                <div class="item-icon gray">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2v20M12 2l-4 4M12 2l4 4M12 22l-4-4M12 22l4-4"/>
-                    <path d="M4 12h16"/>
-                    <path d="M4 12l4-2M4 12l4 2M20 12l-4-2M20 12l-4 2" stroke-opacity="0.5"/>
-                  </svg>
-                </div>
-                <span class="item-name">蒸汽</span>
-                <span class="item-value">12.8<span class="unit">t</span></span>
-              </div>
-              <div class="energy-item">
-                <div class="item-icon orange">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="4"/>
-                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
-                  </svg>
-                </div>
-                <span class="item-name">燃气</span>
-                <span class="item-value">450.0<span class="unit">m³</span></span>
-              </div>
-              <div class="energy-item">
-                <div class="item-icon green">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2L4 6v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V6l-8-4z"/>
-                    <path d="M12 6v12"/>
-                    <path d="M12 18c-2-2-3-5-3-8"/>
-                  </svg>
-                </div>
-                <span class="item-name">灌溉</span>
-                <span class="item-value">5.2<span class="unit">m³</span></span>
-              </div>
-              <div class="energy-item">
-                <div class="item-icon blue-light">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
-                    <path d="M12 8v8"/>
-                    <path d="M12 16l3-3M12 16l-3-3"/>
-                  </svg>
-                </div>
-                <span class="item-name">用水量</span>
-                <span class="item-value">28.4<span class="unit">m³</span></span>
-              </div>
-              <div class="energy-item">
-                <div class="item-icon yellow">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="5"/>
-                    <line x1="12" y1="1" x2="12" y2="3"/>
-                    <line x1="12" y1="21" x2="12" y2="23"/>
-                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                    <line x1="1" y1="12" x2="3" y2="12"/>
-                    <line x1="21" y1="12" x2="23" y2="12"/>
-                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                  </svg>
-                </div>
-                <span class="item-name">太阳能发电量</span>
-                <span class="item-value">15.6<span class="unit">kWh</span></span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </teleport>
 
-    <!-- 环境监控详情弹窗 -->
-    <teleport to="body">
-      <div v-if="showEnvModal" class="modal-overlay" @click.self="closeEnvModal">
-        <div class="modal-card env-modal">
-          <div class="modal-header">
-            <div class="modal-title">
-              <svg class="modal-icon env" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
-              </svg>
-              <h3>环境监控详情</h3>
+              <div class="energy-item">
+                <label>电力能耗范围 (KWH)</label>
+                <div class="range-inputs">
+                  <input type="text" placeholder="最小" v-model="form.electricityRange.min" />
+                  <span class="separator">—</span>
+                  <input type="text" placeholder="最大" v-model="form.electricityRange.max" />
+                </div>
+              </div>
+              
+              <div class="energy-item">
+                <label>热水能耗范围 (KWH)</label>
+                <div class="range-inputs">
+                  <input type="text" placeholder="最小" v-model="form.hotWaterRange.min" />
+                  <span class="separator">—</span>
+                  <input type="text" placeholder="最大" v-model="form.hotWaterRange.max" />
+                </div>
+              </div>
+              
+              <div class="energy-item">
+                <label>冷冻水能耗范围 (KWH)</label>
+                <div class="range-inputs">
+                  <input type="text" placeholder="最小" v-model="form.chilledWaterRange.min" />
+                  <span class="separator">—</span>
+                  <input type="text" placeholder="最大" v-model="form.chilledWaterRange.max" />
+                </div>
+              </div>
+
+              <div class="energy-item">
+                <label>蒸汽能耗范围 (KWH)</label>
+                <div class="range-inputs">
+                  <input type="text" placeholder="最小" v-model="form.steamRange.min" />
+                  <span class="separator">—</span>
+                  <input type="text" placeholder="最大" v-model="form.steamRange.max" />
+                </div>
+              </div>
+              
+              <div class="energy-item">
+                <label>用水量范围 (M³)</label>
+                <div class="range-inputs">
+                  <input type="text" placeholder="最小" v-model="form.waterRange.min" />
+                  <span class="separator">—</span>
+                  <input type="text" placeholder="最大" v-model="form.waterRange.max" />
+                </div>
+              </div>
+              
+              <div class="energy-item">
+                <label>灌溉能耗范围 (KWH)</label>
+                <div class="range-inputs">
+                  <input type="text" placeholder="最小" v-model="form.irrigationRange.min" />
+                  <span class="separator">—</span>
+                  <input type="text" placeholder="最大" v-model="form.irrigationRange.max" />
+                </div>
+              </div>
+
+              <div class="energy-item">
+                <label>太阳能发电量范围 (KWH)</label>
+                <div class="range-inputs">
+                  <input type="text" placeholder="最小" v-model="form.solarRange.min" />
+                  <span class="separator">—</span>
+                  <input type="text" placeholder="最大" v-model="form.solarRange.max" />
+                </div>
+              </div>
+              
+              <div class="energy-item">
+                <label>燃气能耗范围 (KWH)</label>
+                <div class="range-inputs">
+                  <input type="text" placeholder="最小" v-model="form.gasRange.min" />
+                  <span class="separator">—</span>
+                  <input type="text" placeholder="最大" v-model="form.gasRange.max" />
+                </div>
+              </div>
+              
+              <div class="energy-item">
+                <label>人均能耗范围 (KWH/人)</label>
+                <div class="range-inputs">
+                  <input type="text" placeholder="最小" v-model="form.perCapitaRange.min" />
+                  <span class="separator">—</span>
+                  <input type="text" placeholder="最大" v-model="form.perCapitaRange.max" />
+                </div>
+              </div>
             </div>
-            <button class="btn-close" @click="closeEnvModal">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
           </div>
-          <div class="modal-body">
-            <div class="env-grid">
-              <div class="env-item">
-                <div class="item-icon temp">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
-                    <circle cx="11.5" cy="16.5" r="1.5" fill="currentColor"/>
-                  </svg>
-                </div>
-                <span class="item-name">气温</span>
-                <span class="item-value">24.5<span class="unit">°C</span></span>
+
+          <!-- 设备健康度 -->
+          <div class="section">
+            <div class="section-title">
+              <span class="title-dot"></span>
+              <span>设备健康度</span>
+            </div>
+            <div class="energy-item single">
+              <label>COP范围</label>
+              <div class="range-inputs">
+                <input type="text" placeholder="最小" v-model="form.copRange.min" />
+                <span class="separator">—</span>
+                <input type="text" placeholder="最大" v-model="form.copRange.max" />
               </div>
-              <div class="env-item">
-                <div class="item-icon cloud">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17.5 19c0-3.037-2.463-5.5-5.5-5.5S6.5 15.963 6.5 19"/>
-                    <circle cx="17.5" cy="6.5" r="2.5"/>
-                    <circle cx="14" cy="12" r="1"/>
-                    <circle cx="8" cy="9" r="1"/>
-                  </svg>
+            </div>
+          </div>
+
+          <!-- 双碳指标 -->
+          <div class="section">
+            <div class="section-title">
+              <span class="title-dot"></span>
+              <span>双碳指标</span>
+            </div>
+            <div class="carbon-grid">
+              <div class="carbon-item">
+                <label>建筑年度总碳排放量</label>
+                <div class="compare-input">
+                  <select v-model="form.carbonTotal.compare" class="compare-select">
+                    <option value=">">></option>
+                    <option value="<"><</option>
+                    <option value="=">=</option>
+                    <option value="<="><=</option>
+                    <option value=">=">>=</option>
+                  </select>
+                  <input type="text" placeholder="请输入" v-model="form.carbonTotal.value" />
+                  <span class="unit">kgCO₂e</span>
                 </div>
-                <span class="item-name">云量</span>
-                <span class="item-value">15<span class="unit">%</span></span>
               </div>
-              <div class="env-item">
-                <div class="item-icon rain">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M16 13v8M8 13v8M12 15v8M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/>
-                  </svg>
+              
+              <div class="carbon-item">
+                <label>单位面积碳排放量</label>
+                <div class="compare-input">
+                  <select v-model="form.carbonPerArea.compare" class="compare-select">
+                    <option value=">">></option>
+                    <option value="<"><</option>
+                    <option value="=">=</option>
+                    <option value="<="><=</option>
+                    <option value=">=">>=</option>
+                  </select>
+                  <input type="text" placeholder="请输入" v-model="form.carbonPerArea.value" />
+                  <span class="unit">kgCO₂e/m²</span>
                 </div>
-                <span class="item-name">降水量</span>
-                <span class="item-value">0.0<span class="unit">mm</span></span>
               </div>
-              <div class="env-item">
-                <div class="item-icon wind">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/>
-                  </svg>
+              
+              <div class="carbon-item">
+                <label>人均碳排放量</label>
+                <div class="compare-input">
+                  <select v-model="form.carbonPerCapita.compare" class="compare-select">
+                    <option value=">">></option>
+                    <option value="<"><</option>
+                    <option value="=">=</option>
+                    <option value="<="><=</option>
+                    <option value=">=">>=</option>
+                  </select>
+                  <input type="text" placeholder="请输入" v-model="form.carbonPerCapita.value" />
+                  <span class="unit">kgCO₂e/人</span>
                 </div>
-                <span class="item-name">风速</span>
-                <span class="item-value">3.2<span class="unit">m/s</span></span>
-              </div>
-              <div class="env-item">
-                <div class="item-icon dew">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 22c4.97 0 9-4.03 9-9V7c0-4.97-4.03-9-9-9S3 2.03 3 7v6c0 4.97 4.03 9 9 9z"/>
-                    <path d="M12 6v6l4 2"/>
-                    <path d="M12 16v6"/>
-                  </svg>
-                </div>
-                <span class="item-name">露点温度</span>
-                <span class="item-value">18.2<span class="unit">°C</span></span>
-              </div>
-              <div class="env-item">
-                <div class="item-icon pressure">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2v20M12 2l-4 4M12 2l4 4"/>
-                    <path d="M4 10h16M4 14h16"/>
-                    <path d="M4 10v4M20 10v4"/>
-                  </svg>
-                </div>
-                <span class="item-name">海平面气压</span>
-                <span class="item-value">1,012<span class="unit">hPa</span></span>
-              </div>
-              <div class="env-item">
-                <div class="item-icon direction">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 8v8M12 8l-3 3M12 8l3 3"/>
-                    <path d="M12 16l-4-4M12 16l4-4"/>
-                  </svg>
-                </div>
-                <span class="item-name">风向</span>
-                <span class="item-value">东南<span class="unit">135°</span></span>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </teleport>
+
+      <!-- 底部 -->
+      <div class="modal-footer">
+        <span class="status-text">配置筛选条件</span>
+        <div class="footer-buttons">
+          <button class="btn btn-default" @click="handleClose">取消</button>
+          <button class="btn btn-primary" @click="handleSave">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            立即查询
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { reactive, ref, watch } from 'vue'
 
-const route = useRoute();
-const router = useRouter();
+const props = defineProps<{
+  visible: boolean
+}>()
 
-const buildingId = computed(() => route.params.id as string || 'BLDG-HQ-A01');
+const emit = defineEmits(['update:visible', 'save'])
 
-// 标签页状态
-const activeTab = ref<'metadata' | 'derived'>('derived');
+const activeTab = ref('property')
 
-// 建筑状态
-const status = ref<'normal' | 'warning' | 'error'>('normal');
-const statusText = computed(() => {
-  const map = { normal: '运行正常', warning: '告警状态', error: '异常状态' };
-  return map[status.value];
-});
-const statusClass = computed(() => status.value);
+const tabs = [
+  { key: 'property', label: '建筑属性筛选' },
+  { key: 'energy', label: '能耗指标筛选' }
+]
 
-// 弹窗显示状态
-const showEnergyModal = ref(false);
-const showEnvModal = ref(false);
-
-// 建筑元数据
-const buildingInfo = ref({
-  buildingId: 'BLDG-HQ-A01-SH',
-  siteId: 'East-China-04 / site_4',
-  primaryUse: '办公/商业',
-  area: '124,500',
-  areaFt: '1,340,107',
-  subUse: '建筑',
-  buildYear: '2018',
-  floors: '42',
-  timezone: 'UTC+8 (北京)',
-  startDate: '2018-06-28',
-  occupancy: '8,500',
-  coordinates: '31.23° N, 121.47° E'
-});
-
-// 建筑衍生数据
-const derivedData = ref({
-  cop: '111',
-  annualCarbon: '1,245.50',
-  carbonPerArea: '12.4',
-  carbonPerPerson: '0.85',
-  carbonReduction: '111',
-  carbonReductionRate: '12.5%',
-  renewableRate: '24%',
-  euiBaseline: '111',
-  euiSource: '111',
-  euiSite: '111',
-  waterPerArea: '111',
-  energyPerPerson: '11',
-  energyType: '电力(Electricity)',
-  totalEnergy: '111',
-  energyRatio: '11%',
-  totalEnergyAll: '3510.12'
-});
-
-// 运行关键指标
-const metrics = ref({
-  abnormalRate: '0.42',
-  euiRate: '104.2'
-});
-
-// 模拟数据（142条）
-const allMonitorData = ref([
-  { time: '2024-05-12 08:00' }, { time: '2024-05-12 09:00' },
-  { time: '2024-05-12 10:00' }, { time: '2024-05-12 11:00' },
-  { time: '2024-05-12 12:00' }, { time: '2024-05-12 13:00' },
-  { time: '2024-05-12 14:00' }, { time: '2024-05-12 15:00' },
-  { time: '2024-05-12 16:00' }, { time: '2024-05-12 17:00' },
-  { time: '2024-05-12 18:00' }, { time: '2024-05-12 19:00' },
-]);
-
-// 生成142条模拟数据
-for (let i = 12; i < 142; i++) {
-  const hour = (i % 24).toString().padStart(2, '0');
-  const day = 12 + Math.floor(i / 24);
-  allMonitorData.value.push({ 
-    time: `2024-05-${day.toString().padStart(2, '0')} ${hour}:00` 
-  });
-}
-
-// 分页配置 - 固定每页8条
-const PAGE_SIZE = 8;
-const pagination = ref({
-  current: 1,
-  pageSize: PAGE_SIZE,
-  total: 142,
-  start: 1,
-  end: PAGE_SIZE
-});
-
-// 当前页展示的数据
-const displayData = computed(() => {
-  const start = (pagination.value.current - 1) * pagination.value.pageSize;
-  const end = start + pagination.value.pageSize;
-  return allMonitorData.value.slice(start, end);
-});
-
-// 空白行填充（当数据不足8条时保持高度）
-const emptyRows = computed(() => {
-  const currentRows = displayData.value.length;
-  const targetRows = PAGE_SIZE;
-  return Math.max(0, targetRows - currentRows);
-});
-
-const totalPages = computed(() => Math.ceil(pagination.value.total / pagination.value.pageSize) || 1);
-
-const visiblePages = computed(() => {
-  const pages: (number | string)[] = [];
-  const current = pagination.value.current;
-  const total = totalPages.value;
+// 表单数据结构
+const form = reactive({
+  // 建筑属性
+  buildingId: '',
+  site: '',
+  buildingType: [] as string[],
+  subUsage: [] as string[],
+  builtYear: '',
+  area: '',
+  areaUnit: 'm2' as 'm2' | 'ft2', // 新增：面积单位
+  floors: '',
+  occupancy: '',
+  leedLevel: [] as string[],
+  energyStar: '',
+  euiMin: '',
   
-  if (total <= 7) {
-    for (let i = 1; i <= total; i++) pages.push(i);
-  } else {
-    if (current <= 4) {
-      pages.push(1, 2, 3, 4, 5);
-      if (total > 7) pages.push('...', total);
-    } else if (current >= total - 3) {
-      pages.push(1, '...');
-      pages.push(total - 4, total - 3, total - 2, total - 1, total);
-    } else {
-      pages.push(1, '...');
-      pages.push(current - 1, current, current + 1);
-      pages.push('...', total);
+  // 能耗指标（所有范围都是 min/max）
+  euiRange: { min: '', max: '' },
+  siteEuiRange: { min: '', max: '' },
+  sourceEuiRange: { min: '', max: '' },
+  electricityRange: { min: '', max: '' },
+  hotWaterRange: { min: '', max: '' },
+  chilledWaterRange: { min: '', max: '' },
+  steamRange: { min: '', max: '' },
+  waterRange: { min: '', max: '' },
+  irrigationRange: { min: '', max: '' },
+  solarRange: { min: '', max: '' },
+  gasRange: { min: '', max: '' },
+  perCapitaRange: { min: '', max: '' },
+  copRange: { min: '', max: '' },
+  
+  // 双碳指标（带比较运算符）
+  carbonTotal: { compare: '>', value: '' },
+  carbonPerArea: { compare: '>', value: '' },
+  carbonPerCapita: { compare: '>', value: '' }
+})
+
+// 切换面积单位
+const toggleAreaUnit = () => {
+  form.areaUnit = form.areaUnit === 'm2' ? 'ft2' : 'm2'
+  // 可选：自动转换数值（保留一位小数）
+  if (form.area) {
+    const num = parseFloat(form.area)
+    if (!isNaN(num)) {
+      if (form.areaUnit === 'ft2') {
+        // m2 -> ft2 (1m2 = 10.764ft2)
+        form.area = (num * 10.764).toFixed(1)
+      } else {
+        // ft2 -> m2
+        form.area = (num / 10.764).toFixed(1)
+      }
     }
   }
-  return pages;
-});
+}
 
-// 更新分页范围显示
-const updatePaginationRange = () => {
-  const start = (pagination.value.current - 1) * pagination.value.pageSize + 1;
-  const end = Math.min(start + pagination.value.pageSize - 1, pagination.value.total);
-  pagination.value.start = start;
-  pagination.value.end = end;
-};
-
-// 弹窗方法
-const handleViewEnergy = (item: any) => {
-  console.log('查看能耗数据:', item.time);
-  showEnergyModal.value = true;
-};
-
-const handleViewEnv = (item: any) => {
-  console.log('查看环境数据:', item.time);
-  showEnvModal.value = true;
-};
-
-const closeEnergyModal = () => {
-  showEnergyModal.value = false;
-};
-
-const closeEnvModal = () => {
-  showEnvModal.value = false;
-};
-
-// 其他方法
-const handleBack = () => {
-  router.back();
-};
-
-const handleViewStats = () => {
-  console.log('查看统计数据');
-};
-
-const handlePageChange = (page: number | string) => {
-  if (typeof page === 'number') {
-    pagination.value.current = page;
-    updatePaginationRange();
+// 关闭时重置（可选，根据业务需求决定是否保留）
+watch(() => props.visible, (newVal) => {
+  if (!newVal) {
+    // 如果需要在关闭时清空数据，取消下面注释
+    // Object.keys(form).forEach(key => {
+    //   if (Array.isArray(form[key])) form[key] = []
+    //   else if (typeof form[key] === 'object' && form[key] !== null) {
+    //     Object.keys(form[key]).forEach(k => form[key][k] = '')
+    //   }
+    //   else form[key] = ''
+    // })
   }
-};
+})
 
-const handlePrevPage = () => {
-  if (pagination.value.current > 1) {
-    pagination.value.current--;
-    updatePaginationRange();
+const handleClose = () => {
+  emit('update:visible', false)
+}
+
+const handleSave = () => {
+  // 提交时统一转换为标准单位（平方米）存储，方便后端处理
+  const submitData = { ...form }
+  if (submitData.area && submitData.areaUnit === 'ft2') {
+    // 转换为平方米（保留2位小数）
+    submitData.area = (parseFloat(submitData.area) / 10.764).toFixed(2)
+    submitData.areaUnit = 'm2'
   }
-};
-
-const handleNextPage = () => {
-  if (pagination.value.current < totalPages.value) {
-    pagination.value.current++;
-    updatePaginationRange();
-  }
-};
-
-// 初始化
-onMounted(() => {
-  updatePaginationRange();
-});
+  emit('save', submitData)
+  handleClose()
+}
 </script>
 
 <style scoped>
-.building-detail {
-  min-height: 100%;
-  background: #f5f7fa;
-  padding: 24px;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  background: white;
-  padding: 20px 24px;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
 
 .header-left {
   display: flex;
@@ -1245,215 +971,440 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 24px;
+  padding: 20px;
 }
 
-.modal-card {
+.modal-content {
   background: white;
-  border-radius: 16px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border-radius: 12px;
   width: 100%;
-  max-width: 420px;
+  max-width: 900px;
+  max-height: 85vh; /* 稍微降低高度，防止小屏幕被挤 */
   overflow: hidden;
-  animation: modalSlideIn 0.3s ease-out;
-}
-
-@keyframes modalSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
 .modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #E5E7EB;
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #f0f0f0;
+  align-items: flex-start;
+  flex-shrink: 0;
 }
 
-.modal-title {
+.header-title {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.icon-box {
+  width: 40px;
+  height: 40px;
+  background: #EFF6FF;
+  border-radius: 8px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
 }
 
-.modal-title h3 {
-  font-size: 16px;
+h3 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
   font-weight: 600;
-  color: #002b54;
+  color: #111827;
+}
+
+.subtitle {
   margin: 0;
+  font-size: 13px;
+  color: #6B7280;
 }
 
-.modal-icon {
-  width: 24px;
-  height: 24px;
-}
-
-.modal-icon.energy {
-  color: #0056b3;
-}
-
-.modal-icon.env {
-  color: #52c41a;
-}
-
-.btn-close {
-  padding: 6px;
+.close-btn {
+  width: 32px;
+  height: 32px;
   border: none;
-  background: #f5f5f5;
-  border-radius: 50%;
-  color: #666;
+  background: transparent;
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s;
+  color: #9CA3AF;
+  transition: all 0.2s;
 }
 
-.btn-close:hover {
-  background: #e0e0e0;
-  color: #333;
+.close-btn:hover {
+  background: #F3F4F6;
+  color: #374151;
 }
 
-.modal-body {
-  padding: 24px;
-}
-
-.energy-grid {
-  display: grid;
-  gap: 16px;
-}
-
-.energy-item, .env-item {
+.modal-tabs {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  background: #f8f9fa;
-  border-radius: 12px;
-  transition: all 0.3s;
-}
-
-.energy-item:hover, .env-item:hover {
-  background: #f0f2f5;
-  transform: translateX(4px);
-}
-
-.item-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  gap: 0;
+  padding: 0 24px;
+  border-bottom: 1px solid #E5E7EB;
+  background: #F9FAFB;
   flex-shrink: 0;
 }
 
-.item-icon.blue {
-  background: #e6f7ff;
-  color: #1890ff;
-}
-
-.item-icon.red {
-  background: #fff2e8;
-  color: #fa541c;
-}
-
-.item-icon.cyan {
-  background: #e6fffb;
-  color: #13c2c2;
-}
-
-.item-icon.gray {
-  background: #f5f5f5;
-  color: #666;
-}
-
-.item-icon.orange {
-  background: #fff7e6;
-  color: #fa8c16;
-}
-
-.item-icon.green {
-  background: #f6ffed;
-  color: #52c41a;
-}
-
-.item-icon.blue-light {
-  background: #f0f5ff;
-  color: #2f54eb;
-}
-
-.item-icon.yellow {
-  background: #fffbe6;
-  color: #fadb14;
-}
-
-.item-icon.temp {
-  background: #fff2f0;
-  color: #ff4d4f;
-}
-
-.item-icon.cloud {
-  background: #f0f2f5;
-  color: #8c8c8c;
-}
-
-.item-icon.rain {
-  background: #e6f7ff;
-  color: #1890ff;
-}
-
-.item-icon.wind {
-  background: #f6ffed;
-  color: #52c41a;
-}
-
-.item-icon.dew {
-  background: #e6fffb;
-  color: #13c2c2;
-}
-
-.item-icon.pressure {
-  background: #f9f0ff;
-  color: #722ed1;
-}
-
-.item-icon.direction {
-  background: #fff2e8;
-  color: #fa541c;
-}
-
-.item-name {
-  flex: 1;
+.tab-btn {
+  padding: 12px 20px;
+  border: none;
+  background: transparent;
   font-size: 14px;
-  color: #333;
+  color: #6B7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  color: #005BAC;
+  border-bottom-color: #005BAC;
+  background: white;
   font-weight: 500;
 }
 
-.item-value {
-  font-size: 20px;
-  font-weight: 700;
-  color: #002b54;
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.tab-content {
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.section {
+  margin-bottom: 24px;
+}
+
+.section-title {
   display: flex;
-  align-items: baseline;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1F2937;
+  margin-bottom: 16px;
 }
 
-.unit {
-  font-size: 12px;
-  font-weight: 400;
-  color: #666;
+.title-dot {
+  width: 3px;
+  height: 16px;
+  background: #005BAC;
+  border-radius: 2px;
 }
 
-.env-grid {
-  display: grid;
+/* 建筑属性样式 */
+.form-row {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.form-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.form-item label {
+  width: 80px;
+  font-size: 14px;
+  color: #374151;
+  flex-shrink: 0;
+}
+
+.input-box {
+  flex: 1;
+  height: 36px;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  padding: 0 12px;
+  font-size: 14px;
+  color: #374151;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-box:focus {
+  border-color: #005BAC;
+}
+
+.input-box::placeholder {
+  color: #9CA3AF;
+}
+
+.input-with-unit {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.input-with-unit .input-box {
+  border: none;
+  border-radius: 0;
+  flex: 1;
+}
+
+/* 新增：单位切换按钮样式 */
+.unit-toggle {
+  padding: 0 12px;
+  height: 36px;
+  border: none;
+  background: #F3F4F6;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+  min-width: 50px;
+}
+
+.unit-toggle:hover {
+  background: #E5E7EB;
+  color: #005BAC;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.checkbox-row > label {
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.checkbox-group {
+  display: flex;
   gap: 16px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+}
+
+.checkbox-label input {
+  display: none;
+}
+
+.checkbox-label .check-box {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #D1D5DB;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.checkbox-label input:checked + .check-box {
+  background: #005BAC;
+  border-color: #005BAC;
+}
+
+.checkbox-label input:checked + .check-box::after {
+  content: '';
+  width: 5px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-bottom: 2px;
+}
+
+/* 能耗指标样式 */
+.energy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.energy-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.energy-item.single {
+  max-width: 300px;
+}
+
+.energy-item label {
+  font-size: 13px;
+  color: #6B7280;
+  font-weight: 500;
+}
+
+.range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.range-inputs input {
+  flex: 1;
+  height: 36px;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  padding: 0 12px;
+  font-size: 14px;
+  color: #374151;
+  outline: none;
+  text-align: center;
+}
+
+.range-inputs input::placeholder {
+  color: #9CA3AF;
+}
+
+.range-inputs input:focus {
+  border-color: #005BAC;
+}
+
+.separator {
+  color: #9CA3AF;
+  font-size: 14px;
+}
+
+/* 双碳指标样式 */
+.carbon-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.carbon-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.carbon-item label {
+  font-size: 13px;
+  color: #6B7280;
+  font-weight: 500;
+}
+
+.compare-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.compare-select {
+  width: 50px;
+  height: 36px;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #374151;
+  text-align: center;
+  outline: none;
+  background: white;
+  flex-shrink: 0;
+}
+
+.compare-input input {
+  flex: 1;
+  height: 36px;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  padding: 0 12px;
+  font-size: 14px;
+  color: #374151;
+  outline: none;
+  min-width: 0;
+}
+
+.compare-input input::placeholder {
+  color: #9CA3AF;
+}
+
+.compare-input .unit {
+  font-size: 13px;
+  color: #6B7280;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 底部样式 */
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #E5E7EB;
+  background: #F9FAFB;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.status-text {
+  font-size: 14px;
+  color: #6B7280;
+}
+
+.footer-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.btn {
+  height: 36px;
+  padding: 0 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border: none;
+  transition: all 0.2s;
+}
+
+.btn-default {
+  background: white;
+  color: #374151;
+  border: 1px solid #D1D5DB;
+}
+
+.btn-default:hover {
+  background: #F3F4F6;
+}
+
+.btn-primary {
+  background: #005BAC;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #004a8d;
 }
 </style>

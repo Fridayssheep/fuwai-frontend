@@ -2,183 +2,493 @@
   <div class="query-page">
     <h1>建筑查询引擎</h1>
     
-    <FilterPanel 
-      v-model:status="filterForm.status"
-      v-model:timeRange="filterForm.timeRange"
-      @search="handleSearch" 
-      @reset="handleReset"
-      @advanced="showAdvanced = true"
-    />
-    
-    <div class="table-card">
-      <div class="table-card-header">
-        <h3 class="table-title">运行数据详细记录表</h3>
-        <button class="export-btn-rounded">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          导出运行数据
-        </button>
+    <!-- 筛选面板 -->
+    <div class="filter-panel">
+      <div class="panel-header">
+        <div class="title-area">
+          <div class="icon-box">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" style="color: #005BAC;">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+            </svg>
+          </div>
+          <h2>查询筛选面板</h2>
+          
+          <div class="alert-badge">
+            <span class="dot red"></span>
+            <span>系统运行状态：检测到2处紧急故障待处理</span>
+          </div>
+        </div>
       </div>
       
-      <div class="sort-bar-merged">
-        <span class="sort-label">排序依据：</span>
-        <button 
-          :class="['sort-btn-merged', { active: sortConfig.field === 'eui' }]"
-          @click="handleSort('eui')"
-        >
-          能耗强度(EUI)
-        </button>
-        <button 
-          :class="['sort-btn-merged', { active: sortConfig.field === 'totalEnergy' }]"
-          @click="handleSort('totalEnergy')"
-        >
-          总能耗
-        </button>
-        <button 
-          :class="['sort-btn-merged', { active: sortConfig.field === 'cop' }]"
-          @click="handleSort('cop')"
-        >
-          COP
-        </button>
-        <button 
-          :class="['sort-btn-merged', { active: sortConfig.field === 'carbonEmission' }]"
-          @click="handleSort('carbonEmission')"
-        >
-          碳排放
-        </button>
-        
-        <span 
-          class="sort-order-icon-merged" 
-          @click="toggleSortOrder"
-          :title="sortConfig.order === 'asc' ? '当前升序，点击切换降序' : '当前降序，点击切换升序'"
-        >
-          <svg 
-            v-if="sortConfig.order === 'asc'" 
-            width="18" 
-            height="18" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
-            stroke-width="2"
-          >
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <polyline points="19 12 12 5 5 12"></polyline>
-          </svg>
-          <svg 
-            v-else 
-            width="18" 
-            height="18" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
-            stroke-width="2"
-          >
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <polyline points="5 12 12 19 19 12"></polyline>
-          </svg>
-        </span>
+      <div class="filter-row">
+        <!-- 建筑选择 -->
+        <div class="filter-item">
+          <label>建筑选择</label>
+          <select v-model="filterForm.status" class="select-box">
+            <option value="">全部建筑</option>
+            <option value="normal">正常</option>
+            <option value="error">异常</option>
+            <option value="warning">告警</option>
+          </select>
+        </div>
+
+        <!-- 时间范围（图二中有，保留视觉） -->
+        <div class="filter-item">
+          <label>时间范围</label>
+          <select class="select-box">
+            <option>今日</option>
+            <option>本周</option>
+            <option>本月</option>
+          </select>
+        </div>
+
+        <div class="button-group">
+          <button class="btn btn-primary-dark" @click="showAdvanced = true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+              <line x1="4" y1="21" x2="4" y2="14"></line>
+              <line x1="4" y1="10" x2="4" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12" y2="3"></line>
+              <line x1="20" y1="21" x2="20" y2="16"></line>
+              <line x1="20" y1="12" x2="20" y2="3"></line>
+              <line x1="1" y1="14" x2="7" y2="14"></line>
+              <line x1="9" y1="8" x2="15" y2="8"></line>
+              <line x1="17" y1="16" x2="23" y2="16"></line>
+            </svg>
+            高级查询
+          </button>
+          <button class="btn btn-outline" @click="handleReset">重置</button>
+          <button class="btn btn-primary" @click="handleSearch">查询</button>
+        </div>
       </div>
-
-      <BuildingTable 
-        :data="displayData" 
-        :pagination="pagination"
-        :loading="false"
-        @view="handleView"
-        @suggest="handleSuggest"
-        @fault="handleFault"
-        @page-change="handlePageChange"
-      />
-
-      <div class="table-empty-row"></div>
     </div>
     
+    <!-- 已激活的高级筛选标签 -->
+    <div v-if="hasActiveAdvancedFilters" class="active-filters-bar">
+      <span class="filter-label">已应用高级筛选：</span>
+      <span v-if="advancedFilters.buildingId" class="filter-tag">
+        建筑ID含"{{ advancedFilters.buildingId }}"
+        <button @click="clearAdvancedFilter('buildingId')">×</button>
+      </span>
+      <span v-if="advancedFilters.site" class="filter-tag">
+        设备含"{{ advancedFilters.site }}"
+        <button @click="clearAdvancedFilter('site')">×</button>
+      </span>
+      <span v-if="advancedFilters.buildingType?.length" class="filter-tag">
+        类型：{{ advancedFilters.buildingType.join(', ') }}
+        <button @click="clearAdvancedFilter('buildingType')">×</button>
+      </span>
+      <button class="clear-all-btn" @click="clearAllAdvancedFilters">清除所有</button>
+    </div>
+
+    <!-- 数据卡片 -->
+    <div class="data-card">
+      <!-- 卡片头部：排序 + 导出按钮 -->
+      <div class="card-header">
+        <div class="sort-section">
+          <span class="sort-label">排序依据：</span>
+          <div class="sort-tags">
+            <button 
+              :class="['sort-tag', { active: sortConfig.field === 'eui' }]"
+              @click="handleSort('eui')"
+            >
+              能耗强度(EUI)
+            </button>
+            <button 
+              :class="['sort-tag', { active: sortConfig.field === 'totalEnergy' }]"
+              @click="handleSort('totalEnergy')"
+            >
+              总能耗
+            </button>
+            <button 
+              :class="['sort-tag', { active: sortConfig.field === 'status' }]"
+              @click="handleSort('status')"
+            >
+              系统状态
+            </button>
+          </div>
+          
+          <span class="sort-divider"></span>
+          
+          <span class="sort-order-icon" @click="toggleSortOrder" :title="sortConfig.order === 'asc' ? '升序' : '降序'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <template v-if="sortConfig.order === 'asc'">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <polyline points="19 12 12 5 5 12"></polyline>
+              </template>
+              <template v-else>
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <polyline points="5 12 12 19 19 12"></polyline>
+              </template>
+            </svg>
+            升序/降序
+          </span>
+        </div>
+        
+        <!-- 导出按钮组 -->
+        <div class="export-section">
+          <template v-if="isExportMode">
+            <button class="btn-cancel-select" @click="cancelExportMode">取消选择</button>
+            <button class="btn-confirm-export-green" @click="handleExportClick">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              确认导出
+              <span v-if="selectedBuildings.length > 0" class="selected-count">({{ selectedBuildings.length }})</span>
+            </button>
+          </template>
+          <button v-else class="btn-export" @click="handleExportClick">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            导出运行数据
+          </button>
+        </div>
+      </div>
+
+      <!-- 表格区域 -->
+      <div class="table-wrapper">
+        <table class="data-table" v-if="displayData.length > 0">
+          <thead>
+            <tr>
+              <th v-if="isExportMode" class="checkbox-col">
+                <label class="checkbox-label">
+                  <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll" />
+                  <span class="check-box"></span>
+                </label>
+              </th>
+              <th>建筑标识ID</th>
+              <th>站点</th>
+              <th>总能耗</th>
+              <th>COP</th>
+              <th>EUI指数</th>
+              <th>碳排放</th>
+              <th>系统状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in displayData" :key="item.id">
+              <td v-if="isExportMode" class="checkbox-col">
+                <label class="checkbox-label">
+                  <input type="checkbox" :value="item.id" v-model="selectedBuildings" />
+                  <span class="check-box"></span>
+                </label>
+              </td>
+              <td>
+                <div class="building-id">{{ item.buildingId }}</div>
+              </td>
+              <td>
+                <div class="site-name">{{ item.site }}</div>
+              </td>
+              <td>
+                <div class="energy-value">{{ item.totalEnergy.toLocaleString() }}</div>
+                <div class="energy-unit">kWh</div>
+              </td>
+              <td :class="['cop-value', getCopClass(item.cop)]">{{ item.cop }}</td>
+              <td>{{ item.eui }}</td>
+              <td>{{ item.carbonEmission }}</td>
+              <td>
+                <span :class="['status-tag', item.status]">
+                  <span class="status-dot"></span>
+                  {{ item.statusText }}
+                </span>
+              </td>
+              <td>
+                <div class="action-btns">
+                  <button class="action-btn view" @click="handleView(item)" title="查看">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
+                  <button class="action-btn leaf" @click="handleSuggest(item)" title="减排建议">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+                    </svg>
+                  </button>
+                  <button class="action-btn warning" @click="handleFault(item)" title="故障查询">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                      <line x1="12" y1="9" x2="12" y2="13"></line>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <!-- 空状态提示 -->
+        <div v-else class="empty-state">
+          <p>暂无符合条件的数据</p>
+          <button class="btn-text" @click="handleReset">重置筛选条件</button>
+        </div>
+      </div>
+
+      <!-- 分页 -->
+      <div class="pagination-section" v-if="pagination.total > 0">
+        <div class="pagination-info">
+          显示第 {{ displayStart }} - {{ displayEnd }} 条，共 {{ pagination.total }} 条建筑运行记录
+        </div>
+        <div class="pagination-controls">
+          <button class="page-btn" :disabled="pagination.currentPage === 1" @click="handlePageChange(pagination.currentPage - 1)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <button 
+            v-for="page in visiblePages" 
+            :key="page"
+            :class="['page-btn', { active: page === pagination.currentPage }]"
+            @click="handlePageChange(page)"
+          >
+            {{ page }}
+          </button>
+          <button class="page-btn" :disabled="pagination.currentPage === totalPages" @click="handlePageChange(pagination.currentPage + 1)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 高级筛选弹窗 -->
     <FilterModal 
       v-model:visible="showAdvanced" 
       @save="handleAdvancedSave"
     />
+
+    <!-- 导出格式选择弹窗 -->
+    <div v-if="showExportModal" class="modal-overlay" @click.self="closeExportModal">
+      <div class="export-modal">
+        <div class="modal-header">
+          <h3>导出运行数据</h3>
+          <button class="close-btn" @click="closeExportModal">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-label">容器</div>
+          <div class="export-format-list">
+            <label 
+              class="format-item active"
+              @click="selectedFormat = 'markdown'"
+            >
+              <div class="format-icon">i</div>
+              <span class="format-name">Markdown (.md)</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-default" @click="closeExportModal">取消</button>
+          <button class="btn-primary" @click="confirmExport">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            开始导出
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI 助手悬浮按钮 -->
+    <div class="ai-assistant-container">
+      <!-- 悬浮按钮 -->
+      <button class="ai-float-btn" @click="toggleChat">
+        <img src="/public/人工智能.png" alt="AI助手" width="28" height="28" />
+        <span class="ai-badge" v-if="unreadCount > 0">{{ unreadCount }}</span>
+      </button>
+
+
+      <!-- 聊天窗口 -->
+      <div class="ai-chat-popup" v-show="isChatOpen">
+        <div class="chat-header">
+          <div class="chat-title">
+            <div class="chat-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                <path d="M19 10v1a7 7 0 0 1-14 0v-1"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+            </div>
+            <div class="chat-info">
+              <h3>RAG 智慧助手</h3>
+              <span class="chat-status">
+                <span class="status-dot-online"></span>
+                知识库检索中
+              </span>
+            </div>
+          </div>
+          <button class="chat-close" @click="toggleChat">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <div class="chat-body" ref="chatBodyRef">
+          <!-- 预设问题 -->
+          <div class="chat-suggestions" v-if="messages.length === 0">
+            <div class="suggestion-item" v-for="(q, index) in suggestions" :key="index" @click="sendPresetMessage(q)">
+              <span class="suggestion-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="9" y1="9" x2="15" y2="9"></line>
+                  <line x1="9" y1="15" x2="15" y2="15"></line>
+                </svg>
+              </span>
+              <span>{{ q }}</span>
+            </div>
+          </div>
+
+          <!-- 消息列表 -->
+          <div class="chat-messages">
+            <div v-for="(msg, index) in messages" :key="index" :class="['message', msg.type]">
+              <div class="message-avatar" v-if="msg.type === 'assistant'">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="9" y1="9" x2="15" y2="9"></line>
+                  <line x1="9" y1="15" x2="15" y2="15"></line>
+                </svg>
+              </div>
+              <div class="message-content">
+                <div class="message-text" v-html="formatMessage(msg.content)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-footer">
+          <div class="input-box">
+            <input 
+              type="text" 
+              v-model="inputMessage" 
+              placeholder="输入您的问题..." 
+              @keyup.enter="sendMessage"
+              ref="inputRef"
+            />
+            <button class="send-btn" :disabled="!inputMessage.trim()" @click="sendMessage">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import FilterPanel from './FilterPanel.vue';
-import BuildingTable from './BuildingTable.vue';
 import FilterModal from './FilterModal.vue';
 
 const router = useRouter();
-
-// ========== 状态 ==========
 const showAdvanced = ref(false);
+const showExportModal = ref(false);
+const selectedFormat = ref('markdown');
 
-// ========== 类型定义 ==========
-interface BuildingItem {
-  id: string;
-  buildingId: string;
-  site: string;
-  totalEnergy: number;
-  energy: number;
-  cop: number;
-  eui: number;
-  carbonEmission: number;
-  carbon: number;
-  status: 'normal' | 'warning' | 'error';
-  statusText: string;
-}
+// 导出相关状态
+const isExportMode = ref(false);
+const selectedBuildings = ref<string[]>([]);
 
-// ========== Mock 数据 ==========
-const mockData: BuildingItem[] = [
-  { id: 'BLDG-HQ-A01', buildingId: 'BLDG-HQ-A01', site: 'BLDG-HQ-A01', totalEnergy: 1424.52, energy: 1424.52, cop: 4.21, eui: 12.4, carbonEmission: 842.2, carbon: 842.2, status: 'normal', statusText: '运行正常' },
-  { id: 'BLDG-RD-B04', buildingId: 'BLDG-RD-B04', site: 'BLDG-HQ-A01', totalEnergy: 2108.88, energy: 2108.88, cop: 3.15, eui: 18.2, carbonEmission: 1244.5, carbon: 1244.5, status: 'warning', statusText: '告警状态' },
-  { id: 'BLDG-DORM-01', buildingId: 'BLDG-DORM-01', site: 'BLDG-HQ-A01', totalEnergy: 852.12, energy: 852.12, cop: 4.88, eui: 9.1, carbonEmission: 504.2, carbon: 504.2, status: 'normal', statusText: '运行正常' },
-  { id: 'BLDG-PLANT-02', buildingId: 'BLDG-PLANT-02', site: 'BLDG-HQ-A01', totalEnergy: 3842.4, energy: 3842.4, cop: 5.12, eui: 24.5, carbonEmission: 2284.1, carbon: 2284.1, status: 'error', statusText: '异常状态' },
-  { id: 'BLDG-OFFICE-03', buildingId: 'BLDG-OFFICE-03', site: 'BLDG-HQ-A01', totalEnergy: 1650.0, energy: 1650.0, cop: 3.8, eui: 15.0, carbonEmission: 980.0, carbon: 980.0, status: 'normal', statusText: '运行正常' },
-  { id: 'BLDG-WORK-05', buildingId: 'BLDG-WORK-05', site: 'BLDG-HQ-A01', totalEnergy: 3100.5, energy: 3100.5, cop: 4.2, eui: 22.1, carbonEmission: 1850.3, carbon: 1850.3, status: 'warning', statusText: '告警状态' },
-  { id: 'BLDG-LAB-06', buildingId: 'BLDG-LAB-06', site: 'BLDG-HQ-A01', totalEnergy: 1200.8, energy: 1200.8, cop: 3.9, eui: 8.5, carbonEmission: 720.5, carbon: 720.5, status: 'normal', statusText: '运行正常' },
-  { id: 'BLDG-STORE-07', buildingId: 'BLDG-STORE-07', site: 'BLDG-HQ-A01', totalEnergy: 680.25, energy: 680.25, cop: 5.5, eui: 6.2, carbonEmission: 405.0, carbon: 405.0, status: 'normal', statusText: '运行正常' },
-  { id: 'BLDG-CLUB-08', buildingId: 'BLDG-CLUB-08', site: 'BLDG-HQ-A01', totalEnergy: 2450.0, energy: 2450.0, cop: 3.2, eui: 19.8, carbonEmission: 1450.0, carbon: 1450.0, status: 'error', statusText: '异常状态' },
-  { id: 'BLDG-HOSP-09', buildingId: 'BLDG-HOSP-09', site: 'BLDG-HQ-A01', totalEnergy: 4200.0, energy: 4200.0, cop: 4.0, eui: 28.5, carbonEmission: 2500.0, carbon: 2500.0, status: 'warning', statusText: '告警状态' },
-  { id: 'BLDG-SCH-10', buildingId: 'BLDG-SCH-10', site: 'BLDG-HQ-A01', totalEnergy: 980.0, energy: 980.0, cop: 4.5, eui: 11.3, carbonEmission: 580.0, carbon: 580.0, status: 'normal', statusText: '运行正常' },
-  { id: 'BLDG-MALL-11', buildingId: 'BLDG-MALL-11', site: 'BLDG-HQ-A01', totalEnergy: 5600.0, energy: 5600.0, cop: 3.8, eui: 35.2, carbonEmission: 3320.0, carbon: 3320.0, status: 'error', statusText: '异常状态' },
-  { id: 'BLDG-PARK-12', buildingId: 'BLDG-PARK-12', site: 'BLDG-HQ-A01', totalEnergy: 450.0, energy: 450.0, cop: 6.0, eui: 4.8, carbonEmission: 268.0, carbon: 268.0, status: 'normal', statusText: '运行正常' },
-  { id: 'BLDG-GYM-13', buildingId: 'BLDG-GYM-13', site: 'BLDG-HQ-A01', totalEnergy: 1800.0, energy: 1800.0, cop: 3.6, eui: 16.5, carbonEmission: 1070.0, carbon: 1070.0, status: 'warning', statusText: '告警状态' },
-];
-
-// ========== 筛选条件 ==========
+// 筛选表单
 const filterForm = ref({
-  status: '',
-  timeRange: 'today'
+  status: ''
 });
 
-// ========== 排序配置 ==========
+const advancedFilters = ref<Record<string, any>>({});
+
+const hasActiveAdvancedFilters = computed(() => {
+  return Object.keys(advancedFilters.value).length > 0 && 
+    Object.values(advancedFilters.value).some(v => {
+      if (Array.isArray(v)) return v.length > 0;
+      if (typeof v === 'object' && v !== null) {
+        return Object.values(v).some(subV => subV !== '' && subV !== null && subV !== undefined);
+      }
+      return v !== '' && v !== null && v !== undefined;
+    });
+});
+
 const sortConfig = ref({
-  field: 'eui' as 'eui' | 'totalEnergy' | 'cop' | 'carbonEmission',
+  field: 'eui' as 'eui' | 'totalEnergy' | 'status' | 'cop' | 'carbonEmission',
   order: 'asc' as 'asc' | 'desc'
 });
 
-// ========== 分页配置 ==========
 const pagination = ref({
   currentPage: 1,
   pageSize: 7,
   total: 0
 });
 
-// ========== 核心修复：筛选+排序后的完整数据（无副作用） ==========
+// 模拟数据
+interface BuildingItem {
+  id: string;
+  buildingId: string;
+  site: string;
+  status: 'normal' | 'warning' | 'error';
+  statusText: string;
+  totalEnergy: number;
+  cop: number;
+  eui: number;
+  carbonEmission: number;
+  [key: string]: any;
+}
+
+const mockData: BuildingItem[] = [
+  { id: 'BLDG-HQ-A01', buildingId: 'BLDG-HQ-A01', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 1424.52, cop: 4.21, eui: 12.4, carbonEmission: 842.2 },
+  { id: 'BLDG-RD-B04', buildingId: 'BLDG-RD-B04', site: 'BLDG-HQ-A01', status: 'warning', statusText: '告警状态', totalEnergy: 2108.88, cop: 3.15, eui: 18.2, carbonEmission: 1244.5 },
+  { id: 'BLDG-DORM-01', buildingId: 'BLDG-DORM-01', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 852.12, cop: 4.88, eui: 9.1, carbonEmission: 504.2 },
+  { id: 'BLDG-PLANT-02', buildingId: 'BLDG-PLANT-02', site: 'BLDG-HQ-A01', status: 'error', statusText: '运行正常', totalEnergy: 3842.4, cop: 5.12, eui: 24.5, carbonEmission: 2284.1 },
+  { id: 'BLDG-OFFICE-03', buildingId: 'BLDG-OFFICE-03', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 1650.0, cop: 3.8, eui: 15.0, carbonEmission: 980.0 },
+  { id: 'BLDG-WORK-05', buildingId: 'BLDG-WORK-05', site: 'BLDG-HQ-A01', status: 'warning', statusText: '告警状态', totalEnergy: 3100.5, cop: 4.2, eui: 22.1, carbonEmission: 1850.3 },
+  { id: 'BLDG-LAB-06', buildingId: 'BLDG-LAB-06', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 1200.8, cop: 3.9, eui: 8.5, carbonEmission: 720.5 },
+  { id: 'BLDG-STORE-07', buildingId: 'BLDG-STORE-07', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 680.25, cop: 5.5, eui: 6.2, carbonEmission: 405.0 },
+  { id: 'BLDG-CLUB-08', buildingId: 'BLDG-CLUB-08', site: 'BLDG-HQ-A01', status: 'error', statusText: '异常状态', totalEnergy: 2450.0, cop: 3.2, eui: 19.8, carbonEmission: 1450.0 },
+  { id: 'BLDG-HOSP-09', buildingId: 'BLDG-HOSP-09', site: 'BLDG-HQ-A01', status: 'warning', statusText: '告警状态', totalEnergy: 4200.0, cop: 4.0, eui: 28.5, carbonEmission: 2500.0 },
+  { id: 'BLDG-SCH-10', buildingId: 'BLDG-SCH-10', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 980.0, cop: 4.5, eui: 11.3, carbonEmission: 580.0 },
+  { id: 'BLDG-MALL-11', buildingId: 'BLDG-MALL-11', site: 'BLDG-HQ-A01', status: 'error', statusText: '异常状态', totalEnergy: 5600.0, cop: 3.8, eui: 35.2, carbonEmission: 3320.0 },
+  { id: 'BLDG-PARK-12', buildingId: 'BLDG-PARK-12', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 450.0, cop: 6.0, eui: 4.8, carbonEmission: 268.0 },
+  { id: 'BLDG-GYM-13', buildingId: 'BLDG-GYM-13', site: 'BLDG-HQ-A01', status: 'warning', statusText: '告警状态', totalEnergy: 1800.0, cop: 3.6, eui: 16.5, carbonEmission: 1070.0 },
+];
+
+// 核心：根据状态筛选数据
 const filteredSortedData = computed(() => {
   let result = [...mockData];
   
-  // 1. 状态筛选
+  // 状态筛选
   if (filterForm.value.status) {
     result = result.filter(item => item.status === filterForm.value.status);
   }
   
-  // 2. 排序
+  // 高级筛选
+  const adv = advancedFilters.value;
+  if (adv.buildingId) {
+    result = result.filter(item => item.buildingId.toLowerCase().includes(adv.buildingId.toLowerCase()));
+  }
+  if (adv.buildingType?.length > 0) {
+    result = result.filter(item => adv.buildingType.includes(item.buildingType));
+  }
+  
+  // 排序
   result.sort((a, b) => {
-    let aVal: number;
-    let bVal: number;
+    let aVal: number | string;
+    let bVal: number | string;
     
     switch (sortConfig.value.field) {
       case 'eui':
@@ -189,32 +499,40 @@ const filteredSortedData = computed(() => {
         aVal = a.totalEnergy;
         bVal = b.totalEnergy;
         break;
-      case 'cop':
-        aVal = a.cop;
-        bVal = b.cop;
-        break;
       case 'carbonEmission':
         aVal = a.carbonEmission;
         bVal = b.carbonEmission;
+        break;
+      case 'status':
+        // 系统状态排序：按状态优先级排序
+        const statusOrder = { 'error': 0, 'warning': 1, 'normal': 2 };
+        aVal = statusOrder[a.status] ?? 3;
+        bVal = statusOrder[b.status] ?? 3;
         break;
       default:
         aVal = a.eui;
         bVal = b.eui;
     }
     
-    const diff = aVal - bVal;
-    return sortConfig.value.order === 'asc' ? diff : -diff;
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return sortConfig.value.order === 'asc' 
+        ? aVal - bVal
+        : bVal - aVal;
+    }
+    
+    if (aVal < bVal) return sortConfig.value.order === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortConfig.value.order === 'asc' ? 1 : -1;
+    return 0;
   });
   
   return result;
 });
 
-// ========== 关键修复：当筛选/排序结果变化时，重置分页 ==========
+// 监听总数变化
 watch(
   () => filteredSortedData.value.length,
-  (newTotal, oldTotal) => {
+  (newTotal) => {
     pagination.value.total = newTotal;
-    // 如果当前页码超出新数据的总页数，重置为第1页
     const maxPage = Math.ceil(newTotal / pagination.value.pageSize) || 1;
     if (pagination.value.currentPage > maxPage) {
       pagination.value.currentPage = 1;
@@ -223,66 +541,42 @@ watch(
   { immediate: true }
 );
 
-// ========== 当前页展示的数据 ==========
+// 分页数据
 const displayData = computed(() => {
   const start = (pagination.value.currentPage - 1) * pagination.value.pageSize;
-  const end = start + pagination.value.pageSize;
-  return filteredSortedData.value.slice(start, end);
+  return filteredSortedData.value.slice(start, start + pagination.value.pageSize);
 });
 
-// ========== 分页显示计算 ==========
-const totalPages = computed(() => {
-  return Math.ceil(pagination.value.total / pagination.value.pageSize) || 1;
-});
-
-const displayStart = computed(() => {
-  if (pagination.value.total === 0) return 0;
-  return (pagination.value.currentPage - 1) * pagination.value.pageSize + 1;
-});
-
-const displayEnd = computed(() => {
-  const end = pagination.value.currentPage * pagination.value.pageSize;
-  return Math.min(end, pagination.value.total);
-});
+const totalPages = computed(() => Math.ceil(pagination.value.total / pagination.value.pageSize) || 1);
+const displayStart = computed(() => pagination.value.total === 0 ? 0 : (pagination.value.currentPage - 1) * pagination.value.pageSize + 1);
+const displayEnd = computed(() => Math.min(pagination.value.currentPage * pagination.value.pageSize, pagination.value.total));
 
 const visiblePages = computed(() => {
   const pages: number[] = [];
   const maxVisible = 5;
-  const current = pagination.value.currentPage;
-  const total = totalPages.value;
-  
-  let start = Math.max(1, current - Math.floor(maxVisible / 2));
-  let end = Math.min(total, start + maxVisible - 1);
-  
-  if (end - start + 1 < maxVisible) {
-    start = Math.max(1, end - maxVisible + 1);
-  }
-  
-  for (let i = start; i <= end; i++) {
-    pages.push(i);
-  }
-  
+  let start = Math.max(1, pagination.value.currentPage - Math.floor(maxVisible / 2));
+  let end = Math.min(totalPages.value, start + maxVisible - 1);
+  if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
+  for (let i = start; i <= end; i++) pages.push(i);
   return pages;
 });
 
-// ========== 方法 ==========
-const handleSearch = (formData?: any) => {
-  if (formData) {
-    filterForm.value.status = formData.status || '';
-    filterForm.value.timeRange = formData.timeRange || 'today';
-  }
+// 方法
+const handleSearch = () => {
   pagination.value.currentPage = 1;
 };
 
 const handleReset = () => {
   filterForm.value.status = '';
-  filterForm.value.timeRange = 'today';
+  advancedFilters.value = {};
   pagination.value.currentPage = 1;
   sortConfig.value.field = 'eui';
   sortConfig.value.order = 'asc';
+  isExportMode.value = false;
+  selectedBuildings.value = [];
 };
 
-const handleSort = (field: 'eui' | 'totalEnergy' | 'cop' | 'carbonEmission') => {
+const handleSort = (field: any) => {
   if (sortConfig.value.field !== field) {
     sortConfig.value.field = field;
     sortConfig.value.order = 'asc';
@@ -294,72 +588,442 @@ const toggleSortOrder = () => {
 };
 
 const handlePageChange = (page: number) => {
-  if (page < 1 || page > totalPages.value) return;
-  pagination.value.currentPage = page;
+  if (page >= 1 && page <= totalPages.value) pagination.value.currentPage = page;
+};
+
+const getCopClass = (cop: number) => {
+  if (cop >= 4.5) return 'high';
+  if (cop >= 3.5) return 'normal';
+  return 'low';
+};
+
+const handleExportClick = () => {
+  if (!isExportMode.value) {
+    isExportMode.value = true;
+    selectedBuildings.value = [];
+  } else {
+    if (selectedBuildings.value.length === 0) {
+      alert('请至少选择一项建筑数据');
+      return;
+    }
+    showExportModal.value = true;
+  }
+};
+
+const cancelExportMode = () => {
+  isExportMode.value = false;
+  selectedBuildings.value = [];
+};
+
+const closeExportModal = () => {
+  showExportModal.value = false;
+};
+
+const confirmExport = () => {
+  alert(`已将 ${selectedBuildings.value.length} 条数据导出为 Markdown (.md) 格式`);
+  showExportModal.value = false;
+  isExportMode.value = false;
+  selectedBuildings.value = [];
+};
+
+const isAllSelected = computed(() => displayData.value.length > 0 && displayData.value.every(item => selectedBuildings.value.includes(item.id)));
+
+const toggleSelectAll = () => {
+  if (isAllSelected.value) {
+    selectedBuildings.value = selectedBuildings.value.filter(id => !displayData.value.some(item => item.id === id));
+  } else {
+    displayData.value.forEach(item => {
+      if (!selectedBuildings.value.includes(item.id)) selectedBuildings.value.push(item.id);
+    });
+  }
 };
 
 const handleAdvancedSave = (filters: any) => {
-  console.log('高级筛选条件：', filters);
-  handleSearch();
+  advancedFilters.value = { ...filters };
+  pagination.value.currentPage = 1;
 };
 
-const handleView = (item: BuildingItem) => {
-  const buildingId = item.buildingId || item.id;
-  console.log('跳转到建筑详情:', buildingId);
-  router.push(`/building/${buildingId}`);
+const clearAdvancedFilter = (key: string) => {
+  delete advancedFilters.value[key];
+  advancedFilters.value = { ...advancedFilters.value };
 };
 
-const handleSuggest = (item: BuildingItem) => {
-  console.log('减排建议:', item.buildingId);
+const clearAllAdvancedFilters = () => {
+  advancedFilters.value = {};
 };
 
-const handleFault = (item: BuildingItem) => {
-  console.log('故障查询:', item.buildingId);
+const handleView = (item: BuildingItem) => router.push(`/building/${item.buildingId}`);
+const handleSuggest = (item: BuildingItem) => console.log('减排建议:', item.buildingId);
+const handleFault = (item: BuildingItem) => console.log('故障查询:', item.buildingId);
+
+// AI 助手相关状态
+const isChatOpen = ref(false);
+const inputMessage = ref('');
+const messages = ref<Array<{type: 'user' | 'assistant', content: string}>>([]);
+const unreadCount = ref(0);
+const chatBodyRef = ref<HTMLDivElement>();
+const inputRef = ref<HTMLInputElement>();
+
+const suggestions = [
+  '查找本周能耗异常的建筑',
+  '分析3号楼能耗高的原因',
+  '查询异常状态的建筑清单'
+];
+
+// 切换聊天窗口显示
+const toggleChat = () => {
+  isChatOpen.value = !isChatOpen.value;
+  if (isChatOpen.value) {
+    nextTick(() => {
+      inputRef.value?.focus();
+      scrollToBottom();
+    });
+  }
 };
+
+// 发送预设消息
+const sendPresetMessage = (text: string) => {
+  inputMessage.value = text;
+  sendMessage();
+};
+
+// 发送消息
+const sendMessage = async () => {
+  const text = inputMessage.value.trim();
+  if (!text) return;
+  
+  // 添加用户消息
+  messages.value.push({ type: 'user', content: text });
+  inputMessage.value = '';
+  scrollToBottom();
+  
+  // 模拟 AI 回复
+  setTimeout(() => {
+    const reply = generateReply(text);
+    messages.value.push({ type: 'assistant', content: reply });
+    scrollToBottom();
+  }, 1000);
+};
+
+// 简单的回复逻辑
+const generateReply = (question: string): string => {
+  if (question.includes('3号') || question.includes('3号楼')) {
+    return '根据《<a href="#" style="color:#005BAC;text-decoration:underline;">中央机房维保指南</a>》和上周运行数据，3号楼能耗异常主要是因为冷却水泵运行效率低于设计值，建议检查过滤器是否堵塞。';
+  }
+  if (question.includes('异常')) {
+    return '检测到当前有 <strong>3 处异常</strong>：<br>1. BLDG-PLANT-02：冷却系统 COP 低于 3.5<br>2. BLDG-CLUB-08：能耗超标 15%<br>3. BLDG-MALL-11：碳排放异常';
+  }
+  return `已收到您的问题："${question}"，正在为您查询相关数据...`;
+};
+
+// 滚动到底部
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (chatBodyRef.value) {
+      chatBodyRef.value.scrollTop = chatBodyRef.value.scrollHeight;
+    }
+  });
+};
+
+// 格式化消息（支持简单的 HTML）
+const formatMessage = (content: string) => {
+  return content.replace(/\n/g, '<br>');
+};
+
 </script>
 
 <style scoped>
 .query-page {
   min-height: 100%;
+  overflow-y: auto;
+  margin-left: 20px;
+  width: calc(100% - 20px);
+  box-sizing: border-box;
   background: #F5F7FA;
   padding: 24px;
-  overflow-y: auto;
 }
 
 h1 {
   font-size: 20px;
   font-weight: 800;
   color: #002B54;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   letter-spacing: -0.5px;
 }
 
-.table-card {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-  padding: 24px;
-  margin-top: 16px;
-  overflow: visible;
+/* 筛选面板样式 */
+.filter-panel {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #E5E7EB;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  padding: 20px;
+  margin-bottom: 16px;
 }
 
-.table-card-header {
+.panel-header {
+  margin-bottom: 16px;
+}
+
+.title-area {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.table-title {
+.icon-box {
+  width: 32px;
+  height: 32px;
+  background: #EFF6FF;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title-area h2 {
   font-size: 16px;
-  font-weight: 700;
-  color: #333;
+  font-weight: 600;
+  color: #1F2937;
   margin: 0;
 }
 
-.export-btn-rounded {
-  padding: 8px 20px;
-  background: #52c41a;
+.alert-badge {
+  margin-left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #DC2626;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #DC2626;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.filter-item label {
+  font-size: 14px;
+  color: #4B5563;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.select-box {
+  width: 160px;
+  height: 36px;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 14px;
+  color: #374151;
+  background: white;
+  outline: none;
+  cursor: pointer;
+}
+
+.button-group {
+  margin-left: auto;
+  display: flex;
+  gap: 12px;
+}
+
+.btn {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border: none;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: #005BAC;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #004a8d;
+}
+
+.btn-primary-dark {
+  background: #002B54;
+  color: white;
+}
+
+.btn-primary-dark:hover {
+  background: #001f3d;
+}
+
+.btn-outline {
+  background: white;
+  color: #374151;
+  border: 1px solid #D1D5DB;
+}
+
+.btn-outline:hover {
+  background: #F3F4F6;
+  border-color: #9CA3AF;
+}
+
+/* 已激活的筛选标签 */
+.active-filters-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  font-size: 14px;
+  color: #666;
+}
+
+.filter-tag {
+  background: #E6F7FF;
+  border: 1px solid #91D5FF;
+  color: #005BAC;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-tag button {
+  border: none;
+  background: transparent;
+  color: #005BAC;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.clear-all-btn {
+  border: none;
+  background: transparent;
+  color: #999;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* 数据卡片 */
+.data-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  min-height: 500px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.sort-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sort-label {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.sort-tags {
+  display: flex;
+  gap: 8px;
+}
+
+.sort-tag {
+  padding: 8px 16px;
+  border: none;
+  background: #F3F4F6;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.sort-tag:hover {
+  background: #E5E7EB;
+}
+
+.sort-tag.active {
+  background: #005BAC;
+  color: white;
+}
+
+.sort-divider {
+  width: 1px;
+  height: 20px;
+  background: #E8E8E8;
+  margin: 0 4px;
+}
+
+.sort-order-icon {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #666;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.sort-order-icon:hover {
+  background: #F5F5F5;
+  color: #005BAC;
+}
+
+/* 导出按钮 */
+.export-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-export {
+  height: 40px;
+  padding: 0 24px;
+  background: #52C41A;
   color: white;
   border: none;
   border-radius: 20px;
@@ -369,67 +1033,724 @@ h1 {
   display: flex;
   align-items: center;
   transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(82, 196, 26, 0.2);
 }
 
-.sort-bar-merged {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
+.btn-export:hover {
+  background: #389E0D;
+  transform: translateY(-1px);
 }
 
-.sort-label {
+.btn-cancel-select {
+  height: 40px;
+  padding: 0 20px;
+  border: 1px solid #D9D9D9;
+  background: white;
   color: #666;
-  font-size: 14px;
-  margin-right: 4px;
-  font-weight: 500;
-}
-
-.sort-btn-merged {
-  padding: 6px 16px;
-  border: 1px solid transparent;
-  background: #f5f5f5;
-  border-radius: 16px;
+  border-radius: 20px;
   cursor: pointer;
   font-size: 14px;
-  color: #666;
-  transition: all 0.3s;
 }
 
-.sort-btn-merged:hover {
-  background: #e8e8e8;
-  color: #333;
-}
-
-.sort-btn-merged.active {
-  background: #0056b3;
-  color: #fff;
-  border-color: #0056b3;
+.btn-confirm-export-green {
+  height: 40px;
+  padding: 0 24px;
+  background: #52C41A;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
   font-weight: 500;
+  display: flex;
+  align-items: center;
 }
 
-.sort-order-icon-merged {
+/* 表格 */
+.table-wrapper {
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.data-table th {
+  text-align: left;
+  padding: 12px 16px;
+  color: #666;
+  font-weight: 500;
+  border-bottom: 1px solid #F0F0F0;
+  background: #FAFAFA;
+}
+
+.data-table td {
+  padding: 20px 16px;
+  border-bottom: 1px solid #F0F0F0;
+  vertical-align: middle;
+}
+
+.checkbox-col {
+  width: 40px;
+  text-align: center;
+}
+
+.checkbox-label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+.checkbox-label input {
+  display: none;
+}
+
+.check-box {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #D9D9D9;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+}
+
+.checkbox-label input:checked + .check-box {
+  background: #52C41A;
+  border-color: #52C41A;
+}
+
+.checkbox-label input:checked + .check-box::after {
+  content: '';
+  width: 5px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.building-id {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #002B54;
+  font-size: 15px;
+}
+
+.site-name {
+  color: #666;
+  font-size: 14px;
+}
+
+.energy-value {
+  color: #005BAC;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.energy-unit {
+  color: #999;
+  font-size: 12px;
+}
+
+.cop-value {
+  font-weight: 600;
+}
+
+.cop-value.high { color: #52C41A; }
+.cop-value.normal { color: #FAAD14; }
+.cop-value.low { color: #FF4D4F; }
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.status-tag.normal {
+  background: #F6FFED;
+  color: #52C41A;
+}
+
+.status-tag.warning {
+  background: #FFFBE6;
+  color: #FAAD14;
+}
+
+.status-tag.error {
+  background: #FFF2F0;
+  color: #FF4D4F;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.action-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
   width: 32px;
   height: 32px;
-  margin-left: 8px;
-  color: #666;
+  border: none;
+  border-radius: 6px;
   cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  background: transparent;
 }
 
-.sort-order-icon-merged:hover {
-  background: #f0f7ff;
-  color: #0056b3;
+.action-btn.view {
+  color: #005BAC;
+  border: 1px solid #E6F7FF;
+  background: #E6F7FF;
 }
 
-.table-empty-row {
-  height: 52px;
+.action-btn.view:hover {
+  background: #005BAC;
+  color: white;
+}
+
+.action-btn.leaf {
+  color: #52C41A;
+  border: 1px solid #F6FFED;
+  background: #F6FFED;
+}
+
+.action-btn.leaf:hover {
+  background: #52C41A;
+  color: white;
+}
+
+.action-btn.warning {
+  color: #FAAD14;
+  border: 1px solid #FFFBE6;
+  background: #FFFBE6;
+}
+
+.action-btn.warning:hover {
+  background: #FAAD14;
+  color: white;
+}
+
+/* 分页 */
+.pagination-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 20px;
+  border-top: 1px solid #F0F0F0;
+}
+
+.pagination-info {
+  color: #999;
+  font-size: 14px;
+}
+
+.pagination-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.page-btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  background: white;
+  color: #666;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.page-btn:hover:not(:disabled):not(.active) {
+  background: #F5F5F5;
+}
+
+.page-btn.active {
+  background: #005BAC;
+  color: white;
+}
+
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: #D9D9D9;
+}
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #999;
+}
+
+.empty-state p {
+  margin-bottom: 16px;
+}
+
+.btn-text {
+  border: none;
+  background: transparent;
+  color: #005BAC;
+  cursor: pointer;
+  font-size: 14px;
+  text-decoration: underline;
+}
+
+/* 弹窗 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+}
+
+.export-modal {
+  background: white;
+  border-radius: 8px;
   width: 100%;
+  max-width: 480px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #F0F0F0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #002B54;
+}
+
+.close-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.form-label {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.export-format-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.format-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #005BAC;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #E6F7FF;
+}
+
+.format-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  background: #005BAC;
+  border-radius: 50%;
+  font-style: italic;
+  font-weight: 600;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #F0F0F0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: #FAFAFA;
+  border-radius: 0 0 8px 8px;
+}
+
+/* AI 助手容器 */
+.ai-assistant-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.ai-float-btn {
+  pointer-events: auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #005BAC;
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 91, 172, 0.4);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.ai-float-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 91, 172, 0.5);
+}
+
+.ai-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 20px;
+  height: 20px;
+  background: #FF4D4F;
+  border-radius: 50%;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+/* 聊天弹窗 */
+.ai-chat-popup {
+  pointer-events: auto;
+  position: absolute;
+  bottom: 70px;
+  right: 0;
+  width: 380px;
+  height: 520px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 聊天头部 */
+.chat-header {
+  background: #002B54;
+  color: white;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat-icon {
+  width: 40px;
+  height: 40px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.chat-info h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.chat-status {
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.status-dot-online {
+  width: 6px;
+  height: 6px;
+  background: #52C41A;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.chat-close {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.chat-close:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+/* 聊天内容区 */
+.chat-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background: #F5F7FA;
+}
+
+.chat-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.suggestion-item {
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.suggestion-item:hover {
+  border-color: #005BAC;
+  box-shadow: 0 2px 8px rgba(0, 91, 172, 0.1);
+  transform: translateY(-1px);
+}
+
+.suggestion-icon {
+  color: #9CA3AF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 消息列表 */
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.message {
+  display: flex;
+  gap: 10px;
+  max-width: 85%;
+}
+
+.message.user {
+  margin-left: auto;
+  flex-direction: row-reverse;
+}
+
+.message.assistant {
+  margin-right: auto;
+}
+
+.message-avatar {
+  width: 32px;
+  height: 32px;
+  background: #005BAC;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+}
+
+.message-content {
+  background: white;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1F2937;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.message.user .message-content {
+  background: #005BAC;
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.message.assistant .message-content {
+  background: white;
+  border-bottom-left-radius: 4px;
+}
+
+.message-text a {
+  color: #005BAC;
+  text-decoration: underline;
+}
+
+/* 输入区 */
+.chat-footer {
+  padding: 16px 20px;
+  background: white;
+  border-top: 1px solid #E5E7EB;
+}
+
+.input-box {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.input-box input {
+  flex: 1;
+  height: 40px;
+  border: 1px solid #D1D5DB;
+  border-radius: 20px;
+  padding: 0 16px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-box input:focus {
+  border-color: #005BAC;
+}
+
+.send-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #005BAC;
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.send-btn:hover:not(:disabled) {
+  background: #004a8d;
+  transform: scale(1.05);
+}
+
+.send-btn:disabled {
+  background: #D1D5DB;
+  cursor: not-allowed;
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .query-page {
+    margin-left: 0;
+    width: 100%;
+    padding: 16px;
+  }
+  
+  .filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .button-group {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
+  
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ai-chat-popup {
+    width: calc(100vw - 40px);
+    height: 60vh;
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    left: 20px;
+  }
 }
 </style>

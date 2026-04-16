@@ -23,21 +23,9 @@
         <select v-model="form.status" class="select-box">
           <option value="">全部</option>
           <option value="normal">正常</option>
-          <option value="warning">告警</option>
           <option value="error">异常</option>
+          <option value="warning">告警</option>
         </select>
-      </div>
-
-      <!-- 站点选择（改为输入框） -->
-      <div class="filter-item">
-        <label>站点选择</label>
-        <input 
-          v-model="form.site" 
-          type="text" 
-          class="input-box" 
-          placeholder="请输入站点名称"
-          @keyup.enter="handleSearch"
-        />
       </div>
 
       <div class="button-group">
@@ -53,7 +41,7 @@
             <line x1="9" y1="8" x2="15" y2="8"></line>
             <line x1="17" y1="16" x2="23" y2="16"></line>
           </svg>
-          高级筛选配置
+          高级查询
         </button>
         <button class="btn btn-default" @click="handleReset">重置</button>
         <button class="btn btn-outline" @click="handleSearch">
@@ -73,24 +61,20 @@ import { reactive } from 'vue'
 
 const emit = defineEmits(['search', 'reset', 'advanced'])
 
-// 修改：timeRange 改为 site（站点输入）
 const form = reactive({
   status: '',      // 建筑选择（状态筛选：空/normal/warning/error）
-  site: ''         // 站点选择（文本输入）
 })
 
-// 查询：传递完整表单数据
+// 查询：传递状态筛选值
 const handleSearch = () => {
   emit('search', { 
-    status: form.status, 
-    site: form.site.trim() 
+    status: form.status
   })
 }
 
 // 重置：清空所有条件
 const handleReset = () => {
   form.status = ''
-  form.site = ''
   emit('reset')
 }
 
@@ -109,7 +93,7 @@ const handleAdvanced = () => emit('advanced')
 }
 
 .panel-header {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .title-area {
@@ -189,29 +173,6 @@ label {
   cursor: pointer;
 }
 
-/* 新增：输入框样式 */
-.input-box {
-  width: 200px;
-  height: 36px;
-  border: 1px solid #D1D5DB;
-  border-radius: 8px;
-  padding: 0 12px;
-  font-size: 14px;
-  color: #374151;
-  background: white;
-  outline: none;
-  transition: all 0.2s;
-}
-
-.input-box:focus {
-  border-color: #005BAC;
-  box-shadow: 0 0 0 3px rgba(0, 91, 172, 0.1);
-}
-
-.input-box::placeholder {
-  color: #9CA3AF;
-}
-
 .button-group {
   margin-left: auto;
   display: flex;
@@ -258,5 +219,26 @@ label {
 
 .btn-outline:hover {
   background: #F0F7FF;
+}
+
+@media (max-width: 768px) {
+  .filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filter-item {
+    width: 100%;
+  }
+  
+  .select-box {
+    flex: 1;
+  }
+  
+  .button-group {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 </style>
