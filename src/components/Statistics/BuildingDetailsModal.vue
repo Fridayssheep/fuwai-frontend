@@ -165,29 +165,25 @@ const executeExportTasks = async (payload: { format: string }) => {
     const timeStart = `${selectedDay.value}T00:00:00Z`
     const timeEnd = `${selectedDay.value}T23:59:59Z`
     
-    // 1. 发起任务
-    const reqData = await generateReport({
-      report_type: 'daily_summary',
-      building_id: props.buildingId,
-      time_range: { start: timeStart, end: timeEnd },
-      include_ai_summary: true
+    // 1. 生成 Markdown 内容
+    const title = `# 建筑运行数据导出报告 - ${props.buildingId}`
+    const dateStr = `**统计日期**: ${selectedDay.value}\n`
+
+    let basicInfo = `## 1. 建筑基本概况\n`
+    displayMetrics.value.forEach(m => {
+      basicInfo += `- **${m.label}**: ${m.value} ${m.unit || ''}\n`
     })
-    const reportId = reqData.report_id
-    
-    // 2. 轮询状态
-    let isReady = false
-    while (!isReady) {
-      await new Promise(res => setTimeout(res, 2000))
-      const statData = await getReportStatus(reportId)
-      if (statData.status === 'ready') {
-        isReady = true
-      } else if (statData.status === 'failed') {
-        throw new Error('报表生成失败')
-      }
-    }
-    
-    // 3. 取文件流并下载
-    const blob = await downloadReport(reportId, payload.format || 'md')
+
+    let tableHeader = `## 2. 小时级能耗明细\n| 时间 | 总能耗 (KWH) | 峰值负载 (KW) | 平均负载 (KW) |\n| --- | --- | --- | --- |\n`
+    let tableRows = ''
+    hourlyData.value.forEach(h => {
+      tableRows += `| ${h.hour} | ${h.total.toFixed(1)} | ${h.peak.toFixed(1)} | ${h.average.toFixed(1)} |\n`
+    })
+
+    const mdContent = `${title}\n\n${dateStr}\n${basicInfo}\n${tableHeader}${tableRows}`
+
+    // 2. 包装为 Blob 对象并触发无缝下载
+    const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8' })
     const downloadUrl = window.URL.createObjectURL(new Blob([blob as any]))
     const link = document.createElement('a')
     link.href = downloadUrl
@@ -196,9 +192,6 @@ const executeExportTasks = async (payload: { format: string }) => {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(downloadUrl)
-    
-    // 4. 清理暂存报表
-    await deleteReport(reportId)
     
   } catch (err: any) {
     alert('导出异常: ' + (err.message || '未知错误'))
