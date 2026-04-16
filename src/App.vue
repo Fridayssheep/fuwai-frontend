@@ -3,13 +3,14 @@
     <Sidebar class="sidebar-area" />
     <Header class="header-area" />
     <router-view class="main-area" />
+    <GlobalAIAssistant />
   </div>
 </template>
 
 <script setup lang="ts">
 import Sidebar from './components/Sidebar.vue'
 import Header from './components/Header.vue'
-import MainContent from './components/MainContent.vue'
+import GlobalAIAssistant from './components/AIAssistant/GlobalAIAssistant.vue'
 </script>
 
 <style>

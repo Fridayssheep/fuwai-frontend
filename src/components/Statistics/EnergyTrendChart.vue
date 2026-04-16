@@ -234,7 +234,8 @@ const renderChart = (seriesData: EnergySeries[], granularity: string) => {
         markPoint: todayIndex >= 0 ? {
           data: [
             {
-              coord: [todayIndex, values[todayIndex]],
+              name: 'today',
+              coord: [todayIndex, values[todayIndex] ?? 0],
               symbol: 'pin',
               symbolSize: 42,
               symbolOffset: [0, -8],

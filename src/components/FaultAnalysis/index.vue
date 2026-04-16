@@ -106,13 +106,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import OverviewCards from './OverviewCards.vue'
 import AnomalyList from './AnomalyList.vue'
 import AnomalyDetail from './AnomalyDetail.vue'
 import ProgressOverlay from './ProgressOverlay.vue'
 import { useFaultAnalysis, type ChartRange } from './useFaultAnalysis'
+import { usePageAIContext } from '../../composables/useAIContext'
 
 const rangeOptions: { value: ChartRange; label: string }[] = [
   { value: 'day', label: '近 1 天' },
@@ -152,6 +153,35 @@ const {
   severityStats,
   initAnomalyTaskMonitor // 新增
 } = useFaultAnalysis()
+
+const pageAIContext = computed(() => {
+  if (detailData.value) {
+    return {
+      building_id: detailData.value.building_id,
+      meter: detailData.value.meter,
+      time_range: detailData.value.time_range
+    }
+  }
+
+  if (selectedAnomaly.value) {
+    const anomalyStart = new Date(selectedAnomaly.value.start_time)
+    const rangeStart = new Date(anomalyStart.getTime() - 3 * 86400000)
+    const rangeEnd = new Date(anomalyStart.getTime() + 30 * 86400000)
+
+    return {
+      building_id: selectedAnomaly.value.building_id,
+      meter: selectedAnomaly.value.meter || 'electricity',
+      time_range: {
+        start: rangeStart.toISOString(),
+        end: rangeEnd.toISOString()
+      }
+    }
+  }
+
+  return null
+})
+
+usePageAIContext('fault-analysis', pageAIContext)
 
 onMounted(() => {
   fetchOverview()

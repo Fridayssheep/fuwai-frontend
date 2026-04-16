@@ -560,6 +560,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { usePageAIContext } from '../../composables/useAIContext';
 import { getCurrentTimeString } from '@/utils/timeManager';
 // 新增：导入弹窗组件
 import TimeFilterModal from './TimeFilterModal.vue';
@@ -569,6 +570,9 @@ const route = useRoute();
 const router = useRouter();
 
 const buildingId = computed(() => route.params.id as string || 'BLDG-HQ-A01');
+usePageAIContext('building-detail', computed(() => ({
+  building_id: buildingId.value
+})));
 
 // 新增：弹窗显示状态控制
 const showTimeFilter = ref(false);

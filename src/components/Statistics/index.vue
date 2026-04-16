@@ -140,6 +140,7 @@ import TimeFilterModal from '../QueryView/TimeFilterModal.vue'
 import EnergyTrendChart from './EnergyTrendChart.vue'
 import MeterPerformanceTable from './MeterPerformanceTable.vue'
 import BuildingPerformanceTable from './BuildingPerformanceTable.vue'
+import { usePageAIContext } from '../../composables/useAIContext'
 import {
   getEnergyQuery,
   getCopAnalysis,
@@ -241,6 +242,19 @@ const handleTimeFilterQuery = (config: any) => {
   showTimeModal.value = false
   fetchAll()
 }
+
+const pageAIContext = computed(() => {
+  if (!activeStart.value || !activeEnd.value) return null
+
+  return {
+    time_range: {
+      start: activeStart.value,
+      end: activeEnd.value
+    }
+  }
+})
+
+usePageAIContext('statistics', pageAIContext)
 
 // ─── Data fetching ──────────────────────────────────────────────
 const unwrap = (res: any) => res?.data ?? res

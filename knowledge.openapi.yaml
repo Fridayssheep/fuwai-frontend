@@ -1,0 +1,278 @@
+openapi: 3.0.3
+info:
+  title: Building Energy Knowledge API
+  version: 1.0.0
+  description: |-
+    `/knowledge` 是面向前端知识库页面的后端封装接口。
+
+    设计目标：
+    - 由后端统一代理 RAGFlow 数据集与文档能力，前端不再直接持有或使用 RAGFlow API Key。
+    - 仅暴露当前前端知识库页面实际需要的能力：文档聚合列表、分类筛选、下载文档。
+    - 保持前端当前字段结构与交互方式基本不变。
+
+    上游能力来源：
+    - RAGFlow `GET /api/v1/datasets`
+    - RAGFlow `GET /api/v1/datasets/{dataset_id}/documents`
+    - RAGFlow `GET /api/v1/datasets/{dataset_id}/documents/{document_id}`
+
+    聚合规则：
+    - 后端仅在运行时配置允许的 RAGFlow 数据集范围内查询。
+    - `category` 对应 RAGFlow 数据集名称，而不是数据集 ID。
+    - 文档列表会先跨数据集合并，再按 `updated_at` 倒序排序，最后执行统一分页。
+servers:
+  - url: /api
+    description: Frontend reverse proxy base path
+tags:
+  - name: Knowledge
+    description: Knowledge-base browsing APIs for the frontend
+paths:
+  /knowledge/documents:
+    get:
+      tags:
+        - Knowledge
+      summary: 获取知识库文档聚合列表
+      description: |-
+        聚合读取当前系统允许访问的 RAGFlow 数据集，并返回前端知识库页面所需的统一文档列表。
+
+        处理逻辑：
+        1. 读取后端运行时配置中的可用数据集列表。
+        2. 调用 RAGFlow 数据集列表接口获取分类信息。
+        3. 对选中的数据集逐个调用文档列表接口。
+        4. 将结果映射为前端统一结构并统一排序、分页。
+      operationId: listKnowledgeDocuments
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          description: 文档关键字，透传到上游文档检索参数 `keywords`
+          schema:
+            type: string
+            maxLength: 100
+        - name: category
+          in: query
+          required: false
+          description: 数据集名称。传入后仅聚合该分类对应的数据集
+          schema:
+            type: string
+            maxLength: 100
+        - name: page
+          in: query
+          required: false
+          description: 聚合后的页码，从 1 开始
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          required: false
+          description: 聚合后的每页数量
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: 成功返回聚合后的文档列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeDocumentListResponse'
+              examples:
+                success:
+                  summary: 聚合文档列表示例
+                  value:
+                    items:
+                      - document_id: doc_001
+                        dataset_id: dataset_ops_manual
+                        title: 冷机维保手册.pdf
+                        category: 运维手册
+                        source_type: pdf
+                        updated_at: '2026-04-16T08:45:12Z'
+                        size: 1048576
+                      - document_id: doc_002
+                        dataset_id: dataset_rules
+                        title: 机房巡检规范.docx
+                        category: 运行规范
+                        source_type: docx
+                        updated_at: '2026-04-14T02:12:33Z'
+                        size: 245760
+                    pagination:
+                      page: 1
+                      page_size: 20
+                      total: 42
+                    categories_available:
+                      - 运维手册
+                      - 运行规范
+                      - 故障案例
+        '400':
+          description: 查询参数非法
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: 上游知识库服务异常或响应不合法
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 知识库服务未配置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: 上游知识库服务超时
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /knowledge/datasets/{dataset_id}/documents/{document_id}/download:
+    get:
+      tags:
+        - Knowledge
+      summary: 下载知识库文档
+      description: |-
+        代理下载指定数据集中的指定文档。
+
+        该接口对应 RAGFlow 的文档下载能力，但由后端统一完成鉴权并将文件流返回给前端。
+      operationId: downloadKnowledgeDocument
+      parameters:
+        - name: dataset_id
+          in: path
+          required: true
+          description: RAGFlow 数据集 ID
+          schema:
+            type: string
+        - name: document_id
+          in: path
+          required: true
+          description: RAGFlow 文档 ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 下载成功，返回文件二进制流
+          headers:
+            Content-Disposition:
+              description: 附件下载文件名
+              schema:
+                type: string
+            Content-Type:
+              description: 文件 MIME 类型
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: 指定数据集或文档不存在，或不在允许访问范围内
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: 上游知识库服务异常或鉴权失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 知识库服务未配置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: 上游知识库服务超时
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    KnowledgeDocument:
+      type: object
+      required:
+        - document_id
+        - dataset_id
+        - title
+        - category
+      properties:
+        document_id:
+          type: string
+          description: 文档 ID
+        dataset_id:
+          type: string
+          description: 所属数据集 ID
+        title:
+          type: string
+          description: 文档标题或文件名
+        category:
+          type: string
+          description: 所属分类，映射自数据集名称
+        source_type:
+          type: string
+          nullable: true
+          description: 文件类型，通常由文件后缀推断，例如 `pdf`、`docx`
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 文档更新时间；若上游缺失则回退为创建时间
+        size:
+          type: integer
+          format: int64
+          nullable: true
+          minimum: 0
+          description: 文件大小，单位字节
+    KnowledgePagination:
+      type: object
+      required:
+        - page
+        - page_size
+        - total
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: 当前页码
+        page_size:
+          type: integer
+          minimum: 1
+          description: 每页条数
+        total:
+          type: integer
+          minimum: 0
+          description: 聚合后的总记录数
+    KnowledgeDocumentListResponse:
+      type: object
+      required:
+        - items
+        - pagination
+      properties:
+        items:
+          type: array
+          description: 当前页文档列表
+          items:
+            $ref: '#/components/schemas/KnowledgeDocument'
+        pagination:
+          $ref: '#/components/schemas/KnowledgePagination'
+        categories_available:
+          type: array
+          description: 当前配置允许访问的全部分类名称列表
+          items:
+            type: string
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: 错误描述
