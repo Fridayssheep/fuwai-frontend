@@ -19,28 +19,7 @@
     </div>
 
     <!-- 时间范围弹窗 -->
-    <div v-if="showTimeModal" class="modal-overlay" @click.self="showTimeModal = false">
-      <div class="time-modal">
-        <div class="modal-header">
-          <h3>设定统计周期</h3>
-          <button class="modal-close" @click="showTimeModal = false">✕</button>
-        </div>
-        <div class="modal-body">
-          <div class="input-group">
-            <label>开始时间</label>
-            <input type="datetime-local" v-model="customStart" />
-          </div>
-          <div class="input-group">
-            <label>结束时间</label>
-            <input type="datetime-local" v-model="customEnd" />
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-secondary" @click="showTimeModal = false">取消</button>
-          <button class="btn-primary" @click="applyTimeRange">确认</button>
-        </div>
-      </div>
-    </div>
+    <TimeFilterModal v-model:visible="showTimeModal" @query="handleTimeFilterQuery" />
 
     <!-- KPI 卡片行 -->
     <section class="kpi-row">
@@ -157,6 +136,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
+import TimeFilterModal from '../QueryView/TimeFilterModal.vue'
 import EnergyTrendChart from './EnergyTrendChart.vue'
 import MeterPerformanceTable from './MeterPerformanceTable.vue'
 import BuildingPerformanceTable from './BuildingPerformanceTable.vue'
@@ -177,8 +157,6 @@ const copSummary = ref<CopSummary | null>(null)
 
 // Time range
 const showTimeModal = ref(false)
-const customStart = ref('')
-const customEnd = ref('')
 const activeStart = ref('')
 const activeEnd = ref('')
 
@@ -253,20 +231,13 @@ const initTimeRange = () => {
 
   activeStart.value = start.toISOString()
   activeEnd.value = end.toISOString()
-
-  // 格式化为 datetime-local 的 value
-  const toLocal = (d: Date) => {
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  }
-  customStart.value = toLocal(start)
-  customEnd.value = toLocal(end)
 }
 
-const applyTimeRange = () => {
-  if (!customStart.value || !customEnd.value) return
-  activeStart.value = new Date(customStart.value).toISOString()
-  activeEnd.value = new Date(customEnd.value).toISOString()
+const handleTimeFilterQuery = (config: any) => {
+  if (!config.startTime || !config.endTime) return
+  // TimeFilterModal 已经去除了 Z 并且格式化为本地时间字符串 YYYY-MM-DDTHH:mm:ss
+  activeStart.value = new Date(config.startTime).toISOString()
+  activeEnd.value = new Date(config.endTime).toISOString()
   showTimeModal.value = false
   fetchAll()
 }
