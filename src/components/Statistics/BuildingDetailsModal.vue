@@ -80,120 +80,21 @@
         </div>
       </div>
 
-      <!-- 报表预览区域 -->
-      <div class="report-preview-overlay" v-if="showReportPreview && reportDetail">
-        <div class="report-preview-panel">
-          <div class="preview-header">
-            <h3>报表预览</h3>
-            <button class="close-btn" @click="closeReportPreview">
-              <Icon icon="lucide:x" />
-            </button>
-          </div>
-          <div class="preview-body">
-            <div class="preview-meta">
-              <div class="meta-item">
-                <span class="meta-label">报表类型</span>
-                <span class="meta-value">{{ reportDetail.report_type }}</span>
-              </div>
-              <div class="meta-item">
-                <span class="meta-label">建筑 ID</span>
-                <span class="meta-value">{{ reportDetail.building_id }}</span>
-              </div>
-              <div class="meta-item">
-                <span class="meta-label">时间范围</span>
-                <span class="meta-value">{{ reportDetail.time_range?.start?.slice(0,10) }} ~ {{ reportDetail.time_range?.end?.slice(0,10) }}</span>
-              </div>
-              <div class="meta-item">
-                <span class="meta-label">生成时间</span>
-                <span class="meta-value">{{ reportDetail.completed_at || reportDetail.created_at }}</span>
-              </div>
-            </div>
-
-            <div class="preview-ai-summary" v-if="reportDetail.ai_summary">
-              <h4>AI 智能分析</h4>
-              <div class="ai-summary-content">{{ reportDetail.ai_summary }}</div>
-            </div>
-
-            <div class="preview-metrics" v-if="reportDetail.data?.summary_metrics?.length">
-              <h4>关键指标</h4>
-              <div class="metrics-grid">
-                <div class="metric-card" v-for="m in reportDetail.data.summary_metrics" :key="m.key">
-                  <span class="metric-label">{{ m.label }}</span>
-                  <span class="metric-value">
-                    {{ m.value?.toLocaleString() }}
-                    <span v-if="m.unit" class="metric-unit">{{ m.unit }}</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div class="preview-hourly" v-if="reportDetail.data?.hourly_data?.length">
-              <h4>小时级数据</h4>
-              <table class="preview-hourly-table">
-                <thead>
-                  <tr>
-                    <th>时间</th>
-                    <th>总能耗 (KWH)</th>
-                    <th>峰值 (KW)</th>
-                    <th>平均 (KWH)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(item, idx) in reportDetail.data.hourly_data" :key="idx">
-                    <td>{{ item.hour }}</td>
-                    <td class="font-numeric">{{ formatNumber(item.total) }}</td>
-                    <td class="font-numeric">{{ formatNumber(item.peak) }}</td>
-                    <td class="font-numeric">{{ formatNumber(item.average) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="preview-footer">
-            <button class="btn btn-default" @click="closeReportPreview">关闭预览</button>
-            <button class="btn btn-primary btn-icon" @click="downloadCurrentReport" :disabled="downloadingReport">
-              <Icon v-if="downloadingReport" icon="lucide:loader-2" class="spin mr-1" />
-              <span v-if="downloadingReport">下载中...</span>
-              <template v-else>
-                下载报表 <Icon icon="lucide:download" class="ml-1" />
-              </template>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 加载中遮罩 -->
-      <div class="loading-overlay" v-if="reportLoading">
-        <Icon icon="lucide:loader-2" class="spin" />
-        <span>正在加载报表详情...</span>
-      </div>
-
       <!-- 模态框底部 -->
       <div class="modal-footer">
         <button class="btn btn-default" @click="close">返回</button>
         <button class="btn btn-primary" @click="exportData">
           一键统计分析 
         </button>
-        <button class="btn btn-primary btn-icon" @click="showExportModal = true" :disabled="exporting">
+        <button class="btn btn-primary btn-icon" @click="exportMarkdown" :disabled="exporting">
           <Icon v-if="exporting" icon="lucide:loader-2" class="spin mr-1" />
-          <span v-if="exporting">正在生成报表...</span>
+          <span v-if="exporting">导出中...</span>
           <template v-else>
-            导出数据 <Icon icon="lucide:external-link" class="ml-1" />
+            导出数据 <Icon icon="lucide:download" class="ml-1" />
           </template>
-        </button>
-        <button 
-          v-if="currentReportId && !showReportPreview" 
-          class="btn btn-accent btn-icon" 
-          @click="viewReportDetail(currentReportId)" 
-          :disabled="reportLoading"
-        >
-          <Icon icon="lucide:eye" class="mr-1" />
-          查看报表
         </button>
       </div>
     </div>
-    
-    <ExportModal v-model:visible="showExportModal" @export="executeExportTasks" />
   </div>
 </template>
 
@@ -201,17 +102,10 @@
 import { ref, watch, computed } from 'vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import { Icon } from '@iconify/vue'
-import ExportModal from '../QueryView/ExportModal.vue'
 import { 
   getBuildingById, 
   type BuildingDetailResponse, 
-  getBuildingEnergySummary,
-  generateReport,
-  getReportStatus,
-  getReportDetail,
-  type ReportDetailResponse,
-  downloadReport,
-  deleteReport
+  getBuildingEnergySummary
 } from '../../api/statistics'
 
 const props = defineProps<{
@@ -229,20 +123,12 @@ const anomalyCount = ref(0)
 const hourlyData = ref<{ hour: string; total: number; peak: number; average: number }[]>([])
 const hourlyLoading = ref(false)
 
-const showExportModal = ref(false)
 const exporting = ref(false)
-
-const showReportPreview = ref(false)
-const reportDetail = ref<ReportDetailResponse | null>(null)
-const currentReportId = ref('')
-const reportLoading = ref(false)
-const downloadingReport = ref(false)
 
 const selectedDay = ref('')
 
 watch(() => props.startTime, (v) => {
   if (v) {
-    // 简单截取或解析 yyyy-mm-dd
     const safeStr = v.replace(/-/g, '/')
     const d = new Date(safeStr)
     if (!isNaN(d.getTime())) {
@@ -262,123 +148,74 @@ const exportData = () => {
   alert('功能开发中: 一键统计分析')
 }
 
-const executeExportTasks = async (payload: { format: string }) => {
-  if (!props.buildingId) return
+const exportMarkdown = () => {
+  if (!detailData.value && hourlyData.value.length === 0) {
+    alert('暂无数据可导出')
+    return
+  }
   exporting.value = true
-  showReportPreview.value = false
-  reportDetail.value = null
-  
+
   try {
-    const timeStart = `${selectedDay.value}T00:00:00Z`
-    const timeEnd = `${selectedDay.value}T23:59:59Z`
-    
-    const unwrap = (res: any) => res?.data ?? res
-    
-    const reqRaw = await generateReport({
-      report_type: 'daily_summary',
-      building_id: props.buildingId,
-      time_range: { start: timeStart, end: timeEnd },
-      include_ai_summary: true
-    })
-    const reqData = unwrap(reqRaw)
-    const reportId = reqData?.report_id
-    
-    if (!reportId) throw new Error('接口未返回 report_id')
-    currentReportId.value = reportId
-    
-    let isReady = false
-    let maxPoll = 15
-    while (!isReady && maxPoll > 0) {
-      await new Promise(res => setTimeout(res, 2000))
-      const statRaw = await getReportStatus(reportId)
-      const statData = unwrap(statRaw)
-      
-      if (statData?.status === 'ready' || statData?.status === undefined) {
-        isReady = true
-      } else if (statData?.status === 'failed') {
-        throw new Error('报表生成失败')
+    const building = detailData.value?.building
+    const metrics = displayMetrics.value
+    const lines: string[] = []
+
+    lines.push(`# 建筑详情报表 - ${props.buildingId}`)
+    lines.push('')
+    lines.push(`> 导出时间: ${new Date().toLocaleString('zh-CN')}`)
+    lines.push(`> 数据日期: ${selectedDay.value}`)
+    lines.push('')
+
+    lines.push('## 基本资料')
+    lines.push('')
+    lines.push('| 指标 | 值 |')
+    lines.push('|------|-----|')
+    for (const m of metrics) {
+      const val = m.unit ? `${m.value.toLocaleString()} ${m.unit}` : m.value.toLocaleString()
+      lines.push(`| ${m.label} | ${val} |`)
+    }
+    lines.push('')
+
+    if (hourlyData.value.length > 0) {
+      lines.push('## 小时级多维监控数据')
+      lines.push('')
+      lines.push('| 时间 | 总能耗 (KWH) | 峰值 (KW) | 平均 (KWH) |')
+      lines.push('|------|-------------|-----------|-----------|')
+      for (const item of hourlyData.value) {
+        lines.push(`| ${item.hour} | ${formatNumber(item.total)} | ${formatNumber(item.peak)} | ${formatNumber(item.average)} |`)
       }
-      maxPoll--
+      lines.push('')
     }
 
-    if (!isReady) throw new Error('报表生成超时，部分设备可能离线或网络异常')
-    
-    await viewReportDetail(reportId)
-    
+    const meters = displayMeters.value
+    const hasAnyMeter = meters.some(m => m.available)
+    if (hasAnyMeter) {
+      lines.push('## 监控表计')
+      lines.push('')
+      lines.push('| 表计类型 | 可用 |')
+      lines.push('|---------|------|')
+      for (const m of meters) {
+        lines.push(`| ${formatMeterName(m.meter)} | ${m.available ? '✅' : '❌'} |`)
+      }
+      lines.push('')
+    }
+
+    const mdContent = lines.join('\n')
+    const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `building_${props.buildingId}_${selectedDay.value}.md`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
   } catch (err: any) {
-    alert('导出异常: ' + (err.message || '未知错误'))
+    alert('导出失败: ' + (err.message || '未知错误'))
     console.error(err)
   } finally {
     exporting.value = false
   }
-}
-
-const viewReportDetail = async (reportId: string) => {
-  reportLoading.value = true
-  try {
-    const unwrap = (res: any) => res?.data ?? res
-    const raw = await getReportDetail(reportId)
-    reportDetail.value = unwrap(raw)
-    showReportPreview.value = true
-  } catch (err: any) {
-    console.error('获取报表详情失败', err)
-    alert('获取报表详情失败: ' + (err.message || '未知错误'))
-  } finally {
-    reportLoading.value = false
-  }
-}
-
-const downloadCurrentReport = async () => {
-  if (!currentReportId.value) return
-  downloadingReport.value = true
-  try {
-    const blobRaw = await downloadReport(currentReportId.value, 'md')
-    let blob: Blob
-    if (blobRaw && (blobRaw as any).data instanceof Blob) {
-      blob = (blobRaw as any).data
-    } else if (blobRaw instanceof Blob) {
-      blob = blobRaw
-    } else {
-      blob = new Blob([blobRaw as any], { type: 'text/markdown;charset=utf-8' })
-    }
-    
-    const downloadUrl = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = downloadUrl
-    link.setAttribute('download', `building_${props.buildingId}_report_${selectedDay.value}.md`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(downloadUrl)
-  } catch (err: any) {
-    alert('下载失败: ' + (err.message || '未知错误'))
-    console.error(err)
-  } finally {
-    downloadingReport.value = false
-  }
-}
-
-const closeReportPreview = async () => {
-  showReportPreview.value = false
-  reportDetail.value = null
-  if (currentReportId.value) {
-    try {
-      await deleteReport(currentReportId.value)
-    } catch {
-      // ignore cleanup errors
-    }
-    currentReportId.value = ''
-  }
-}
-
-const viewDetailAction = (item: any) => {
-  alert(`功能开发中: 查看 ${formatTime(item.timestamp)} 时刻的明细`)
-}
-
-const formatTime = (ts: string) => {
-  if (!ts) return ''
-  const d = new Date(ts)
-  return `${String(d.getHours()).padStart(2,'0')}:00`
 }
 
 const formatNumber = (val: number | null | undefined): string => {
@@ -392,7 +229,6 @@ const fetchHourlyOnly = async () => {
   hourlyData.value = []
 
   try {
-    // 并发调用 24 次，每次查询一个小时的摘要
     const promises = Array.from({ length: 24 }, (_, i) => {
       const hh = String(i).padStart(2, '0')
       const startStr = `${selectedDay.value}T${hh}:00:00`
@@ -454,13 +290,10 @@ watch(
   }
 )
 
-// -- Computed Mappings --
-
 const displayMetrics = computed(() => {
   const metrics = detailData.value?.summary_metrics || []
   const building = detailData.value?.building
   
-  // 按照设计稿补充一些建筑基本信息
   const fullList = [
     { key: 'usage', label: '建筑主要用途', value: building?.primaryspaceusage || '—', unit: '' },
     { key: 'sqm', label: '总面积', value: building?.sqm || 0, unit: 'm²' },
@@ -471,7 +304,6 @@ const displayMetrics = computed(() => {
 
 const displayMeters = computed(() => {
   const meters = detailData.value?.meters || []
-  // Ensure we see exactly the ones like in the design mockup or the real DB
   const standardMeters = ['hotwater', 'chilledwater', 'irrigation', 'solar', 'gas', 'electricity']
   return standardMeters.map(sm => {
     const found = meters.find(m => m.meter === sm)
@@ -506,7 +338,6 @@ function getMeterColor(name: string) {
 }
 
 function getMockPct(name: string) {
-  // Mock logic to show percentages like the mockup
   const pct: Record<string, string> = {
     electricity: '60.0',
     hotwater: '10.0',
@@ -886,224 +717,6 @@ function getMockPct(name: string) {
 }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
-
-/* Report Preview Overlay */
-.report-preview-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(241, 245, 249, 0.97);
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  animation: fadeIn 0.25s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.report-preview-panel {
-  background: white;
-  border-radius: 12px;
-  width: 100%;
-  max-height: 100%;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-}
-
-.preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.preview-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: #0b4582;
-}
-
-.preview-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px;
-}
-
-.preview-meta {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-.meta-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 16px;
-  background: #f8fafc;
-  border-radius: 8px;
-}
-
-.meta-label {
-  font-size: 11px;
-  color: #94a3b8;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.meta-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.preview-ai-summary {
-  margin-bottom: 24px;
-  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
-  border-radius: 10px;
-  padding: 20px;
-  border: 1px solid #bfdbfe;
-}
-
-.preview-ai-summary h4 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: #0b4582;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.ai-summary-content {
-  font-size: 13px;
-  line-height: 1.8;
-  color: #334155;
-  white-space: pre-wrap;
-}
-
-.preview-metrics {
-  margin-bottom: 24px;
-}
-
-.preview-metrics h4,
-.preview-hourly h4 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
-}
-
-.metric-card {
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border: 1px solid #f1f5f9;
-  transition: all 0.2s;
-}
-
-.metric-card:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-}
-
-.metric-label {
-  font-size: 11px;
-  color: #64748b;
-  font-weight: 600;
-}
-
-.metric-value {
-  font-size: 18px;
-  font-weight: 800;
-  color: #0b4582;
-}
-
-.metric-unit {
-  font-size: 11px;
-  font-weight: 500;
-  color: #94a3b8;
-  margin-left: 2px;
-}
-
-.preview-hourly-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: center;
-  font-size: 13px;
-}
-
-.preview-hourly-table th {
-  font-size: 12px;
-  font-weight: 600;
-  color: #64748b;
-  padding: 10px;
-  background: #f8fafc;
-  position: sticky;
-  top: 0;
-}
-
-.preview-hourly-table td {
-  padding: 10px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #0f172a;
-}
-
-.preview-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 24px;
-  border-top: 1px solid #e2e8f0;
-}
-
-.btn-accent {
-  background: #059669;
-  color: white;
-}
-.btn-accent:hover {
-  background: #047857;
-}
-
-.loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.85);
-  z-index: 15;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  font-size: 14px;
-  color: #0b4582;
-  font-weight: 600;
-}
-
 .font-numeric {
   font-variant-numeric: tabular-nums;
 }
