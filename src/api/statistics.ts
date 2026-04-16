@@ -291,7 +291,8 @@ export interface ReportStatusResponse {
 /** 1. 创建报表生成任务 */
 export const generateReport = (data: GenerateReportRequest) => {
     return request.post<GenerateReportResponse>('/reports/generate', data, {
-        timeout: 10000
+        // AI 总结和报表生成通常非常耗时，放宽至 120 秒
+        timeout: 120000
     })
 }
 
@@ -299,7 +300,7 @@ export const generateReport = (data: GenerateReportRequest) => {
 export const getReportStatus = (reportId: string) => {
     return request.get<ReportStatusResponse>(`/reports/${reportId}`, {
         params: { download: false },
-        timeout: 10000
+        timeout: 30000
     })
 }
 
@@ -308,7 +309,8 @@ export const downloadReport = (reportId: string, format: string = 'md') => {
     return request.get(`/reports/${reportId}`, {
         params: { download: true, format },
         responseType: 'blob', // 关键点：将响应体作为 Blob 读取，以便用于前端下载
-        timeout: 30000
+        // 下载文件流同样需要充分时间，特别是处于外网或文件较大时
+        timeout: 120000
     })
 }
 
