@@ -9,91 +9,12 @@
         aria-label="打开全局 AI 助手"
         @click="toggleAssistant"
       >
-        <span class="fab-scan fab-scan-left" aria-hidden="true"></span>
-        <span class="fab-scan fab-scan-right" aria-hidden="true"></span>
-        <span class="fab-aura" aria-hidden="true"></span>
         <img src="/character+mini.png" alt="" class="fab-avatar" />
         <span v-if="notificationCount > 0" class="fab-dot">{{ notificationCount > 9 ? '9+' : notificationCount }}</span>
       </button>
 
       <Transition name="assistant-shell">
         <div v-if="isOpen" ref="panelRef" class="assistant-shell">
-          <Transition name="history-sheet">
-            <section v-if="showHistory" class="history-sheet">
-              <div class="history-head">
-                <span class="history-title">历史对话主题</span>
-                <button
-                  v-if="hasMoreSessions"
-                  class="history-more"
-                  type="button"
-                  :disabled="sessionsLoading"
-                  @click="loadSessions(true)"
-                >
-                  {{ sessionsLoading ? '加载中…' : '查看更多' }}
-                </button>
-              </div>
-
-              <div v-if="historyError" class="history-error">{{ historyError }}</div>
-
-              <div v-else-if="sessions.length === 0 && !sessionsLoading" class="history-empty">
-                <img src="/character.png" alt="" class="history-empty-avatar" />
-                <div>
-                  <strong>还没有历史会话</strong>
-                  <p>第一轮提问会自动创建新的 AI 会话。</p>
-                </div>
-              </div>
-
-              <div v-else class="history-list">
-                <article
-                  v-for="session in sessions"
-                  :key="session.session_id"
-                  class="history-card"
-                  :class="{ selected: session.session_id === activeSessionId }"
-                  @click="selectSession(session.session_id)"
-                >
-                  <div class="history-card-main">
-                    <div class="history-card-icon">
-                      <span></span>
-                    </div>
-                    <div class="history-card-copy">
-                      <h4>{{ session.title || '新会话' }}</h4>
-                      <p>{{ session.last_message || buildSessionHint(session) }}</p>
-                    </div>
-                    <div class="history-card-meta">
-                      <span>{{ formatRelativeTime(session.updated_at) }}</span>
-                      <button
-                        class="history-card-menu"
-                        type="button"
-                        :aria-label="`更多操作：${session.title}`"
-                        @click.stop="toggleHistoryMenu(session.session_id)"
-                      >
-                        <Icon icon="lucide:ellipsis-vertical" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <Transition name="menu-fade">
-                    <div
-                      v-if="menuSessionId === session.session_id"
-                      class="history-menu"
-                      @click.stop
-                    >
-                      <button
-                        class="history-menu-item danger"
-                        type="button"
-                        :disabled="deletingSessionId === session.session_id"
-                        @click.stop="removeSession(session.session_id)"
-                      >
-                        <Icon icon="lucide:trash-2" />
-                        {{ deletingSessionId === session.session_id ? '删除中…' : '删除' }}
-                      </button>
-                    </div>
-                  </Transition>
-                </article>
-              </div>
-            </section>
-          </Transition>
-
           <section class="assistant-panel">
             <header class="assistant-head">
               <div class="assistant-brand">
@@ -101,11 +22,7 @@
                   <Icon icon="lucide:zap" />
                 </div>
                 <div class="assistant-brand-copy">
-                  <h2>RAG 智慧助手</h2>
-                  <div class="assistant-brand-status">
-                    <span class="status-led" :class="{ busy: isSending }"></span>
-                    <span>{{ currentStatusText }}</span>
-                  </div>
+                  <h2>运维智慧AI助手</h2>
                 </div>
               </div>
 
@@ -122,23 +39,83 @@
               </div>
             </header>
 
-            <div v-if="effectiveContext" class="context-ribbon">
-              <span class="context-ribbon-label">当前上下文</span>
-              <span v-if="effectiveContext.building_id" class="context-chip">
-                <Icon icon="lucide:building-2" />
-                {{ effectiveContext.building_id }}
-              </span>
-              <span v-if="effectiveContext.meter" class="context-chip">
-                <Icon icon="lucide:gauge" />
-                {{ effectiveContext.meter }}
-              </span>
-              <span v-if="effectiveContext.time_range" class="context-chip">
-                <Icon icon="lucide:calendar-range" />
-                {{ formatRange(effectiveContext.time_range) }}
-              </span>
-            </div>
-
             <div ref="messageScrollerRef" class="assistant-body">
+              <Transition name="history-sheet">
+                <section v-if="showHistory" class="history-sheet">
+                  <div class="history-head">
+                    <span class="history-title">历史对话主题</span>
+                    <button
+                      v-if="hasMoreSessions"
+                      class="history-more"
+                      type="button"
+                      :disabled="sessionsLoading"
+                      @click="loadSessions(true)"
+                    >
+                      {{ sessionsLoading ? '加载中…' : '查看更多' }}
+                    </button>
+                  </div>
+
+                  <div v-if="historyError" class="history-error">{{ historyError }}</div>
+
+                  <div v-else-if="sessions.length === 0 && !sessionsLoading" class="history-empty">
+                    <img src="/character.png" alt="" class="history-empty-avatar" />
+                    <div>
+                      <strong>还没有历史会话</strong>
+                      <p>第一轮提问会自动创建新的 AI 会话。</p>
+                    </div>
+                  </div>
+
+                  <div v-else class="history-list">
+                    <article
+                      v-for="session in sessions"
+                      :key="session.session_id"
+                      class="history-card"
+                      :class="{ selected: session.session_id === activeSessionId }"
+                      @click="selectSession(session.session_id)"
+                    >
+                      <div class="history-card-main">
+                        <div class="history-card-icon">
+                          <span></span>
+                        </div>
+                        <div class="history-card-copy">
+                          <h4>{{ session.title || '新会话' }}</h4>
+                          <p>{{ session.last_message || buildSessionHint(session) }}</p>
+                        </div>
+                        <div class="history-card-meta">
+                          <span>{{ formatRelativeTime(session.updated_at) }}</span>
+                          <button
+                            class="history-card-menu"
+                            type="button"
+                            :aria-label="`更多操作：${session.title}`"
+                            @click.stop="toggleHistoryMenu(session.session_id)"
+                          >
+                            <Icon icon="lucide:ellipsis-vertical" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <Transition name="menu-fade">
+                        <div
+                          v-if="menuSessionId === session.session_id"
+                          class="history-menu"
+                          @click.stop
+                        >
+                          <button
+                            class="history-menu-item danger"
+                            type="button"
+                            :disabled="deletingSessionId === session.session_id"
+                            @click.stop="removeSession(session.session_id)"
+                          >
+                            <Icon icon="lucide:trash-2" />
+                            {{ deletingSessionId === session.session_id ? '删除中…' : '删除' }}
+                          </button>
+                        </div>
+                      </Transition>
+                    </article>
+                  </div>
+                </section>
+              </Transition>
+
               <div v-if="sessionLoading" class="loading-state">
                 <Icon icon="lucide:loader-circle" class="spin" />
                 <span>正在载入历史会话…</span>
@@ -151,7 +128,7 @@
                     <div class="welcome-glow"></div>
                   </div>
                   <div class="welcome-copy">
-                    <p class="welcome-kicker">GLOBAL AI</p>
+                    <p class="welcome-kicker">SMART OPS</p>
                     <h3>可以直接问我设备维保、能耗分析或异常排查。</h3>
                     <p>
                       我会自动在知识库、数据查询和故障分析之间选择合适能力，并尽量带上你当前页面的业务上下文。
@@ -193,7 +170,10 @@
                         <span class="bubble-time">{{ formatClock(message.created_at) }}</span>
                       </div>
 
-                      <p class="bubble-text">{{ message.content }}</p>
+                      <div
+                        class="bubble-text markdown-body"
+                        v-html="renderMessageContent(message)"
+                      ></div>
 
                       <div
                         v-if="message.role === 'assistant' && hasAnyReferences(message.references)"
@@ -208,6 +188,10 @@
                             v-for="reference in flattenReferences(message.references)"
                             :key="`${message.message_id}_${reference.source_type}_${reference.document_name}_${reference.chunk_id}_${reference.snippet}`"
                             class="reference-pill"
+                            :class="{
+                              active: highlightedMessageId === message.message_id,
+                              pulse: referencePulseMessageId === message.message_id
+                            }"
                             type="button"
                             @click="highlightReference(message.message_id)"
                           >
@@ -268,22 +252,46 @@
               </template>
 
               <Transition name="status-card">
-                <div v-if="isSending" class="status-card">
-                  <div class="status-card-head">
-                    <Icon icon="lucide:loader-circle" class="spin" />
-                    <span>AI 正在编排能力链路</span>
+                <article v-if="isSending" class="chat-row assistant tool-stream-row">
+                  <div class="avatar-bubble tool-avatar">
+                    <img src="/character+mini.png" alt="" />
                   </div>
-                  <div class="status-feed">
-                    <div v-for="item in liveStatuses" :key="`${item.action}_${item.message}`" class="status-line">
-                      <span class="status-line-dot"></span>
-                      <span>{{ item.message }}</span>
-                    </div>
-                    <div v-if="liveStatuses.length === 0" class="status-line">
-                      <span class="status-line-dot"></span>
-                      <span>正在整理上下文并检索相关证据…</span>
+                  <div class="message-column">
+                    <div class="tool-stream-card">
+                      <div class="tool-stream-head">
+                        <Icon icon="lucide:loader-circle" class="spin" />
+                        <span>正在处理本轮请求</span>
+                      </div>
+                      <TransitionGroup name="tool-stream-item-motion" tag="div" class="tool-stream-list">
+                        <div
+                          v-for="item in liveStatuses"
+                          :key="`${item.action}_${item.message}_${item.context}`"
+                          class="tool-stream-item"
+                        >
+                          <div class="tool-stream-rail"></div>
+                          <div class="tool-stream-copy">
+                            <div class="tool-stream-label">
+                              <span class="tool-stream-badge">{{ formatToolAction(item.action) }}</span>
+                              <span>{{ item.message }}</span>
+                            </div>
+                            <code v-if="item.context" class="tool-stream-context">{{ item.context }}</code>
+                          </div>
+                        </div>
+                      </TransitionGroup>
+                      <div v-if="liveStatuses.length === 0" class="tool-stream-list tool-stream-list-idle">
+                        <div class="tool-stream-item">
+                          <div class="tool-stream-rail"></div>
+                          <div class="tool-stream-copy">
+                            <div class="tool-stream-label">
+                              <span class="tool-stream-badge">准备中</span>
+                              <span>正在分析问题并决定调用链路…</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </article>
               </Transition>
             </div>
 
@@ -371,6 +379,7 @@ const notificationCount = ref(0)
 const menuSessionId = ref<string | null>(null)
 const deletingSessionId = ref<string | null>(null)
 const highlightedMessageId = ref<string | null>(null)
+const referencePulseMessageId = ref<string | null>(null)
 
 const sessions = ref<AIQASessionSummary[]>([])
 const messages = ref<ChatMessage[]>([])
@@ -385,6 +394,7 @@ const messageScrollerRef = ref<HTMLElement | null>(null)
 
 let statusStream: EventSource | null = null
 let statusCleanupTimer: number | null = null
+let referencePulseTimer: number | null = null
 
 const emptyReferences = (): AIQAReferences => ({
   knowledge: [],
@@ -444,19 +454,6 @@ const promptSuggestions = computed(() => {
   ]
 })
 
-const currentStatusText = computed(() => {
-  if (isSending.value && liveStatuses.value.length > 0) {
-    return liveStatuses.value.at(-1)?.message || '正在检索相关线索'
-  }
-  if (isSending.value) {
-    return '正在检索相关线索'
-  }
-  if (effectiveContext.value?.building_id) {
-    return `已感知 ${effectiveContext.value.building_id} 上下文`
-  }
-  return '全局智能检索已就绪'
-})
-
 const hasMoreSessions = computed(() => {
   return sessions.value.length < pagination.value.total
 })
@@ -512,6 +509,9 @@ const questionTypeLabel = (questionType?: string | null) => {
     data_query: '数据查询',
     fault_analysis: '异常诊断',
     mixed: '综合编排',
+    assistant_capability: '助手说明',
+    other: '通用回复',
+    slow: '处理中',
     error: '异常'
   }
   return map[questionType || 'knowledge'] || questionType || 'AI 回复'
@@ -527,6 +527,16 @@ const iconForAction = (actionType: string) => {
   if (actionType === 'open_page') return 'lucide:arrow-up-right'
   if (actionType === 'view_reference') return 'lucide:book-open-text'
   return 'lucide:square-function'
+}
+
+const formatToolAction = (action: string) => {
+  const map: Record<string, string> = {
+    mcp_tool: '工具调用',
+    ai_status: 'AI状态',
+    search_domain_knowledge: '知识检索',
+    answer_with_domain_knowledge: '知识回答'
+  }
+  return map[action] || action
 }
 
 const formatRelativeTime = (isoString: string) => {
@@ -555,12 +565,141 @@ const formatClock = (isoString: string) => {
   }).format(new Date(isoString))
 }
 
-const formatRange = (range: { start: string; end: string }) => {
-  const formatter = new Intl.DateTimeFormat('zh-CN', {
-    month: 'numeric',
-    day: 'numeric'
-  })
-  return `${formatter.format(new Date(range.start))} - ${formatter.format(new Date(range.end))}`
+const escapeHtml = (value: string) => {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+const renderInlineMarkdown = (value: string) => {
+  return escapeHtml(value)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+}
+
+const renderMarkdown = (source: string) => {
+  const lines = source.replace(/\r\n/g, '\n').split('\n')
+  const blocks: string[] = []
+  let paragraph: string[] = []
+  let listItems: string[] = []
+  let listTag: 'ul' | 'ol' | null = null
+  let inCodeBlock = false
+  let codeBlockLanguage = ''
+  let codeBlockLines: string[] = []
+
+  const flushParagraph = () => {
+    if (paragraph.length === 0) return
+    blocks.push(`<p>${paragraph.map(renderInlineMarkdown).join('<br>')}</p>`)
+    paragraph = []
+  }
+
+  const flushList = () => {
+    if (!listTag || listItems.length === 0) return
+    blocks.push(`<${listTag}>${listItems.join('')}</${listTag}>`)
+    listItems = []
+    listTag = null
+  }
+
+  const flushCodeBlock = () => {
+    if (codeBlockLines.length === 0) return
+    const languageClass = codeBlockLanguage ? ` class="language-${escapeHtml(codeBlockLanguage)}"` : ''
+    blocks.push(`<pre><code${languageClass}>${escapeHtml(codeBlockLines.join('\n'))}</code></pre>`)
+    codeBlockLines = []
+    codeBlockLanguage = ''
+  }
+
+  for (const line of lines) {
+    const codeFenceMatch = line.match(/^```(\w+)?\s*$/)
+    if (codeFenceMatch) {
+      flushParagraph()
+      flushList()
+      if (inCodeBlock) {
+        flushCodeBlock()
+      } else {
+        codeBlockLanguage = codeFenceMatch[1] || ''
+      }
+      inCodeBlock = !inCodeBlock
+      continue
+    }
+
+    if (inCodeBlock) {
+      codeBlockLines.push(line)
+      continue
+    }
+
+    const trimmed = line.trim()
+    if (!trimmed) {
+      flushParagraph()
+      flushList()
+      continue
+    }
+
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/)
+    if (headingMatch) {
+      const hashes = headingMatch[1] ?? '#'
+      const title = headingMatch[2] ?? trimmed
+      flushParagraph()
+      flushList()
+      const level = hashes.length
+      blocks.push(`<h${level}>${renderInlineMarkdown(title)}</h${level}>`)
+      continue
+    }
+
+    const unorderedMatch = trimmed.match(/^[-*+]\s+(.+)$/)
+    if (unorderedMatch) {
+      const item = unorderedMatch[1] ?? trimmed
+      flushParagraph()
+      if (listTag && listTag !== 'ul') flushList()
+      listTag = 'ul'
+      listItems.push(`<li>${renderInlineMarkdown(item)}</li>`)
+      continue
+    }
+
+    const orderedMatch = trimmed.match(/^\d+\.\s+(.+)$/)
+    if (orderedMatch) {
+      const item = orderedMatch[1] ?? trimmed
+      flushParagraph()
+      if (listTag && listTag !== 'ol') flushList()
+      listTag = 'ol'
+      listItems.push(`<li>${renderInlineMarkdown(item)}</li>`)
+      continue
+    }
+
+    flushList()
+    paragraph.push(trimmed)
+  }
+
+  if (inCodeBlock) {
+    flushCodeBlock()
+  }
+  flushParagraph()
+  flushList()
+
+  return blocks.join('')
+}
+
+const renderMessageContent = (message: ChatMessage) => {
+  if (message.role === 'user') {
+    return `<p>${escapeHtml(message.content).replace(/\n/g, '<br>')}</p>`
+  }
+  return renderMarkdown(message.content)
+}
+
+const isTimeoutError = (error: any) => {
+  const code = String(error?.code || '')
+  const message = String(error?.message || '')
+  return code === 'ECONNABORTED' || /timeout|timed out|超时/i.test(message)
+}
+
+const buildSlowResponseHint = () => {
+  return activeSessionId.value
+    ? 'AI 处理较慢，本轮任务可能仍在后台继续执行。你可以稍后重新打开当前会话查看最终结果。'
+    : 'AI 处理较慢，本轮任务可能仍在后台继续执行。你可以稍后到历史对话里查看是否已经生成结果。'
 }
 
 const mapSessionMessage = (message: AIQASessionMessage): ChatMessage => {
@@ -788,15 +927,18 @@ const sendQuestion = async (quickQuestion?: string) => {
     notificationCount.value = 0
     await loadSessions()
   } catch (error: any) {
-    const message = error?.response?.data?.detail || error?.message || 'AI 助手暂时不可用，请稍后重试。'
+    const message = isTimeoutError(error)
+      ? buildSlowResponseHint()
+      : (error?.response?.data?.detail || error?.message || 'AI 助手暂时不可用，请稍后重试。')
     messages.value = [
       ...messages.value,
       makeAssistantMessage({
         content: message,
-        questionType: 'error'
+        questionType: isTimeoutError(error) ? 'slow' : 'error'
       })
     ]
-    actionError.value = message
+    actionError.value = isTimeoutError(error) ? '' : message
+    await loadSessions()
   } finally {
     isSending.value = false
     closeStatusStream(600)
@@ -805,7 +947,17 @@ const sendQuestion = async (quickQuestion?: string) => {
 }
 
 const highlightReference = (messageId: string) => {
+  if (referencePulseTimer) {
+    window.clearTimeout(referencePulseTimer)
+  }
+  referencePulseMessageId.value = messageId
   highlightedMessageId.value = highlightedMessageId.value === messageId ? null : messageId
+  referencePulseTimer = window.setTimeout(() => {
+    if (referencePulseMessageId.value === messageId) {
+      referencePulseMessageId.value = null
+    }
+    referencePulseTimer = null
+  }, 360)
 }
 
 const resolveActionRoute = (action: AISuggestedAction, message: ChatMessage) => {
@@ -946,6 +1098,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', handleDocumentPointerDown)
   document.removeEventListener('keydown', handleDocumentKeydown)
+  if (referencePulseTimer) {
+    window.clearTimeout(referencePulseTimer)
+  }
   closeStatusStream()
 })
 </script>
@@ -981,37 +1136,32 @@ onBeforeUnmount(() => {
   height: 72px;
   border: none;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.45), transparent 38%),
-    linear-gradient(180deg, #1972cd, #0957a7 70%, #0b4a8c);
+  background: linear-gradient(180deg, #156bc4, #0d5aaa);
   box-shadow:
-    0 18px 28px rgba(9, 87, 167, 0.34),
-    0 0 0 1px rgba(255, 255, 255, 0.3) inset;
+    0 12px 24px rgba(9, 87, 167, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.26) inset;
   cursor: pointer;
   display: grid;
   place-items: center;
   overflow: visible;
-  transition: transform 260ms ease, box-shadow 260ms ease;
+  transition: transform 220ms ease, box-shadow 220ms ease, background-color 220ms ease;
 }
 
 .ai-fab:hover {
-  transform: translateY(-3px) scale(1.04);
+  transform: translateY(-2px);
   box-shadow:
-    0 24px 38px rgba(9, 87, 167, 0.38),
-    0 0 0 1px rgba(255, 255, 255, 0.34) inset;
+    0 14px 26px rgba(9, 87, 167, 0.24),
+    0 0 0 1px rgba(255, 255, 255, 0.3) inset;
 }
 
 .ai-fab.active {
-  transform: scale(0.94);
+  transform: translateY(1px);
 }
 
-.ai-fab.busy::after {
-  content: '';
-  position: absolute;
-  inset: -8px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(60, 168, 255, 0.36);
-  animation: fabPulse 1.5s ease-out infinite;
+.ai-fab.busy {
+  box-shadow:
+    0 12px 24px rgba(9, 87, 167, 0.22),
+    0 0 0 3px rgba(60, 168, 255, 0.12);
 }
 
 .fab-avatar {
@@ -1021,30 +1171,6 @@ onBeforeUnmount(() => {
   height: 38px;
   object-fit: contain;
   filter: drop-shadow(0 3px 7px rgba(0, 0, 0, 0.24));
-}
-
-.fab-aura {
-  position: absolute;
-  inset: -10px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(60, 168, 255, 0.34), transparent 72%);
-  filter: blur(7px);
-}
-
-.fab-scan {
-  position: absolute;
-  inset: 10px;
-  border: 2px dashed rgba(255, 255, 255, 0.78);
-  border-radius: 28px;
-  opacity: 0.8;
-}
-
-.fab-scan-left {
-  clip-path: inset(0 54% 0 0);
-}
-
-.fab-scan-right {
-  clip-path: inset(0 0 0 54%);
 }
 
 .fab-dot {
@@ -1069,18 +1195,16 @@ onBeforeUnmount(() => {
   position: absolute;
   right: 0;
   bottom: 96px;
-  width: min(560px, calc(100vw - 312px));
+  width: min(468px, calc(100vw - 320px));
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 
-.history-sheet,
 .assistant-panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--ai-border);
-  border-radius: 28px;
+  border: 1px solid rgba(17, 78, 140, 0.12);
+  border-radius: 24px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 251, 255, 0.92)),
     radial-gradient(circle at top left, rgba(81, 148, 220, 0.08), transparent 36%);
@@ -1088,7 +1212,6 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(20px);
 }
 
-.history-sheet::before,
 .assistant-panel::before {
   content: '';
   position: absolute;
@@ -1102,7 +1225,12 @@ onBeforeUnmount(() => {
 }
 
 .history-sheet {
-  padding: 22px 22px 18px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid rgba(17, 78, 140, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 10px 28px rgba(17, 78, 140, 0.06);
 }
 
 .history-head {
@@ -1110,11 +1238,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .history-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: #a8adb5;
 }
@@ -1131,18 +1259,20 @@ onBeforeUnmount(() => {
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  max-height: 186px;
+  overflow-y: auto;
 }
 
 .history-card {
   position: relative;
   border: 1px solid rgba(21, 87, 152, 0.12);
-  border-radius: 18px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.94);
-  padding: 16px 18px;
+  padding: 12px 14px;
   cursor: pointer;
   transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
-  box-shadow: 0 10px 24px rgba(21, 87, 152, 0.08);
+  box-shadow: 0 8px 18px rgba(21, 87, 152, 0.06);
 }
 
 .history-card:hover {
@@ -1157,38 +1287,38 @@ onBeforeUnmount(() => {
 
 .history-card-main {
   display: grid;
-  grid-template-columns: 24px 1fr auto;
+  grid-template-columns: 20px 1fr auto;
   align-items: start;
-  gap: 14px;
+  gap: 10px;
 }
 
 .history-card-icon {
-  width: 24px;
-  height: 24px;
-  border: 2px solid rgba(151, 165, 182, 0.5);
-  border-radius: 6px;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid rgba(151, 165, 182, 0.5);
+  border-radius: 5px;
   display: grid;
   place-items: center;
   margin-top: 2px;
 }
 
 .history-card-icon span {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 2px;
   background: rgba(17, 78, 140, 0.12);
 }
 
 .history-card-copy h4 {
   margin: 0;
-  font-size: 15px;
+  font-size: 13px;
   color: var(--ai-text);
   font-weight: 700;
 }
 
 .history-card-copy p {
-  margin: 6px 0 0;
-  font-size: 12px;
+  margin: 4px 0 0;
+  font-size: 11px;
   color: var(--ai-text-soft);
   line-height: 1.4;
 }
@@ -1196,17 +1326,18 @@ onBeforeUnmount(() => {
 .history-card-meta {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   color: #8ca0b6;
-  font-size: 12px;
+  font-size: 10px;
+  position: relative;
 }
 
 .history-card-menu,
 .head-btn {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.12);
   color: inherit;
   display: inline-flex;
@@ -1223,15 +1354,15 @@ onBeforeUnmount(() => {
 
 .history-menu {
   position: absolute;
-  top: calc(100% - 12px);
-  right: 12px;
+  top: -2px;
+  right: 34px;
   min-width: 124px;
-  padding: 10px;
-  border-radius: 14px;
+  padding: 8px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(17, 78, 140, 0.08);
   box-shadow: 0 16px 40px rgba(17, 78, 140, 0.14);
-  z-index: 4;
+  z-index: 8;
 }
 
 .history-menu-item {
@@ -1257,9 +1388,9 @@ onBeforeUnmount(() => {
 .loading-state {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 22px;
-  border-radius: 20px;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
   background: rgba(248, 251, 255, 0.9);
   color: var(--ai-text-soft);
 }
@@ -1272,20 +1403,20 @@ onBeforeUnmount(() => {
 
 .history-empty p {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .history-empty-avatar {
-  width: 54px;
-  height: 54px;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
 }
 
 .assistant-panel {
   display: flex;
   flex-direction: column;
-  min-height: min(680px, calc(100vh - 170px));
-  max-height: min(680px, calc(100vh - 170px));
+  min-height: min(620px, calc(100vh - 160px));
+  max-height: min(620px, calc(100vh - 160px));
 }
 
 .assistant-head {
@@ -1293,8 +1424,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 24px 24px 20px;
+  gap: 14px;
+  padding: 18px 18px 16px;
   color: white;
   background:
     radial-gradient(circle at top right, rgba(96, 171, 255, 0.28), transparent 28%),
@@ -1312,48 +1443,25 @@ onBeforeUnmount(() => {
 .assistant-brand {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .assistant-brand-badge {
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
   background: linear-gradient(180deg, rgba(42, 143, 255, 0.95), rgba(25, 106, 201, 0.9));
   display: grid;
   place-items: center;
-  font-size: 22px;
+  font-size: 18px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .assistant-brand-copy h2 {
   margin: 0;
   font-family: var(--ai-title-font);
-  font-size: 30px;
+  font-size: 22px;
   letter-spacing: 0.02em;
-}
-
-.assistant-brand-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 2px;
-  font-size: 13px;
-  color: rgba(227, 238, 247, 0.92);
-}
-
-.status-led {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #2ac455;
-  box-shadow: 0 0 0 6px rgba(42, 196, 85, 0.12);
-}
-
-.status-led.busy {
-  background: #41b9ff;
-  box-shadow: 0 0 0 6px rgba(65, 185, 255, 0.16);
-  animation: ledPulse 1.2s ease-in-out infinite;
 }
 
 .assistant-actions {
@@ -1398,7 +1506,7 @@ onBeforeUnmount(() => {
   position: relative;
   flex: 1;
   overflow-y: auto;
-  padding: 18px 20px 26px;
+  padding: 14px 14px 18px;
   background:
     radial-gradient(circle at top left, rgba(81, 148, 220, 0.06), transparent 34%),
     linear-gradient(180deg, rgba(251, 253, 255, 0.94), rgba(247, 251, 255, 0.98));
@@ -1407,13 +1515,13 @@ onBeforeUnmount(() => {
 .welcome-card {
   position: relative;
   display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 18px;
-  padding: 20px;
-  border-radius: 24px;
+  grid-template-columns: 86px 1fr;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 18px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 250, 255, 0.96));
   border: 1px solid rgba(17, 78, 140, 0.08);
-  box-shadow: 0 18px 42px rgba(17, 78, 140, 0.08);
+  box-shadow: 0 14px 32px rgba(17, 78, 140, 0.06);
 }
 
 .welcome-media {
@@ -1425,15 +1533,15 @@ onBeforeUnmount(() => {
 .welcome-avatar {
   position: relative;
   z-index: 1;
-  width: 84px;
-  height: 84px;
+  width: 68px;
+  height: 68px;
   object-fit: contain;
 }
 
 .welcome-glow {
   position: absolute;
-  width: 86px;
-  height: 86px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(58, 157, 255, 0.22), transparent 72%);
   filter: blur(10px);
@@ -1441,7 +1549,7 @@ onBeforeUnmount(() => {
 
 .welcome-kicker {
   margin: 0 0 8px;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -1450,7 +1558,7 @@ onBeforeUnmount(() => {
 
 .welcome-copy h3 {
   margin: 0 0 10px;
-  font-size: 24px;
+  font-size: 18px;
   line-height: 1.25;
   color: var(--ai-text);
   font-family: var(--ai-title-font);
@@ -1459,23 +1567,24 @@ onBeforeUnmount(() => {
 .welcome-copy p {
   margin: 0;
   color: var(--ai-text-soft);
-  line-height: 1.75;
+  line-height: 1.65;
+  font-size: 13px;
 }
 
 .prompt-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 16px;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .prompt-card {
   border: 1px solid rgba(17, 78, 140, 0.08);
-  border-radius: 18px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.88);
-  padding: 14px 16px;
+  padding: 12px 13px;
   color: var(--ai-blue-900);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.55;
   display: flex;
@@ -1494,8 +1603,8 @@ onBeforeUnmount(() => {
 
 .chat-row {
   display: flex;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .chat-row.user {
@@ -1503,9 +1612,9 @@ onBeforeUnmount(() => {
 }
 
 .avatar-bubble {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
   background: linear-gradient(180deg, #e8f3ff, #d9ecff);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
   display: grid;
@@ -1514,20 +1623,20 @@ onBeforeUnmount(() => {
 }
 
 .avatar-bubble img {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   object-fit: contain;
 }
 
 .message-column {
-  max-width: calc(100% - 56px);
+  max-width: calc(100% - 44px);
 }
 
 .message-bubble {
   position: relative;
-  border-radius: 24px;
-  padding: 16px 18px;
-  box-shadow: 0 18px 34px rgba(17, 78, 140, 0.07);
+  border-radius: 18px;
+  padding: 12px 14px;
+  box-shadow: 0 12px 24px rgba(17, 78, 140, 0.06);
 }
 
 .message-bubble.assistant {
@@ -1545,18 +1654,18 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
 .bubble-tag {
   display: inline-flex;
   align-items: center;
-  padding: 6px 10px;
+  padding: 5px 8px;
   border-radius: 999px;
   background: rgba(14, 88, 159, 0.08);
   color: var(--ai-blue-900);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.06em;
 }
@@ -1567,21 +1676,89 @@ onBeforeUnmount(() => {
 .bubble-tag.error { background: rgba(230, 72, 50, 0.1); color: #d63e2a; }
 
 .bubble-time {
-  font-size: 11px;
+  font-size: 10px;
   color: #98abc0;
 }
 
 .bubble-text {
   margin: 0;
-  white-space: pre-wrap;
-  line-height: 1.78;
+  line-height: 1.68;
   color: inherit;
-  font-size: 16px;
+  font-size: 13px;
+}
+
+.markdown-body :deep(p) {
+  margin: 0;
+}
+
+.markdown-body :deep(p + p) {
+  margin-top: 10px;
+}
+
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3),
+.markdown-body :deep(h4),
+.markdown-body :deep(h5),
+.markdown-body :deep(h6) {
+  margin: 0 0 8px;
+  font-family: var(--ai-title-font);
+  color: var(--ai-text);
+  line-height: 1.35;
+}
+
+.markdown-body :deep(h1) { font-size: 19px; }
+.markdown-body :deep(h2) { font-size: 17px; }
+.markdown-body :deep(h3) { font-size: 15px; }
+
+.markdown-body :deep(ul),
+.markdown-body :deep(ol) {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.markdown-body :deep(li) {
+  margin: 4px 0;
+}
+
+.markdown-body :deep(code) {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(16, 90, 167, 0.08);
+  color: var(--ai-blue-900);
+  font-size: 12px;
+  font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
+}
+
+.markdown-body :deep(pre) {
+  margin: 10px 0 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: #0f1c2b;
+  overflow-x: auto;
+}
+
+.markdown-body :deep(pre code) {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #d9e8fb;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.markdown-body :deep(a) {
+  color: var(--ai-blue-700);
+  text-decoration: underline;
+}
+
+.markdown-body :deep(strong) {
+  font-weight: 800;
 }
 
 .reference-cluster {
-  margin-top: 14px;
-  padding-top: 14px;
+  margin-top: 12px;
+  padding-top: 12px;
   border-top: 1px solid rgba(17, 78, 140, 0.09);
 }
 
@@ -1589,7 +1766,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   color: #98abc0;
   text-transform: uppercase;
@@ -1605,8 +1782,8 @@ onBeforeUnmount(() => {
 .reference-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 12px;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .reference-pill,
@@ -1615,11 +1792,11 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   border: 1px solid rgba(17, 78, 140, 0.08);
-  border-radius: 12px;
+  border-radius: 10px;
   background: linear-gradient(180deg, #ffffff, #f5faff);
-  padding: 10px 12px;
+  padding: 8px 10px;
   color: var(--ai-blue-900);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
   transition: transform 220ms ease, box-shadow 220ms ease;
@@ -1631,48 +1808,57 @@ onBeforeUnmount(() => {
   box-shadow: 0 12px 24px rgba(17, 78, 140, 0.08);
 }
 
+.reference-pill.active {
+  border-color: rgba(24, 114, 205, 0.18);
+  background: linear-gradient(180deg, #ffffff, #eef7ff);
+}
+
+.reference-pill.pulse {
+  animation: referencePillPulse 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .reference-detail-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-top: 14px;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .reference-detail {
-  border-radius: 16px;
+  border-radius: 12px;
   background: rgba(242, 248, 255, 0.88);
-  padding: 12px 14px;
+  padding: 10px 12px;
 }
 
 .reference-detail strong {
   display: block;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--ai-text);
 }
 
 .reference-detail p {
-  margin: 6px 0 0;
-  font-size: 13px;
+  margin: 5px 0 0;
+  font-size: 12px;
   color: var(--ai-text-soft);
-  line-height: 1.65;
+  line-height: 1.55;
 }
 
 .action-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 14px;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .tool-trace {
-  margin-top: 14px;
+  margin-top: 12px;
   border-top: 1px solid rgba(17, 78, 140, 0.09);
   padding-top: 12px;
 }
 
 .tool-trace summary {
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   color: #86a0ba;
 }
@@ -1680,71 +1866,144 @@ onBeforeUnmount(() => {
 .tool-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   margin-top: 12px;
 }
 
 .tool-item {
   border-left: 2px solid rgba(17, 78, 140, 0.12);
   padding-left: 12px;
+  animation: toolItemReveal 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: left center;
 }
 
 .tool-item strong {
   display: block;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--ai-text);
 }
 
 .tool-item p {
   margin: 4px 0 0;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--ai-text-soft);
   line-height: 1.55;
 }
 
-.status-card {
-  margin-top: 8px;
-  border-radius: 20px;
-  padding: 16px 18px;
-  background: linear-gradient(180deg, rgba(240, 248, 255, 0.94), rgba(230, 243, 255, 0.94));
-  border: 1px solid rgba(26, 126, 219, 0.14);
-  box-shadow: 0 18px 32px rgba(17, 78, 140, 0.08);
+.tool-stream-row {
+  align-items: flex-start;
 }
 
-.status-card-head {
+.tool-avatar {
+  background: linear-gradient(180deg, #e9f4ff, #dbeeff);
+}
+
+.tool-stream-card {
+  border-radius: 18px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(239, 246, 255, 0.96));
+  border: 1px solid rgba(26, 126, 219, 0.14);
+  box-shadow: 0 12px 24px rgba(17, 78, 140, 0.06);
+}
+
+.tool-stream-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   color: var(--ai-blue-900);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 800;
 }
 
-.status-feed {
+.tool-stream-list {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  margin-top: 12px;
-}
-
-.status-line {
-  display: flex;
-  align-items: center;
   gap: 10px;
-  font-size: 13px;
-  color: var(--ai-text-soft);
+  margin-top: 10px;
 }
 
-.status-line-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.tool-stream-list-idle {
+  margin-top: 10px;
+}
+
+.tool-stream-item {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.tool-stream-rail {
+  width: 10px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tool-stream-rail::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
   background: var(--ai-blue-500);
-  box-shadow: 0 0 0 5px rgba(60, 168, 255, 0.1);
+  box-shadow: 0 0 0 4px rgba(60, 168, 255, 0.12);
+}
+
+.tool-stream-copy {
+  min-width: 0;
+}
+
+.tool-stream-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ai-text);
+}
+
+.tool-stream-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(15, 92, 171, 0.08);
+  color: var(--ai-blue-900);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.tool-stream-context {
+  display: inline-flex;
+  max-width: 100%;
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(15, 92, 171, 0.06);
+  color: #6a7c8f;
+  font-size: 10px;
+  font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-stream-item-motion-enter-active,
+.tool-stream-item-motion-leave-active {
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
+.tool-stream-item-motion-enter-from,
+.tool-stream-item-motion-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 
 .assistant-foot {
-  padding: 16px 20px 20px;
+  padding: 12px 14px 14px;
   border-top: 1px solid rgba(17, 78, 140, 0.08);
   background: rgba(255, 255, 255, 0.88);
 }
@@ -1755,24 +2014,24 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   background: rgba(233, 91, 67, 0.08);
   color: #c8442f;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
 .composer {
   display: grid;
-  grid-template-columns: 1fr 54px;
-  gap: 12px;
+  grid-template-columns: 1fr 46px;
+  gap: 10px;
   align-items: center;
 }
 
 .composer-input {
-  height: 54px;
-  border-radius: 18px;
+  height: 46px;
+  border-radius: 15px;
   border: 1px solid rgba(17, 78, 140, 0.1);
   background: linear-gradient(180deg, rgba(247, 250, 253, 0.98), rgba(240, 245, 250, 0.92));
-  padding: 0 18px;
-  font-size: 16px;
+  padding: 0 14px;
+  font-size: 13px;
   color: var(--ai-text);
   outline: none;
   transition: border-color 220ms ease, box-shadow 220ms ease;
@@ -1784,9 +2043,9 @@ onBeforeUnmount(() => {
 }
 
 .composer-send {
-  width: 54px;
-  height: 54px;
-  border-radius: 18px;
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
   border: none;
   background: linear-gradient(180deg, #1b77d5, #0957a7);
   color: white;
@@ -1849,29 +2108,35 @@ onBeforeUnmount(() => {
   }
 }
 
-@keyframes fabPulse {
+@keyframes referencePillPulse {
   0% {
-    transform: scale(0.9);
-    opacity: 0.7;
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 0 rgba(24, 114, 205, 0);
+  }
+  45% {
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: 0 10px 20px rgba(24, 114, 205, 0.12);
   }
   100% {
-    transform: scale(1.16);
-    opacity: 0;
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 0 rgba(24, 114, 205, 0);
   }
 }
 
-@keyframes ledPulse {
-  0%, 100% {
-    opacity: 1;
+@keyframes toolItemReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
   }
-  50% {
-    opacity: 0.55;
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
 @media (max-width: 1180px) {
   .assistant-shell {
-    width: min(540px, calc(100vw - 72px));
+    width: min(448px, calc(100vw - 72px));
   }
 }
 
@@ -1888,12 +2153,12 @@ onBeforeUnmount(() => {
   }
 
   .assistant-panel {
-    min-height: min(76vh, 680px);
-    max-height: min(76vh, 680px);
+    min-height: min(72vh, 600px);
+    max-height: min(72vh, 600px);
   }
 
   .assistant-brand-copy h2 {
-    font-size: 24px;
+    font-size: 20px;
   }
 
   .prompt-grid {
@@ -1912,22 +2177,15 @@ onBeforeUnmount(() => {
   }
 
   .history-sheet {
-    padding: 16px;
+    padding: 12px;
   }
 
   .assistant-head {
-    padding: 18px 16px;
-  }
-
-  .context-ribbon,
-  .assistant-body,
-  .assistant-foot {
-    padding-left: 16px;
-    padding-right: 16px;
+    padding: 16px 14px 14px;
   }
 
   .assistant-brand-copy h2 {
-    font-size: 22px;
+    font-size: 18px;
   }
 
   .message-column {
