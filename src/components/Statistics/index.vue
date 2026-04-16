@@ -140,8 +140,8 @@
     <!-- 能耗趋势图 -->
     <EnergyTrendChart :start-time="activeStart" :end-time="activeEnd" />
 
-    <!-- 分站点与分建筑效绩表 -->
-    <SitePerformanceTable :start-time="activeStart" :end-time="activeEnd" />
+    <!-- 设备监测与分建筑效绩表 -->
+    <MeterPerformanceTable :start-time="activeStart" :end-time="activeEnd" />
     <BuildingPerformanceTable :start-time="activeStart" :end-time="activeEnd" />
 
     <!-- 错误提示 -->
@@ -158,7 +158,7 @@ import { ref, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import EnergyTrendChart from './EnergyTrendChart.vue'
-import SitePerformanceTable from './SitePerformanceTable.vue'
+import MeterPerformanceTable from './MeterPerformanceTable.vue'
 import BuildingPerformanceTable from './BuildingPerformanceTable.vue'
 import {
   getEnergyQuery,

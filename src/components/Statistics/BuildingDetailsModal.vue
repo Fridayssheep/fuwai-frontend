@@ -72,40 +72,10 @@
               </tbody>
               <tbody v-else>
                 <tr>
-                  <td colspan="3" class="empty-cell">未能获取到当天的小时级数据</td>
+                  <td colspan="4" class="empty-cell">未能获取到当天的小时级数据</td>
                 </tr>
               </tbody>
             </table>
-          </div>
-
-          <!-- 右下排布 -->
-          <div class="bottom-widgets">
-            <!-- 节能率 -->
-            <div class="savings-card">
-              <span class="s-label">节能率 (同比去年)</span>
-              <div class="s-val text-green">
-                +12.4 <span class="percent">%</span>
-              </div>
-            </div>
-
-            <!-- 表计占比图例 -->
-            <div class="meters-legend-card">
-              <div class="meter-grid">
-                <div 
-                  class="meter-item" 
-                  v-for="m in displayMeters" 
-                  :key="m.meter"
-                  :class="{'disabled': !m.available}"
-                >
-                  <span class="m-dot" :style="{ backgroundColor: getMeterColor(m.meter) }"></span>
-                  <div class="m-info">
-                    <div class="m-name">{{ formatMeterName(m.meter) }}</div>
-                    <div class="m-pct" v-if="m.available">{{ getMockPct(m.meter) }}%</div>
-                    <div class="m-pct na" v-else>N/A</div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
