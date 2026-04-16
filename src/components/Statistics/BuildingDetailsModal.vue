@@ -45,10 +45,12 @@
           <div class="card-section monitoring-section">
             <div class="section-top">
               <h3>小时级多维监控数据</h3>
-              <button class="time-edit-btn" @click="showTimeFilter = true">
-                <Icon icon="lucide:calendar" class="mr-1" />
-                {{ timeRangeText }}
-              </button>
+              <input 
+                type="date" 
+                v-model="selectedDay" 
+                class="single-date-picker" 
+                @change="fetchHourlyOnly"
+              />
             </div>
             
             <table class="hourly-table">
@@ -78,6 +80,7 @@
         </div>
       </div>
 
+      <!-- 模态框底部 -->
       <div class="modal-footer">
         <button class="btn btn-default" @click="close">返回</button>
         <button class="btn btn-primary" @click="exportData">
@@ -88,11 +91,6 @@
         </button>
       </div>
     </div>
-    
-    <TimeFilterModal 
-      v-model:visible="showTimeFilter"
-      @query="handleTimeQuery"
-    />
   </div>
 </template>
 
@@ -101,7 +99,6 @@ import { ref, watch, computed } from 'vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import { Icon } from '@iconify/vue'
 import { getBuildingById, type BuildingDetailResponse, getBuildingEnergySummary } from '../../api/statistics'
-import TimeFilterModal from '../QueryView/TimeFilterModal.vue'
 
 const props = defineProps<{
   visible: boolean
@@ -115,38 +112,24 @@ const emit = defineEmits(['update:visible'])
 const loading = ref(false)
 const detailData = ref<BuildingDetailResponse | null>(null)
 const anomalyCount = ref(0)
-const hourlyData = ref<any[]>([])
+const hourlyData = ref<{ hour: string; total: number; peak: number; average: number }[]>([])
 const hourlyLoading = ref(false)
-const showTimeFilter = ref(false)
-const filterStart = ref('')
-const filterEnd = ref('')
 
-const timeRangeText = computed(() => {
-  if (!filterStart.value || !filterEnd.value) return '选择时段'
-  const d = new Date(filterStart.value)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} (${hourlyData.value.length}h)`
-})
+const selectedDay = ref('')
 
 watch(() => props.startTime, (v) => {
   if (v) {
+    // 简单截取或解析 yyyy-mm-dd
     const safeStr = v.replace(/-/g, '/')
     const d = new Date(safeStr)
     if (!isNaN(d.getTime())) {
-      filterStart.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T00:00:00`
-      filterEnd.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T23:59:59`
+      selectedDay.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       return
     }
   }
   const now = new Date(getCurrentTimeString())
-  filterStart.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T00:00:00`
-  filterEnd.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T23:59:59`
+  selectedDay.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }, { immediate: true })
-
-const handleTimeQuery = (timeConfig: any) => {
-  filterStart.value = timeConfig.startTime
-  filterEnd.value = timeConfig.endTime
-  fetchHourlyOnly()
-}
 
 const close = () => {
   emit('update:visible', false)
@@ -172,30 +155,16 @@ const formatNumber = (val: number | null | undefined): string => {
 }
 
 const fetchHourlyOnly = async () => {
-  if (!props.buildingId || !filterStart.value || !filterEnd.value) return
+  if (!props.buildingId || !selectedDay.value) return
   hourlyLoading.value = true
   hourlyData.value = []
 
   try {
-    const sTime = new Date(filterStart.value).getTime()
-    const eTime = new Date(filterEnd.value).getTime()
-    let hoursDiff = Math.floor((eTime - sTime) / (1000 * 60 * 60))
-    if (hoursDiff <= 0) hoursDiff = 1
-    
-    // Limits the max fetched hours to prevent browser freeze (e.g., limit to 48h representation)
-    const maxHours = Math.min(hoursDiff, 48)
-
-    const promises = Array.from({ length: maxHours }, (_, i) => {
-      const targetTime = new Date(sTime + i * 60 * 60 * 1000)
-      const yy = targetTime.getFullYear()
-      const mm = String(targetTime.getMonth() + 1).padStart(2, '0')
-      const dd = String(targetTime.getDate()).padStart(2, '0')
-      const hh = String(targetTime.getHours()).padStart(2, '0')
-      
-      const startStr = `${yy}-${mm}-${dd}T${hh}:00:00`
-      const endStr = `${yy}-${mm}-${dd}T${hh}:59:59`
-      const displayLabel = maxHours > 24 ? `${mm}-${dd} ${hh}:00` : `${hh}:00`
-      
+    // 并发调用 24 次，每次查询一个小时的摘要
+    const promises = Array.from({ length: 24 }, (_, i) => {
+      const hh = String(i).padStart(2, '0')
+      const startStr = `${selectedDay.value}T${hh}:00:00`
+      const endStr = `${selectedDay.value}T${hh}:59:59`
       return getBuildingEnergySummary(props.buildingId, {
         meter: 'electricity',
         granularity: 'hour',
@@ -204,13 +173,13 @@ const fetchHourlyOnly = async () => {
       }).then(raw => {
         const data = (raw as any)?.data ?? raw
         return {
-          hour: displayLabel,
+          hour: `${hh}:00`,
           total: data?.summary?.total ?? 0,
           peak: data?.summary?.peak ?? 0,
           average: data?.summary?.average ?? 0
         }
       }).catch(() => ({
-        hour: displayLabel,
+        hour: `${hh}:00`,
         total: 0,
         peak: 0,
         average: 0
@@ -219,7 +188,7 @@ const fetchHourlyOnly = async () => {
 
     hourlyData.value = await Promise.all(promises)
   } catch (err) {
-    console.error('小时级数据获取失败', err)
+    console.error('Failed to fetch hourly energy summary', err)
   } finally {
     hourlyLoading.value = false
   }
