@@ -26,8 +26,14 @@ export function useFaultAnalysis() {
     initAnomalyTaskMonitor,
     setDetectingStatus,
     setDetectError,
-    clearDetectLogs
+    clearDetectLogs,
+    disposeSSE
   } = useAnomalyTaskStore()
+
+  // 组件卸载时关闭 SSE 连接
+  onUnmounted(() => {
+    disposeSSE()
+  })
 
   // ─── 时间范围选择 ──────────────────────────────────
   const chartRange = ref<ChartRange>('week')
@@ -84,12 +90,14 @@ export function useFaultAnalysis() {
   const startDetection = async () => {
     if (detecting.value) return
     
+    // 关闭旧的 SSE 连接，防止重复连接导致进度条鬼畜
+    disposeSSE()
     setDetectingStatus(true)
     clearDetectLogs()
 
     try {
       await triggerDetection()
-      // SSE 监听进度已经在 Store 中统一处理
+      // 建立新的单一 SSE 连接监听进度
       initAnomalyTaskMonitor(() => {
         // 完成后的回调
         fetchOverview()
@@ -252,11 +260,6 @@ export function useFaultAnalysis() {
     }
   })
 
-  // ─── 清理 ─────────────────────────────────────────
-  onUnmounted(() => {
-    sseSource?.close()
-  })
-
   return {
     // 时间范围
     chartRange,
@@ -273,6 +276,7 @@ export function useFaultAnalysis() {
     detectLogs,
     detectError,
     startDetection,
+    initAnomalyTaskMonitor,
     // 详情
     selectedAnomaly,
     detailLoading,

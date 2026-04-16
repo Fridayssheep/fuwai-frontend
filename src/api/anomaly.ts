@@ -16,6 +16,7 @@ export interface AnomalySummary {
   status: string
   title: string
   start_time: string
+  resolution_status?: string
 }
 
 export interface MetricCard {
