@@ -231,17 +231,29 @@ const fetchData = async () => {
 
     paginationInfo.value.total = data?.pagination?.total || 0
 
-    tableData.value = items.map((m: any) => ({
-      meter_id: m.meter_id,
-      meter_name: m.meter_name || m.meter_id,
-      meter_type: m.meter_type || '',
-      building_id: m.building_id || '',
-      status: m.status || 'offline',
-      last_seen_at: m.last_seen_at || null,
-      manufacturer: m.manufacturer || null,
-      model: m.model || null,
-      install_date: m.install_date || null,
-    }))
+    tableData.value = items.map((m: any) => {
+      let bId = m.building_id
+      let mType = m.meter_type
+      
+      // 容错处理：当后端未返回完整类型或建筑ID，且 meter_id 包含双冒号分隔符时（例如 bdg12::water）
+      if (m.meter_id && m.meter_id.includes('::')) {
+        const parts = m.meter_id.split('::')
+        if (!bId) bId = parts[0]
+        if (!mType) mType = parts[1]
+      }
+
+      return {
+        meter_id: m.meter_id,
+        meter_name: m.meter_name || m.meter_id,
+        meter_type: mType || '',
+        building_id: bId || '',
+        status: m.status || 'offline',
+        last_seen_at: m.last_seen_at || null,
+        manufacturer: m.manufacturer || null,
+        model: m.model || null,
+        install_date: m.install_date || null,
+      }
+    })
 
     const d = new Date()
     lastUpdated.value = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`

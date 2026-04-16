@@ -160,15 +160,24 @@ const fetchData = async () => {
         meterCount = meterData?.pagination?.total || 0
         
         let hasWarning = false
+        let hasOffline = false
         const mItems = meterData?.items || []
         
         for (const m of mItems) {
           if (m.status === 'fault') { status = 'fault'; statusText = '故障停机'; break; }
           if (m.status === 'warning') { hasWarning = true }
+          if (m.status === 'offline') { hasOffline = true }
         }
-        if (status !== 'fault' && hasWarning) {
-           status = 'warning'
-           statusText = '告警状态'
+
+        if (status !== 'fault') {
+          if (hasWarning) {
+            status = 'warning'
+            statusText = '告警状态'
+          } else if (hasOffline || mItems.length === 0) {
+            // 用 warning 样式，但文案提示离线或者未接入
+            status = 'warning'
+            statusText = mItems.length === 0 ? '设备未接入' : '部分离线'
+          }
         }
       } catch (e) {
         console.error(`Failed to fetch meters for ${bid}`, e)
