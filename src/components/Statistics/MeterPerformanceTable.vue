@@ -100,6 +100,12 @@
         </button>
       </div>
     </div>
+
+    <!-- 设备详情弹窗 -->
+    <MeterDetailsModal
+      v-model:visible="modalVisible"
+      :meter-id="selectedMeterId"
+    />
   </div>
 </template>
 
@@ -107,6 +113,7 @@
 import { ref, watch, onMounted, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getMeters } from '../../api/statistics'
+import MeterDetailsModal from './MeterDetailsModal.vue'
 
 const props = defineProps<{
   startTime: string
@@ -146,6 +153,9 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const paginationInfo = ref({ total: 0 })
 const totalPages = computed(() => Math.ceil(paginationInfo.value.total / pageSize.value))
+
+const modalVisible = ref(false)
+const selectedMeterId = ref('')
 
 const unwrap = (res: any) => res?.data ?? res
 
@@ -243,10 +253,8 @@ const fetchData = async () => {
 }
 
 const viewDetails = (row: MeterRow) => {
-  // 从 meter_id 提取 building_id (格式: building_id::meter_type)
-  const parts = row.meter_id.split('::')
-  const buildingId = parts[0] || row.building_id
-  alert(`功能开发中: 跳转至建筑 ${buildingId} 的 ${getMeterTypeLabel(row.meter_type)} 表计详情`)
+  selectedMeterId.value = row.meter_id
+  modalVisible.value = true
 }
 
 watch(

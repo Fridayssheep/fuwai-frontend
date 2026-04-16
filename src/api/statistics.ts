@@ -222,6 +222,30 @@ export const getMeters = (params?: MeterListParams) => {
     })
 }
 
+// ─── Types: Meter Detail ────────────────────────────────────────
+export interface MeterAlarm {
+    alarm_id: string
+    meter_id: string
+    level: string
+    code?: string
+    message: string
+    status: string
+    occurred_at: string
+}
+
+export interface MeterDetailResponse {
+    meter: Meter
+    recent_alarms?: MeterAlarm[]
+    recent_metrics?: MetricCard[]
+}
+
+/** 获取设备详情 */
+export const getMeterById = (meterId: string) => {
+    return request.get<MeterDetailResponse>(`/meters/${meterId}`, {
+        timeout: 10000
+    })
+}
+
 // ─── Types: Building Energy Summary ─────────────────────────────
 export interface BuildingEnergySummaryParams {
     meter?: 'electricity' | 'water' | 'gas' | 'steam' | 'chilledwater' | 'hotwater' | 'irrigation' | 'solar'
