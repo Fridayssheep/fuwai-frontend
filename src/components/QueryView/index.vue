@@ -32,16 +32,6 @@
           </select>
         </div>
 
-        <!-- 时间范围（图二中有，保留视觉） -->
-        <div class="filter-item">
-          <label>时间范围</label>
-          <select class="select-box">
-            <option>今日</option>
-            <option>本周</option>
-            <option>本月</option>
-          </select>
-        </div>
-
         <div class="button-group">
           <button class="btn btn-primary-dark" @click="showAdvanced = true">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
@@ -58,7 +48,6 @@
             高级查询
           </button>
           <button class="btn btn-outline" @click="handleReset">重置</button>
-          <button class="btn btn-primary" @click="handleSearch">查询</button>
         </div>
       </div>
     </div>
@@ -105,6 +94,12 @@
               @click="handleSort('status')"
             >
               系统状态
+            </button>
+            <button 
+              :class="['sort-tag', { active: sortConfig.field === 'carbonEmission' }]"
+              @click="handleSort('carbonEmission')"
+            >
+              碳排放
             </button>
           </div>
           
@@ -160,7 +155,7 @@
                 </label>
               </th>
               <th>建筑标识ID</th>
-              <th>站点</th>
+              <th>设备</th>
               <th>总能耗</th>
               <th>COP</th>
               <th>EUI指数</th>
