@@ -1,7 +1,10 @@
 import { ref, computed } from 'vue'
-import { getKnowledgeDocuments, type KnowledgeDocument, type KnowledgeDocumentListResponse } from '../../api/knowledge'
-import { getRuntimeAISettings } from '../../api/system'
-import axios from 'axios'
+import {
+  downloadKnowledgeDocument,
+  getKnowledgeDocuments,
+  type KnowledgeDocument,
+  type KnowledgeDocumentListResponse
+} from '../../api/knowledge'
 
 export function useKnowledge() {
   const keyword = ref('')
@@ -73,22 +76,11 @@ export function useKnowledge() {
     if (page >= 1 && page <= totalPages.value) fetchDocuments(page)
   }
 
-  // 下载文件：通过 RAGFlow API 直接下载
+  // 下载文件：统一走后端代理接口
   const downloadFile = async (doc: KnowledgeDocument) => {
     try {
-      const aiSettings: any = await getRuntimeAISettings()
-      const ragflowConfig = aiSettings?.ragflow || {}
-      if (!ragflowConfig.api_url || !ragflowConfig.api_key) {
-        alert('未配置 RAGFlow 凭据，无法下载。')
-        return
-      }
-      const baseUrl = ragflowConfig.api_url.replace(/\/$/, '')
-      const url = `${baseUrl}/datasets/${doc.dataset_id}/documents/${doc.document_id}`
-      const res = await axios.get(url, {
-        headers: { 'Authorization': `Bearer ${ragflowConfig.api_key}` },
-        responseType: 'blob'
-      })
-      const blobUrl = window.URL.createObjectURL(res.data)
+      const blob = await downloadKnowledgeDocument(doc.dataset_id, doc.document_id)
+      const blobUrl = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = blobUrl
       a.download = doc.title
