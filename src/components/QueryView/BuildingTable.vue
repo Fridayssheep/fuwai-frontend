@@ -40,31 +40,33 @@
             <td class="text-right">{{ item.carbon }}</td>
             <td class="text-center">
               <span :class="['status-tag', item.status]">
-                <span class="dot"></span>
+                <span class="status-dot"></span>
                 {{ item.statusText }}
               </span>
             </td>
             <td class="text-right">
               <div class="actions">
-                <!-- 蓝色眼睛：跳转到建筑详情 BuildingDetail.vue -->
-                <button class="action-btn blue" @click="$emit('view-detail', item)" title="查看详情">
+                <!-- 蓝色眼睛：查看详情 -->
+                <button class="action-btn view-btn" @click="$emit('view-detail', item)" title="查看详情">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                     <circle cx="12" cy="12" r="3"></circle>
                   </svg>
                 </button>
                 
-                <!-- 绿色叶子：打开统计弹窗 BuildingDetailsModal.vue -->
-                <button class="action-btn green" @click="$emit('view-stats', item)" title="统计数据">
+                <!-- 绿色图表：统计数据 -->
+                <button class="action-btn stats-btn" @click="$emit('view-stats', item)" title="统计数据">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 20h9M12 20V4M12 20H3M12 4v8m0-8h9M12 4H3"/>
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
                   </svg>
                 </button>
                 
-                <!-- 橙色警告：跳转到故障分析 -->
-                <button class="action-btn orange" @click="$emit('fault-analysis', item)" title="故障分析">
+                <!-- 橙色警告：故障分析 -->
+                <button class="action-btn warning-btn" @click="$emit('fault-analysis', item)" title="故障分析">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
                     <line x1="12" y1="9" x2="12" y2="13"></line>
                     <line x1="12" y1="17" x2="12.01" y2="17"></line>
                   </svg>
@@ -72,7 +74,6 @@
               </div>
             </td>
           </tr>
-
         </tbody>
       </table>
 
@@ -135,7 +136,6 @@ interface TableItem {
   statusText: string
 }
 
-// 不再接收外部死数据，完全自主获取
 const props = defineProps<{
   filterForm?: {
     status?: string
@@ -148,22 +148,17 @@ const props = defineProps<{
   timeRange?: 'today' | 'week' | 'month' | 'quarter' | 'year'
 }>()
 
-// 内部数据状态（自主管理）
 const buildings = ref<TableItem[]>([])
 const pagination = ref({
   currentPage: 1,
-  pageSize: 7,  // 一页七个
+  pageSize: 7,
   total: 0
 })
 const loading = ref(false)
 
-// 导入时间管理工具
 import { useTimeManager } from '../../utils/timeManager'
-
-// 初始化时间管理器
 const { getCurrentTimeString } = useTimeManager()
 
-// 获取设置页面配置的当前时间（如果没有设置则使用系统时间）
 const getCurrentTime = () => {
   const timeStr = getCurrentTimeString()
   return new Date(timeStr)
@@ -179,7 +174,6 @@ const getStatusText = (status: string): string => {
   return map[status] || '运行正常'
 }
 
-// 辅助函数：安全获取数组数据（防御性编程）
 const safeGetArray = (data: any): any[] => {
   if (Array.isArray(data)) return data
   if (data?.data && Array.isArray(data.data)) return data.data
@@ -188,28 +182,17 @@ const safeGetArray = (data: any): any[] => {
   return []
 }
 
-// 获取建筑级能耗摘要（总能耗 = 电力 + 热水 + 冷冻水等）
 const fetchEnergySummary = async (buildingId: string, timeRange: any) => {
   try {
     const response = await axios.get(`/api/buildings/${buildingId}/energy/summary`, {
-      params: {
-        start_time: timeRange.start_time,
-        end_time: timeRange.end_time
-      },
-      timeout: 8000  // 8秒超时
+      params: { start_time: timeRange.start_time, end_time: timeRange.end_time },
+      timeout: 8000
     })
-    
     const data = response.data?.data || response.data
-    
-    // 如果是对象包含各类型能耗，计算总和
     if (data && typeof data === 'object') {
       const energyTypes = ['electricity', 'water', 'gas', 'steam', 'chilledwater', 'hotwater', 'irrigation', 'solar']
-      const total = energyTypes.reduce((sum, type) => {
-        return sum + (data[type] || data[`${type}_energy`] || 0)
-      }, 0)
-      return total
+      return energyTypes.reduce((sum, type) => sum + (data[type] || data[`${type}_energy`] || 0), 0)
     }
-    
     return 0
   } catch (error) {
     console.error(`获取建筑 ${buildingId} 能耗摘要失败:`, error)
@@ -217,18 +200,12 @@ const fetchEnergySummary = async (buildingId: string, timeRange: any) => {
   }
 }
 
-// 获取EUI计算结果
 const fetchEUI = async (buildingId: string, timeRange: any) => {
   try {
     const response = await axios.get('/api/energy/cop', {
-      params: {
-        building_id: buildingId,
-        start_time: timeRange.start_time,
-        end_time: timeRange.end_time
-      },
+      params: { building_id: buildingId, start_time: timeRange.start_time, end_time: timeRange.end_time },
       timeout: 8000
     })
-    
     const data = response.data?.data || response.data
     return data?.eui || data?.cop || data?.value || 0
   } catch (error) {
@@ -237,19 +214,12 @@ const fetchEUI = async (buildingId: string, timeRange: any) => {
   }
 }
 
-// 获取碳排放（gas类型）
 const fetchCarbon = async (buildingId: string, timeRange: any) => {
   try {
     const response = await axios.get('/api/energy/query', {
-      params: {
-        meter_type: 'gas',
-        building_id: buildingId,
-        start_time: timeRange.start_time,
-        end_time: timeRange.end_time
-      },
+      params: { meter_type: 'gas', building_id: buildingId, start_time: timeRange.start_time, end_time: timeRange.end_time },
       timeout: 8000
     })
-    
     const data = response.data?.data || response.data
     return data?.total || data?.value || 0
   } catch (error) {
@@ -258,23 +228,20 @@ const fetchCarbon = async (buildingId: string, timeRange: any) => {
   }
 }
 
-// 根据时间范围计算开始和结束时间
 const calculateTimeRange = (range: string) => {
   const now = getCurrentTime()
   const end = now.toISOString()
   let start = now
-  
   const year = now.getFullYear()
   const month = now.getMonth()
   const date = now.getDate()
-  const day = now.getDay() // 0是周日
+  const day = now.getDay()
   
   switch (range) {
     case 'today':
       start = new Date(year, month, date, 0, 0, 0)
       break
     case 'week':
-      // 本周一（如果今天是周日，则回退6天，否则回退到本周一）
       const diff = day === 0 ? 6 : day - 1
       start = new Date(year, month, date - diff, 0, 0, 0)
       break
@@ -292,19 +259,12 @@ const calculateTimeRange = (range: string) => {
       start = new Date(year, month, date, 0, 0, 0)
   }
   
-  return {
-    start_time: start.toISOString(),
-    end_time: end
-  }
+  return { start_time: start.toISOString(), end_time: end }
 }
 
-// 获取建筑列表数据（修复版）
 const fetchBuildings = async () => {
   loading.value = true
-  
   try {
-    console.log('正在请求建筑列表，页码:', pagination.value.currentPage)
-    
     const buildingsRes = await axios.get('/api/buildings', {
       params: {
         page: pagination.value.currentPage,
@@ -318,33 +278,16 @@ const fetchBuildings = async () => {
       timeout: 10000
     })
     
-    console.log('建筑列表原始返回:', buildingsRes.data)
-    
-    // 安全获取建筑列表
     const buildingList = safeGetArray(buildingsRes.data)
-    
-    // 安全获取总数（支持多种可能的字段名）
-    const returnedTotal = buildingsRes.data?.total ?? 
-                          buildingsRes.data?.total_count ?? 
-                          buildingsRes.data?.meta?.total ??
-                          buildingsRes.data?.pagination?.total
-    
-    console.log('解析到的总数:', returnedTotal, '列表长度:', buildingList.length)
-    
-    // 如果后端返回了有效的total，使用它；否则用当前返回的数据长度
-    pagination.value.total = returnedTotal !== undefined && returnedTotal !== null 
-      ? returnedTotal 
-      : buildingList.length
-    
+    const returnedTotal = buildingsRes.data?.total ?? buildingsRes.data?.total_count ?? buildingsRes.data?.meta?.total ?? buildingsRes.data?.pagination?.total
+    pagination.value.total = returnedTotal !== undefined && returnedTotal !== null ? returnedTotal : buildingList.length
+
     if (!buildingList.length) {
       buildings.value = []
       loading.value = false
       return
     }
-    // ... 后续处理不变
 
-
-    // 第二步：为每个建筑获取详细数据（并行）
     const detailedBuildings = await Promise.all(
       buildingList.map(async (building: any) => {
         const buildingId = building.building_id || building.id || building.buildingId
@@ -354,69 +297,47 @@ const fetchBuildings = async () => {
         }
         
         try {
-          // 并行获取：设备列表、能耗摘要、EUI（都添加超时）
-          const [metersRes, summaryRes, euiRes] = await Promise.all([
-            // 获取设备列表（用于统计设备个数和系统状态）
-            axios.get('/api/meters', {
-              params: { building_id: buildingId },
+          // ===== 方案B：先获取设备列表，再查详情 =====
+          // 第一步：获取设备列表（获取设备ID和个数）
+          const metersListRes = await axios.get('/api/meters', {
+            params: { building_id: buildingId },
+            timeout: 5000
+          }).catch(err => {
+            console.warn(`获取建筑 ${buildingId} 设备列表失败:`, err.message)
+            return { data: [] }
+          })
+          
+          const metersList = safeGetArray(metersListRes.data)
+          const deviceCount = metersList.length
+          
+          // 第二步：如果有设备，取第一个设备查详情获取状态
+          let topStatus = building.status || 'normal'
+          if (metersList.length > 0 && metersList[0].meter_id) {
+            const meterId = metersList[0].meter_id
+            const meterRes = await axios.get(`/api/meters/${meterId}`, {
               timeout: 5000
             }).catch(err => {
-              console.warn(`获取建筑 ${buildingId} 设备列表失败:`, err.message)
-              return { data: [] }
-            }),
-            
-            // 获取能耗摘要
-            axios.get(`/api/buildings/${buildingId}/energy/summary`, {
-              timeout: 5000
-            }).catch(err => {
-              console.warn(`获取建筑 ${buildingId} 能耗摘要失败:`, err.message)
-              return { data: null }
-            }),
-            
-            // 获取EUI/COP
-            axios.get('/api/energy/cop', {
-              params: { building_id: buildingId },
-              timeout: 5000
-            }).catch(err => {
-              console.warn(`获取建筑 ${buildingId} EUI失败:`, err.message)
+              console.warn(`获取设备 ${meterId} 详情失败:`, err.message)
               return { data: null }
             })
+            
+            const meterData = meterRes.data?.meter || meterRes.data
+            topStatus = meterData?.status || meterData?.state || building.status || 'normal'
+          }
+
+          // 并行获取其他数据（能耗、EUI、碳排放）
+          const [summaryRes, euiRes] = await Promise.all([
+            axios.get(`/api/buildings/${buildingId}/energy/summary`, { timeout: 5000 })
+              .catch(err => { console.warn(`获取能耗摘要失败:`, err.message); return { data: null } }),
+            axios.get('/api/energy/cop', { params: { building_id: buildingId }, timeout: 5000 })
+              .catch(err => { console.warn(`获取EUI失败:`, err.message); return { data: null } })
           ])
 
-          // 处理设备数据（防御性处理确保是数组）
-          const meters = safeGetArray(metersRes.data)
-          const deviceCount = meters.length
-          
-          // 获取所有设备的状态（去重）
-          const statusSet = new Set(meters.map((m: any) => m.status || 'normal'))
-          const statuses = Array.from(statusSet) as string[]
-          
-          // 优先级：异常 > 告警 > 离线 > 正常
-          const statusPriority: Record<string, number> = {
-            'error': 4,
-            'warning': 3,
-            'offline': 2,
-            'normal': 1
-          }
-          
-          // 取优先级最高的状态作为建筑状态
-          const topStatus = statuses.sort((a, b) => 
-            (statusPriority[b] || 0) - (statusPriority[a] || 0)
-          )[0] || building.status || 'normal'
-
-          // 处理能耗数据
           const summary = summaryRes.data?.data || summaryRes.data || {}
-          
-          // 计算总能耗（8种表计类型之和）
           const energyTypes = ['electricity', 'water', 'gas', 'steam', 'chilledwater', 'hotwater', 'irrigation', 'solar']
-          const totalEnergy = energyTypes.reduce((sum, type) => {
-            return sum + (summary[type] || summary[`${type}_energy`] || 0)
-          }, 0)
-          
-          // 碳排放使用燃气（gas）能耗
+          const totalEnergy = energyTypes.reduce((sum, type) => sum + (summary[type] || summary[`${type}_energy`] || 0), 0)
           const carbon = summary.gas || summary.gas_energy || 0
-
-          // 处理EUI/COP
+          
           const euiData = euiRes.data?.data || euiRes.data || {}
           const eui = euiData.eui || euiData.cop || euiData.value || 0
 
@@ -428,8 +349,7 @@ const fetchBuildings = async () => {
             eui: eui,
             carbon: carbon,
             status: topStatus,
-            statusText: getStatusText(topStatus),
-            statusList: statuses
+            statusText: getStatusText(topStatus)
           }
         } catch (err) {
           console.error(`处理建筑 ${buildingId} 数据时出错:`, err)
@@ -438,36 +358,17 @@ const fetchBuildings = async () => {
       })
     )
 
-    // 过滤掉 null 值
     const validBuildings = detailedBuildings.filter(item => item !== null) as TableItem[]
-
-    // 如果按系统状态排序，进行二次排序（确保异常>告警>离线>正常）
     if (props.sortConfig?.field === 'status') {
-      const statusWeight: Record<string, number> = {
-        'error': 4,
-        'warning': 3,
-        'offline': 2,
-        'normal': 1
-      }
-      validBuildings.sort((a, b) => {
-        const weightA = statusWeight[a.status] || 0
-        const weightB = statusWeight[b.status] || 0
-        return props.sortConfig!.order === 'asc' 
-          ? weightA - weightB 
-          : weightB - weightA
-      })
+      const statusWeight: Record<string, number> = { 'error': 4, 'warning': 3, 'offline': 2, 'normal': 1 }
+      validBuildings.sort((a, b) => props.sortConfig!.order === 'asc' ? statusWeight[a.status] - statusWeight[b.status] : statusWeight[b.status] - statusWeight[a.status])
     }
-
     buildings.value = validBuildings
-    
   } catch (error: any) {
     console.error('获取建筑列表失败:', error)
-    // 详细输出错误信息
     if (error.response) {
       console.error('响应数据:', error.response.data)
       console.error('响应状态:', error.response.status)
-    } else if (error.request) {
-      console.error('请求发送失败，可能是网络或跨域问题')
     }
     buildings.value = []
   } finally {
@@ -475,73 +376,40 @@ const fetchBuildings = async () => {
   }
 }
 
-// 组件挂载时自动获取数据
-onMounted(() => {
-  fetchBuildings()
-})
+onMounted(() => { fetchBuildings() })
 
-// 监听筛选条件变化，变化时重置到第一页并重新获取
 watch(() => [props.filterForm?.status, props.advancedFilters, props.sortConfig], () => {
   pagination.value.currentPage = 1
   fetchBuildings()
 }, { deep: true })
 
-// 监听页码变化
-watch(() => pagination.value.currentPage, () => {
-  fetchBuildings()
-})
+watch(() => pagination.value.currentPage, () => { fetchBuildings() })
+watch(() => props.timeRange, () => { pagination.value.currentPage = 1; fetchBuildings() }, { immediate: false })
 
-// 监听时间范围变化
-watch(() => props.timeRange, () => {
-  pagination.value.currentPage = 1
-  fetchBuildings()
-}, { immediate: false })
-
-// 计算总页数
-const totalPages = computed(() => {
-  return Math.ceil(pagination.value.total / pagination.value.pageSize) || 1
-})
-
-// 计算显示范围
-const displayStart = computed(() => {
-  if (pagination.value.total === 0) return 0
-  return (pagination.value.currentPage - 1) * pagination.value.pageSize + 1
-})
-
+const totalPages = computed(() => Math.ceil(pagination.value.total / pagination.value.pageSize) || 1)
+const displayStart = computed(() => pagination.value.total === 0 ? 0 : (pagination.value.currentPage - 1) * pagination.value.pageSize + 1)
 const displayEnd = computed(() => {
   if (pagination.value.total === 0 && buildings.value.length === 0) return 0
-  // 如果没有总数（可能后端没返回），用当前实际显示的数据条数
   const effectiveTotal = pagination.value.total || buildings.value.length
-  const end = pagination.value.currentPage * pagination.value.pageSize
-  return Math.min(end, effectiveTotal)
+  return Math.min(pagination.value.currentPage * pagination.value.pageSize, effectiveTotal)
 })
 
-// 可见页码（最多显示5个）
 const visiblePages = computed(() => {
   const pages: number[] = []
   const maxVisible = 5
   const current = pagination.value.currentPage
   const total = totalPages.value
-  
   let start = Math.max(1, current - Math.floor(maxVisible / 2))
   let end = Math.min(total, start + maxVisible - 1)
-  
-  if (end - start + 1 < maxVisible) {
-    start = Math.max(1, end - maxVisible + 1)
-  }
-  
-  for (let i = start; i <= end; i++) {
-    pages.push(i)
-  }
+  if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1)
+  for (let i = start; i <= end; i++) pages.push(i)
   return pages
 })
 
-// 页码切换事件
 const onPageChange = (page: number) => {
   if (page < 1 || page > totalPages.value) return
   pagination.value.currentPage = page
 }
-
 </script>
 
 <style scoped>
@@ -577,6 +445,7 @@ td {
   padding: 16px;
   border-bottom: 1px solid #F3F4F6;
   color: #374151;
+  vertical-align: middle;
 }
 
 tr:hover {
@@ -592,23 +461,26 @@ tr:hover {
 }
 
 .building-id {
-  font-family: monospace;
+  font-family: 'Courier New', monospace;
   font-weight: 600;
   color: #111827;
+  font-size: 13px;
 }
 
 .site {
   font-family: monospace;
   color: #6B7280;
+  font-size: 13px;
 }
 
 .energy {
   font-weight: 600;
   color: #005BAC;
+  font-size: 15px;
 }
 
 .unit {
-  font-size: 12px;
+  font-size: 11px;
   color: #9CA3AF;
   margin-top: 2px;
 }
@@ -618,47 +490,50 @@ tr:hover {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border-radius: 20px;
+  border-radius: 16px;
   font-size: 12px;
   font-weight: 500;
   border: 1px solid transparent;
+  white-space: nowrap;
 }
 
 .status-tag.normal {
-  background: #F0FDF4;
-  color: #16A34A;
-  border-color: #DCFCE7;
+  background: #ECFDF3;
+  color: #027A48;
+  border-color: #A7F3D0;
 }
 
 .status-tag.warning {
   background: #FFFBEB;
-  color: #D97706;
-  border-color: #FEF3C7;
+  color: #B45309;
+  border-color: #FDE68A;
 }
 
 .status-tag.error {
   background: #FEF2F2;
-  color: #DC2626;
-  border-color: #FEE2E2;
+  color: #B91C1C;
+  border-color: #FECACA;
 }
 
 .status-tag.offline {
   background: #F3F4F6;
-  color: #6B7280;
-  border-color: #E5E7EB;
+  color: #4B5563;
+  border-color: #D1D5DB;
 }
 
-.status-tag .dot {
+.status-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+  display: inline-block;
 }
 
 .actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  align-items: center;
 }
 
 .action-btn {
@@ -669,39 +544,50 @@ tr:hover {
   align-items: center;
   justify-content: center;
   border: 1px solid;
-  background: transparent;
+  background: #ffffff;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
-.action-btn.blue {
-  color: #005BAC;
+.action-btn.view-btn {
+  color: #3B82F6;
   border-color: #BFDBFE;
-}
-
-.action-btn.blue:hover {
   background: #EFF6FF;
 }
 
-.action-btn.green {
-  color: #27AE60;
-  border-color: #BBF7D0;
+.action-btn.view-btn:hover {
+  background: #3B82F6;
+  color: #ffffff;
+  border-color: #3B82F6;
+  transform: scale(1.05);
 }
 
-.action-btn.green:hover {
-  background: #F0FDF4;
+.action-btn.stats-btn {
+  color: #10B981;
+  border-color: #A7F3D0;
+  background: #ECFDF3;
 }
 
-.action-btn.orange {
-  color: #F39C12;
+.action-btn.stats-btn:hover {
+  background: #10B981;
+  color: #ffffff;
+  border-color: #10B981;
+  transform: scale(1.05);
+}
+
+.action-btn.warning-btn {
+  color: #F59E0B;
   border-color: #FDE68A;
-}
-
-.action-btn.orange:hover {
   background: #FFFBEB;
 }
 
-/* 分页栏样式 */
+.action-btn.warning-btn:hover {
+  background: #F59E0B;
+  color: #ffffff;
+  border-color: #F59E0B;
+  transform: scale(1.05);
+}
+
 .pagination-bar {
   display: flex;
   justify-content: space-between;
@@ -709,61 +595,67 @@ tr:hover {
   padding: 16px 24px;
   border-top: 1px solid #F3F4F6;
   background: white;
-  margin-top: 0;
 }
 
 .pagination-info {
-  font-size: 14px;
-  color: #999;
+  font-size: 13px;
+  color: #6B7280;
   font-weight: 400;
 }
 
 .pagination-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .page-btn {
   min-width: 32px;
   height: 32px;
-  padding: 0 8px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #e0e0e0;
-  background: #fff;
+  border: 1px solid #E5E7EB;
+  background: #ffffff;
   border-radius: 50%;
-  font-size: 14px;
-  color: #666;
+  font-size: 13px;
+  color: #374151;
   cursor: pointer;
   transition: all 0.2s ease;
-  outline: none;
+  font-weight: 500;
 }
 
 .page-btn:hover:not(:disabled):not(.active) {
-  border-color: #005BAC;
-  color: #005BAC;
-  background: #f5f7fa;
-}
-
-.nav-btn {
-  color: #999;
-  border-color: #e0e0e0;
-}
-
-.nav-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  border-color: #e8e8e8;
-  color: #ccc;
+  border-color: #D1D5DB;
+  background: #F9FAFB;
+  color: #111827;
 }
 
 .page-btn.active {
   background: #005BAC;
-  color: #fff;
+  color: #ffffff;
   border-color: #005BAC;
-  font-weight: 500;
+  font-weight: 600;
   box-shadow: 0 2px 4px rgba(0, 91, 172, 0.2);
+}
+
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: #F3F4F6;
+  border-color: #E5E7EB;
+  color: #9CA3AF;
+}
+
+.nav-btn {
+  color: #6B7280;
+}
+
+@media (max-width: 768px) {
+  .pagination-bar {
+    flex-direction: column;
+    gap: 12px;
+  }
 }
 </style>
