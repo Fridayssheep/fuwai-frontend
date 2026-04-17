@@ -45,10 +45,9 @@
       <button class="btn-retry" @click="fetchBuildingDetail">重新加载</button>
     </div>
 
-    <!-- 数据内容（添加 v-else 条件） -->
+    <!-- 数据内容 -->
     <div v-else class="content-grid">
       <!-- 左侧信息面板 -->
-
       <div class="left-panel">
         <!-- 标签页切换 -->
         <div class="tab-header">
@@ -264,7 +263,6 @@
               </svg>
               <h3>小时级多维监控数据</h3>
             </div>
-            <!-- 新增：按钮组容器，包含筛选和下载按钮 -->
             <div class="header-actions">
               <button class="btn-icon btn-filter" @click="showTimeFilter = true" title="时间筛选">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -303,7 +301,6 @@
                   </td>
                   <td class="col-env">
                     <button class="btn-view green" @click="handleViewEnv(item)">
-                      <!-- 温度计图标 -->
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
                         <circle cx="11.5" cy="16.5" r="1.5" fill="currentColor"/>
@@ -313,7 +310,6 @@
                     </button>
                   </td>
                 </tr>
-                <!-- 空白填充行（当数据不足8条时保持高度） -->
                 <tr v-for="n in emptyRows" :key="`empty-${n}`" class="empty-row">
                   <td colspan="3">&nbsp;</td>
                 </tr>
@@ -359,7 +355,6 @@
       </div>
     </div>
 
-    <!-- 页面最底部占位条 -->
     <div class="page-bottom-spacer"></div>
 
     <!-- 能源消耗详情弹窗 -->
@@ -382,97 +377,26 @@
           </div>
           <div class="modal-body">
             <div class="energy-grid">
-              <div class="energy-item">
-                <div class="item-icon blue">
+              <div 
+                v-for="(value, key) in currentEnergyDetail" 
+                :key="key" 
+                class="energy-item"
+                v-show="value !== null && value !== undefined && value !== 0"
+              >
+                <div :class="['item-icon', getEnergyIconClass(key)]">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
                   </svg>
                 </div>
-                <span class="item-name">电力</span>
-                <span class="item-value">1,245.2<span class="unit">kWh</span></span>
+                <span class="item-name">{{ formatEnergyLabel(key) }}</span>
+                <span class="item-value">
+                  {{ formatNumber(value) }}
+                  <span class="unit">{{ getEnergyUnit(key) }}</span>
+                </span>
               </div>
-              <div class="energy-item">
-                <div class="item-icon red">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M8.56 2.9A7 7 0 0 1 19 9v4m-2 4H2a3 3 0 0 1 3-3h5a2 2 0 0 0 2-2V9a5 5 0 0 1 5-5h.05"/>
-                    <path d="M12 12v10"/>
-                    <path d="M8 22h8"/>
-                    <path d="M7 10h10"/>
-                  </svg>
-                </div>
-                <span class="item-name">热水</span>
-                <span class="item-value">84.5<span class="unit">m³</span></span>
-              </div>
-              <div class="energy-item">
-                <div class="item-icon cyan">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 2v20M2 12h20"/>
-                    <path d="M8 8l8 8M16 8l-8 8" stroke-opacity="0.3"/>
-                  </svg>
-                </div>
-                <span class="item-name">冷冻水</span>
-                <span class="item-value">312.1<span class="unit">GJ</span></span>
-              </div>
-              <div class="energy-item">
-                <div class="item-icon gray">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2v20M12 2l-4 4M12 2l4 4M12 22l-4-4M12 22l4-4"/>
-                    <path d="M4 12h16"/>
-                    <path d="M4 12l4-2M4 12l4 2M20 12l-4-2M20 12l-4 2" stroke-opacity="0.5"/>
-                  </svg>
-                </div>
-                <span class="item-name">蒸汽</span>
-                <span class="item-value">12.8<span class="unit">t</span></span>
-              </div>
-              <div class="energy-item">
-                <div class="item-icon orange">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="4"/>
-                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
-                  </svg>
-                </div>
-                <span class="item-name">燃气</span>
-                <span class="item-value">450.0<span class="unit">m³</span></span>
-              </div>
-              <div class="energy-item">
-                <div class="item-icon green">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2L4 6v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V6l-8-4z"/>
-                    <path d="M12 6v12"/>
-                    <path d="M12 18c-2-2-3-5-3-8"/>
-                  </svg>
-                </div>
-                <span class="item-name">灌溉</span>
-                <span class="item-value">5.2<span class="unit">m³</span></span>
-              </div>
-              <div class="energy-item">
-                <div class="item-icon blue-light">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
-                    <path d="M12 8v8"/>
-                    <path d="M12 16l3-3M12 16l-3-3"/>
-                  </svg>
-                </div>
-                <span class="item-name">用水量</span>
-                <span class="item-value">28.4<span class="unit">m³</span></span>
-              </div>
-              <div class="energy-item">
-                <div class="item-icon yellow">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="5"/>
-                    <line x1="12" y1="1" x2="12" y2="3"/>
-                    <line x1="12" y1="21" x2="12" y2="23"/>
-                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                    <line x1="1" y1="12" x2="3" y2="12"/>
-                    <line x1="21" y1="12" x2="23" y2="12"/>
-                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                  </svg>
-                </div>
-                <span class="item-name">太阳能发电量</span>
-                <span class="item-value">15.6<span class="unit">kWh</span></span>
+              <div v-if="Object.keys(currentEnergyDetail).length === 0 || Object.values(currentEnergyDetail).every(v => !v)" class="energy-empty">
+                <div class="empty-icon">⚡</div>
+                <p>该时段暂无能耗数据</p>
               </div>
             </div>
           </div>
@@ -499,7 +423,18 @@
             </button>
           </div>
           <div class="modal-body">
-            <div class="env-grid">
+            <!-- 加载状态 -->
+            <div v-if="envLoading" class="loading-container" style="padding: 40px 0;">
+              <div class="loading-spinner"></div>
+              <p>正在加载环境数据...</p>
+            </div>
+            <!-- 无数据提示 -->
+            <div v-else-if="!currentEnvDetail || Object.keys(currentEnvDetail).length === 0" class="energy-empty">
+              <div class="empty-icon">🌤️</div>
+              <p>暂无环境数据</p>
+            </div>
+            <!-- 数据展示 -->
+            <div v-else class="env-grid">
               <div class="env-item">
                 <div class="item-icon temp">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -508,7 +443,7 @@
                   </svg>
                 </div>
                 <span class="item-name">气温</span>
-                <span class="item-value">24.5<span class="unit">°C</span></span>
+                <span class="item-value">{{ currentEnvDetail.temperature ?? '-' }}<span class="unit">°C</span></span>
               </div>
               <div class="env-item">
                 <div class="item-icon cloud">
@@ -520,7 +455,7 @@
                   </svg>
                 </div>
                 <span class="item-name">云量</span>
-                <span class="item-value">15<span class="unit">%</span></span>
+                <span class="item-value">{{ currentEnvDetail.cloudCover ?? currentEnvDetail.cloud_cover ?? '-' }}<span class="unit">%</span></span>
               </div>
               <div class="env-item">
                 <div class="item-icon rain">
@@ -529,7 +464,7 @@
                   </svg>
                 </div>
                 <span class="item-name">降水量</span>
-                <span class="item-value">0.0<span class="unit">mm</span></span>
+                <span class="item-value">{{ currentEnvDetail.precipitation ?? currentEnvDetail.rain ?? '-' }}<span class="unit">mm</span></span>
               </div>
               <div class="env-item">
                 <div class="item-icon wind">
@@ -538,7 +473,7 @@
                   </svg>
                 </div>
                 <span class="item-name">风速</span>
-                <span class="item-value">3.2<span class="unit">m/s</span></span>
+                <span class="item-value">{{ currentEnvDetail.windSpeed ?? currentEnvDetail.wind_speed ?? '-' }}<span class="unit">m/s</span></span>
               </div>
               <div class="env-item">
                 <div class="item-icon dew">
@@ -549,7 +484,7 @@
                   </svg>
                 </div>
                 <span class="item-name">露点温度</span>
-                <span class="item-value">18.2<span class="unit">°C</span></span>
+                <span class="item-value">{{ currentEnvDetail.dewPoint ?? currentEnvDetail.dew_point ?? '-' }}<span class="unit">°C</span></span>
               </div>
               <div class="env-item">
                 <div class="item-icon pressure">
@@ -560,7 +495,7 @@
                   </svg>
                 </div>
                 <span class="item-name">海平面气压</span>
-                <span class="item-value">1,012<span class="unit">hPa</span></span>
+                <span class="item-value">{{ currentEnvDetail.pressure ?? currentEnvDetail.seaLevelPressure ?? '-' }}<span class="unit">hPa</span></span>
               </div>
               <div class="env-item">
                 <div class="item-icon direction">
@@ -571,7 +506,7 @@
                   </svg>
                 </div>
                 <span class="item-name">风向</span>
-                <span class="item-value">东南<span class="unit">135°</span></span>
+                <span class="item-value">{{ formatWindDirection(currentEnvDetail.windDirection ?? currentEnvDetail.wind_direction) }}<span class="unit">{{ currentEnvDetail.windDirection ?? currentEnvDetail.wind_direction ? '°' : '' }}</span></span>
               </div>
             </div>
           </div>
@@ -579,13 +514,13 @@
       </div>
     </teleport>
 
-    <!-- 新增：时间维度配置弹窗 -->
+    <!-- 时间维度配置弹窗 -->
     <TimeFilterModal 
       v-model:visible="showTimeFilter"
       @query="handleTimeQuery"
     />
 
-    <!-- 新增：导出报表弹窗 -->
+    <!-- 导出报表弹窗 -->
     <ExportModal 
       v-model:visible="showExportModal"
       @export="handleExport"
@@ -596,28 +531,84 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import axios from 'axios'; // 新增：引入axios
+import axios from 'axios';
 import { usePageAIContext } from '../../composables/useAIContext';
 import { getCurrentTimeString } from '@/utils/timeManager';
-// 新增：导入弹窗组件
 import TimeFilterModal from './TimeFilterModal.vue';
 import ExportModal from './ExportModal.vue';
 
 const route = useRoute();
 const router = useRouter();
 
-const buildingId = computed(() => route.params.id as string || 'BLDG-HQ-A01');
+const buildingId = ref(route.params.id as string || 'BLDG-HQ-A01');
 usePageAIContext('building-detail', computed(() => ({
   building_id: buildingId.value
 })));
 
-// 新增：能耗类别（可切换）
-const energyCategory = ref('电力'); // 默认电力
+const formatEnergyLabel = (key: string): string => {
+  const labelMap: Record<string, string> = {
+    'electricity': '电力',
+    'hotWater': '热水',
+    'chilledWater': '冷冻水',
+    'steam': '蒸汽',
+    'irrigation': '灌溉',
+    'solar': '太阳能',
+    'gas': '燃气',
+    'water': '用水量'
+  };
+  return labelMap[key] || key;
+};
 
-// 新增：时间范围（从查询页面传递或默认）
-const timeRange = ref<'today' | 'week' | 'month' | 'quarter' | 'year'>('month'); // 默认本月
+const getEnergyUnit = (key: string): string => {
+  const unitMap: Record<string, string> = {
+    'electricity': 'kWh',
+    'hotWater': 'm³',
+    'chilledWater': 'GJ',
+    'steam': 't',
+    'irrigation': 'm³',
+    'solar': 'kWh',
+    'gas': 'm³',
+    'water': 'm³'
+  };
+  return unitMap[key] || 'kWh';
+};
 
-// 新增：时间范围文本映射
+const getEnergyIconClass = (key: string): string => {
+  const classMap: Record<string, string> = {
+    'electricity': 'blue',
+    'hotWater': 'red',
+    'chilledWater': 'cyan',
+    'steam': 'gray',
+    'gas': 'orange',
+    'irrigation': 'green',
+    'water': 'blue-light',
+    'solar': 'yellow'
+  };
+  return classMap[key] || 'blue';
+};
+
+const formatNumber = (num: number | string | undefined): string => {
+  if (num === undefined || num === null) return '0';
+  const n = typeof num === 'string' ? parseFloat(num) : num;
+  if (isNaN(n)) return '0';
+  return n.toLocaleString();
+};
+
+// 格式化风向角度为文字
+const formatWindDirection = (degree: number | string | undefined): string => {
+  if (degree === undefined || degree === null) return '-';
+  let num = typeof degree === 'string' ? parseFloat(degree) : degree;
+  if (isNaN(num)) return '-';
+  
+  const directions = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
+  num = num % 360;
+  const index = Math.round((num < 0 ? num + 360 : num) / 45) % 8;
+  return directions[index] ?? '-';
+};
+
+const energyCategory = ref('电力');
+const timeRange = ref<'today' | 'week' | 'month' | 'quarter' | 'year'>('month');
+
 const timeRangeText = computed(() => {
   const map: Record<string, string> = {
     'today': '今日',
@@ -629,25 +620,38 @@ const timeRangeText = computed(() => {
   return map[timeRange.value] || '本月';
 });
 
-// 新增：中国办公建筑EUI基准值（行业标准GB 50189-2015，办公建筑约束值约100-120 kWh/m²/年）
-const EUI_BASELINE_CHINA = 110; // kWh/m²/年，取中位数
+const EUI_BASELINE_CHINA = 110;
 
-// 新增：原始数据存储（用于计算）
 const rawData = ref({
-  buildingDetail: null as any,      // 建筑详情接口返回
-  energySummary: null as any,       // 能耗摘要接口返回
-  categoryEnergy: null as any       // 分类能耗查询返回
+  buildingDetail: null as any,
+  energySummary: null as any,
+  categoryEnergy: null as any,
+  copEui: null as any
 });
 
-// 新增：弹窗显示状态控制
 const showTimeFilter = ref(false);
-
 const showExportModal = ref(false);
 
-// 新增：当前系统时间（从设置页面获取）
-const currentSystemTime = ref(getCurrentTimeString());
+const getSettingPageTime = () => {
+  const virtualTime = localStorage.getItem('virtualSystemTime');
+  if (virtualTime) {
+    return new Date(virtualTime).toISOString();
+  }
+  return new Date().toISOString();
+};
 
-// 新增：时间筛选配置
+const currentSystemTime = ref(getSettingPageTime());
+
+window.addEventListener('storage', async (e) => {
+  if (e.key === 'virtualSystemTime') {
+    currentSystemTime.value = e.newValue || new Date().toISOString();
+    await Promise.all([
+      fetchMonitorData(),
+      fetchBuildingDetail()
+    ]);
+  }
+});
+
 const timeFilterConfig = ref({
   range: 'month',
   startTime: '',
@@ -662,10 +666,8 @@ const timeFilterConfig = ref({
   }
 });
 
-// 标签页状态
 const activeTab = ref<'metadata' | 'derived'>('derived');
 
-// 建筑状态
 const status = ref<'normal' | 'warning' | 'error'>('normal');
 const statusText = computed(() => {
   const map = { normal: '运行正常', warning: '告警状态', error: '异常状态' };
@@ -673,11 +675,9 @@ const statusText = computed(() => {
 });
 const statusClass = computed(() => status.value);
 
-// 弹窗显示状态
 const showEnergyModal = ref(false);
 const showEnvModal = ref(false);
 
-// 建筑元数据（接口获取）
 const buildingInfo = ref<any>({
   buildingId: '-',
   siteId: '-',
@@ -693,8 +693,6 @@ const buildingInfo = ref<any>({
   coordinates: '-'
 });
 
-
-// 新增：建筑衍生数据（前端计算生成）
 const derivedData = computed(() => {
   const building = rawData.value.buildingDetail;
   const summary = rawData.value.energySummary;
@@ -719,24 +717,20 @@ const derivedData = computed(() => {
     totalEnergyAll: '0'
   };
   
-  // 基础数据解析（移除逗号）
-  const area = parseFloat(buildingInfo.value.area?.toString().replace(/,/g, '')) || 124500; // m²
-  const occupancy = parseInt(buildingInfo.value.occupancy?.toString().replace(/,/g, '')) || 8500; // 人
+  const area = parseFloat(buildingInfo.value.area?.toString().replace(/,/g, '')) || 124500;
+  const occupancy = parseInt(buildingInfo.value.occupancy?.toString().replace(/,/g, '')) || 8500;
   
-  // 1. 从接口获取：COP（当作EUI使用）、源头级EUI、场地级EUI
-  const cop = building.cop || building.eui || 0;
-  const euiSource = building.sourceEui || building.source_eui || 0;
-  const euiSite = building.siteEui || building.site_eui || 0;
+  const copEuiData = rawData.value.copEui;
+  const cop = copEuiData?.cop || copEuiData?.eui || 0;
+  const euiSource = copEuiData?.sourceEui || copEuiData?.source_eui || 0;
+  const euiSite = copEuiData?.siteEui || copEuiData?.site_eui || 0;
   
-  // 2. 从能耗摘要获取：总能耗（所有类型合计）
   const totalEnergyAll = summary.totalEnergy || summary.total_energy || 0;
   
-  // 3. 根据能耗类别获取：对应总能耗
   let totalEnergy = 0;
   if (categoryData && categoryData.energy !== undefined) {
     totalEnergy = categoryData.energy;
   } else {
-    // 如果分类接口未返回，从summary中根据类别查找
     const categoryMap: Record<string, string> = {
       '电力': 'electricity',
       '热水': 'hotWater',
@@ -751,39 +745,20 @@ const derivedData = computed(() => {
     totalEnergy = (key && summary[key]) || 0;
   }
   
-  // 4. 计算建筑年度总碳排放量 (kgCO2e) = 总能耗 × 排放因子
   const emissionFactor = getEmissionFactor(energyCategory.value);
   const annualCarbon = totalEnergyAll * emissionFactor;
-  
-  // 5. 计算单位面积碳排放量 (kgCO2e/m²)
   const carbonPerArea = area > 0 ? annualCarbon / area : 0;
-  
-  // 6. 计算人均碳排放量 (kgCO2e/人)
   const carbonPerPerson = occupancy > 0 ? annualCarbon / occupancy : 0;
-  
-  // 7. 计算碳减排量（相对于基准）= 基准排放 - 实际排放
   const baselineEmission = area * EUI_BASELINE_CHINA * 0.5703;
   const carbonReduction = Math.max(0, baselineEmission - annualCarbon);
-  
-  // 8. 计算碳减排率 (%)
   const carbonReductionRate = baselineEmission > 0 ? (carbonReduction / baselineEmission * 100) : 0;
-  
-  // 9. 计算可再生能源替代率 (%) = 太阳能发电量 / 总用电量 × 100
   const solarEnergy = summary.solar || summary.solarEnergy || 0;
   const electricityEnergy = summary.electricity || totalEnergyAll * 0.6;
   const renewableRate = electricityEnergy > 0 ? (solarEnergy / electricityEnergy * 100) : 0;
-  
-  // 10. 能耗强度基准值EUI（中国标准）
   const euiBaseline = EUI_BASELINE_CHINA;
-  
-  // 11. 计算单位面积水耗 (m³/m²)
   const waterConsumption = summary.water || 0;
   const waterPerArea = area > 0 ? waterConsumption / area : 0;
-  
-  // 12. 计算人均能耗强度 (kWh/人)
   const energyPerPerson = occupancy > 0 ? (totalEnergyAll / occupancy) : 0;
-  
-  // 13. 分项能耗占比 (%)
   const energyRatio = totalEnergyAll > 0 ? (totalEnergy / totalEnergyAll * 100) : 0;
   
   return {
@@ -806,7 +781,6 @@ const derivedData = computed(() => {
   };
 });
 
-// 获取不同能耗类别的碳排放因子
 const getEmissionFactor = (category: string): number => {
   const factors: Record<string, number> = {
     '电力': 0.5703,
@@ -821,28 +795,15 @@ const getEmissionFactor = (category: string): number => {
   return factors[category] || 0.5703;
 };
 
-// 新增：能耗类别改变时重新获取分类数据
-const handleEnergyCategoryChange = async () => {
-
-  await fetchCategoryEnergy();
-  // 更新分页等
-  updatePaginationRange();
-};
-
-// 新增：获取分类能耗数据
 const fetchCategoryEnergy = async () => {
   try {
-    // 根据时间范围计算起止时间
     const { startTime, endTime } = calculateTimeRange(timeRange.value);
-    
-    // 通用能耗查询接口
     const response = await axios.post('/api/energy/query', {
       buildingId: buildingId.value,
       energyType: energyCategory.value,
       startTime,
       endTime
     });
-    
     rawData.value.categoryEnergy = response.data;
   } catch (err) {
     console.error('获取分类能耗失败:', err);
@@ -850,70 +811,148 @@ const fetchCategoryEnergy = async () => {
   }
 };
 
+const handleEnergyCategoryChange = async () => {
+  await fetchCategoryEnergy();
+  updatePaginationRange();
+};
+
+const fetchMonitorData = async () => {
+  try {
+    tableLoading.value = true;
+    const { startTime, endTime } = calculateTimeRange(timeFilterConfig.value.range);
+    const priceFilter = timeFilterConfig.value.features?.workdayPrice || 'all';
+    
+    const response = await axios.get(`/api/buildings/${buildingId.value}/energy/hourly`, {
+      params: {
+        buildingId: buildingId.value,
+        startTime,
+        endTime,
+        priceType: priceFilter !== 'all' ? priceFilter : undefined
+      }
+    });
+    
+    let hourlyData = response.data?.data || response.data || [];
+    hourlyData = hourlyData.map((item: any) => ({
+      time: item.time || item.timestamp || item.date,
+      meters: item.meters || item.energyDetail || item.consumption || {},
+      env: item.env || {}
+    }));
+    
+    if (priceFilter && priceFilter !== 'all' && hourlyData.length > 0) {
+      hourlyData = hourlyData.filter((item: any) => {
+        const hour = new Date(item.time).getHours();
+        return getPricePeriodType(hour) === priceFilter;
+      });
+    }
+    
+    allMonitorData.value = hourlyData;
+    pagination.value.total = hourlyData.length;
+    pagination.value.current = 1;
+    updatePaginationRange();
+  } catch (err) {
+    console.error('获取小时级监测数据失败:', err);
+    allMonitorData.value = [];
+    pagination.value.total = 0;
+  } finally {
+    tableLoading.value = false;
+  }
+};
+
 const calculateTimeRange = (range: string) => {
   const now = new Date(currentSystemTime.value);
-  const formatDate = (d: Date) => d.toISOString().split('T')[0]; // 只取日期部分
+  const formatDateTime = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
   
   let start = new Date(now);
   let end = new Date(now);
   
   switch(range) {
     case 'today':
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
       break;
     case 'week':
       const day = start.getDay() || 7;
       start.setDate(start.getDate() - day + 1);
+      start.setHours(0, 0, 0, 0);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
       break;
     case 'month':
       start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+      end.setMonth(end.getMonth() + 1, 0);
+      end.setHours(23, 59, 59, 999);
       break;
     case 'quarter':
       const quarter = Math.floor(start.getMonth() / 3);
       start.setMonth(quarter * 3, 1);
+      start.setHours(0, 0, 0, 0);
+      end.setMonth(quarter * 3 + 3, 0);
+      end.setHours(23, 59, 59, 999);
       break;
     case 'year':
       start.setMonth(0, 1);
+      start.setHours(0, 0, 0, 0);
+      end.setMonth(11, 31);
+      end.setHours(23, 59, 59, 999);
       break;
+    default:
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+      end.setMonth(end.getMonth() + 1, 0);
+      end.setHours(23, 59, 59, 999);
   }
   
   return {
-    startTime: formatDate(start) + ' 00:00:00',
-    endTime: formatDate(end) + ' 23:59:59'  // ✅ 正确： "2024-01-01 23:59:59"
+    startTime: formatDateTime(start) + ' 00:00:00',
+    endTime: formatDateTime(end) + ' 23:59:59'
   };
 };
-
 
 const fetchBuildingDetail = async () => {
   loading.value = true;
   error.value = false;
   
   try {
-    const [detailRes, summaryRes] = await Promise.all([
+    const [detailRes, summaryRes, copEuiRes] = await Promise.all([
       axios.get(`/api/buildings/${buildingId.value}`),
-      axios.get(`/api/buildings/${buildingId.value}/energy/summary`)
+      axios.get(`/api/buildings/${buildingId.value}/energy/summary`),
+      axios.get('/api/energy/cop', {
+        params: { buildingId: buildingId.value }
+      }).catch(err => {
+        console.error('获取COP/EUI数据失败:', err);
+        return { data: null };
+      })
     ]);
     
-    // 保存原始数据用于计算
     rawData.value.buildingDetail = detailRes.data;
     rawData.value.energySummary = summaryRes.data;
+    rawData.value.copEui = copEuiRes.data;
     
-    // ✅ 使用对象展开运算符合并数据，保留默认值作为后备
-    const detailData = detailRes.data.basicInfo || detailRes.data || {};
+    const detail = detailRes.data;
     buildingInfo.value = {
-      buildingId: buildingId.value,  // 确保ID始终有值
-      ...buildingInfo.value,         // 保留原有默认值
-      ...detailData                  // 用接口数据覆盖
+      buildingId: detail.buildingId || detail.id || buildingId.value,
+      siteId: detail.siteId || detail.site_id || '-',
+      primaryUse: detail.primaryUse || detail.primary_use || '-',
+      area: detail.area || detail.buildingArea || '0',
+      areaFt: detail.areaFt || detail.area_ft || '0',
+      subUse: detail.subUse || detail.sub_use || '-',
+      buildYear: detail.buildYear || detail.build_year || '-',
+      floors: detail.floors || detail.floorCount || '0',
+      timezone: detail.timezone || 'UTC+8',
+      startDate: detail.startDate || detail.start_date || '-',
+      occupancy: detail.occupancy || detail.occupancyCount || '0',
+      coordinates: detail.coordinates || 
+        (detail.latitude && detail.longitude ? `${detail.latitude}, ${detail.longitude}` : '-')
     };
     
-    // 获取初始分类能耗（电力）
     await fetchCategoryEnergy();
     
-    // 赋值建筑状态
-    if (detailRes.data.status) {
-      status.value = detailRes.data.status;
-    }
-    
-    // 赋值运行关键指标（使用计算后的EUI达标率）
     const currentEui = parseFloat(derivedData.value.euiSite) || 0;
     const euiRate = EUI_BASELINE_CHINA > 0 
       ? Math.max(0, (1 - (currentEui / EUI_BASELINE_CHINA)) * 100).toFixed(2)
@@ -924,11 +963,10 @@ const fetchBuildingDetail = async () => {
       euiRate: euiRate
     };
     
-    // 更新监控数据
     if (detailRes.data.monitorData && Array.isArray(detailRes.data.monitorData)) {
       allMonitorData.value = detailRes.data.monitorData;
     } else {
-      allMonitorData.value = []; // 如果没有数据，显示空表格
+      allMonitorData.value = [];
     }
     pagination.value.total = allMonitorData.value.length;
     updatePaginationRange();
@@ -936,8 +974,6 @@ const fetchBuildingDetail = async () => {
   } catch (err: any) {
     console.error('获取建筑详情失败:', err);
     error.value = true;
-    
-    // 出错时保持默认值显示，不显示undefined
     if (err.response) {
       if (err.response.status === 404) {
         errorTitle.value = '建筑不存在';
@@ -958,73 +994,66 @@ const fetchBuildingDetail = async () => {
   }
 };
 
-// 运行关键指标（接口获取）
 const metrics = ref<any>({
   abnormalRate: '0.00',
   euiRate: '0.00'
 });
 
-
-// 小时级监控数据（接口获取）
 const allMonitorData = ref<any[]>([]);
+const currentEnergyDetail = ref<Record<string, number>>({});
+const currentEnvDetail = ref<any>({});
+const envLoading = ref(false);
 
-// 新增：loading和error状态
 const loading = ref(true);
+const tableLoading = ref(false);
 const error = ref(false);
 const errorTitle = ref('加载失败');
 const errorMessage = ref('无法获取建筑详情数据');
 
-// 删除：模拟数据生成代码（已移除）
+const PEAK_HOURS = [9, 10, 11, 14, 15, 16, 17, 19, 20, 21];
+const VALLEY_HOURS = [23, 0, 1, 2, 3, 4, 5, 6, 7];
+const FLAT_HOURS = [8, 12, 13, 18, 22];
 
+const getPricePeriodType = (hour: number): 'peak' | 'valley' | 'flat' => {
+  if (PEAK_HOURS.includes(hour)) return 'peak';
+  if (VALLEY_HOURS.includes(hour)) return 'valley';
+  return 'flat';
+};
 
-// 删除：模拟数据生成函数（数据改为从接口获取）
-// const generateMockData = () => { ... };
-// allMonitorData.value = generateMockData();
-
-
-// 新增：根据时间筛选过滤后的数据
 const filteredData = computed(() => {
   if (!timeFilterConfig.value.startTime || !timeFilterConfig.value.endTime) {
     return allMonitorData.value;
   }
-  
   const start = new Date(timeFilterConfig.value.startTime);
   const end = new Date(timeFilterConfig.value.endTime);
-  
   return allMonitorData.value.filter(item => {
     const itemTime = new Date(item.time);
     return itemTime >= start && itemTime <= end;
   });
 });
 
-// 新增：过滤后的总数
 const filteredTotal = computed(() => filteredData.value.length);
-
-// 分页配置 - 固定每页8条
 const PAGE_SIZE = 8;
 const pagination = ref({
   current: 1,
   pageSize: PAGE_SIZE,
-  total: 142,
+  total: 0,
   start: 1,
   end: PAGE_SIZE
 });
 
-// 修改：使用过滤后的数据进行分页显示
 const displayData = computed(() => {
   const start = (pagination.value.current - 1) * pagination.value.pageSize;
   const end = start + pagination.value.pageSize;
   return filteredData.value.slice(start, end);
 });
 
-// 空白行填充（当数据不足8条时保持高度）
 const emptyRows = computed(() => {
   const currentRows = displayData.value.length;
   const targetRows = PAGE_SIZE;
   return Math.max(0, targetRows - currentRows);
 });
 
-// 修改：基于过滤后的数据计算总页数
 const totalPages = computed(() => Math.ceil(filteredTotal.value / pagination.value.pageSize) || 1);
 
 const visiblePages = computed(() => {
@@ -1050,7 +1079,6 @@ const visiblePages = computed(() => {
   return pages;
 });
 
-// 更新分页范围显示
 const updatePaginationRange = () => {
   const start = (pagination.value.current - 1) * pagination.value.pageSize + 1;
   const end = Math.min(start + pagination.value.pageSize - 1, filteredTotal.value);
@@ -1058,42 +1086,72 @@ const updatePaginationRange = () => {
   pagination.value.end = end;
 };
 
-// 新增：处理时间查询
-const handleTimeQuery = (timeConfig: any) => {
-  console.log('时间查询配置：', timeConfig);
-  
-  // 保存筛选配置
+const handleTimeQuery = async (timeConfig: any) => {
   timeFilterConfig.value = {
-    range: timeConfig.range,
-    startTime: timeConfig.startTime,
-    endTime: timeConfig.endTime,
-    features: timeConfig.features
+    range: timeConfig.range || 'month',
+    startTime: timeConfig.startTime || '',
+    endTime: timeConfig.endTime || '',
+    features: {
+      workday: timeConfig.features?.workday ?? true,
+      workdayPrice: timeConfig.features?.workdayPrice || 'all',
+      weekend: timeConfig.features?.weekend ?? false,
+      weekendPrice: timeConfig.features?.weekendPrice || 'valley',
+      holiday: timeConfig.features?.holiday ?? false,
+      holidayPrice: timeConfig.features?.holidayPrice || 'valley'
+    }
   };
-  
-  // 重置到第一页
   pagination.value.current = 1;
-  
-  // 更新分页信息
+  await fetchMonitorData();
   updatePaginationRange();
-  
-  // 这里可以根据时间配置调用API重新加载数据
-  // 目前使用前端过滤演示效果
 };
 
-// 新增：处理导出
 const handleExport = (exportConfig: { format: string }) => {
   console.log('导出配置：', exportConfig);
-  // 这里实现实际的导出逻辑
 };
 
-// 弹窗方法
+// 【修改】环境数据接口调用
+const fetchEnvData = async (item: any) => {
+  envLoading.value = true;
+  try {
+    // 从行数据中获取时间
+    const timeStr = item.time;
+    // 解析时间，获取该小时的起止时间
+    const date = new Date(timeStr);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hour = String(date.getHours()).padStart(2, '0');
+    
+    const startTime = `${year}-${month}-${day} ${hour}:00:00`;
+    const endTime = `${year}-${month}-${day} ${hour}:59:59`;
+    
+    const response = await axios.get('/api/energy/weather', {
+      params: {
+        buildingId: buildingId.value,
+        startTime,
+        endTime
+      }
+    });
+    
+    // 假设接口返回数据包含环境数据字段
+    const data = response.data?.data || response.data || {};
+    currentEnvDetail.value = data;
+  } catch (err) {
+    console.error('获取环境数据失败:', err);
+    currentEnvDetail.value = {};
+  } finally {
+    envLoading.value = false;
+  }
+};
+
 const handleViewEnergy = (item: any) => {
-  console.log('查看能耗数据:', item.time);
+  currentEnergyDetail.value = item.meters || item.energyDetail || {};
   showEnergyModal.value = true;
 };
 
-const handleViewEnv = (item: any) => {
+const handleViewEnv = async (item: any) => {
   console.log('查看环境数据:', item.time);
+  await fetchEnvData(item);
   showEnvModal.value = true;
 };
 
@@ -1105,7 +1163,6 @@ const closeEnvModal = () => {
   showEnvModal.value = false;
 };
 
-// 其他方法
 const handleBack = () => {
   router.back();
 };
@@ -1135,18 +1192,29 @@ const handleNextPage = () => {
   }
 };
 
-// 初始化
-onMounted(() => {
-  // 从路由查询参数获取时间范围（如果有）
+// 【修复】onMounted 添加 async
+onMounted(async () => {
   if (route.query.timeRange) {
     timeRange.value = route.query.timeRange as any;
+    timeFilterConfig.value.range = route.query.timeRange as string;
   }
   
-  fetchBuildingDetail();
+  const routeBuildingId = route.params.id as string;
+  if (routeBuildingId) {
+    buildingId.value = routeBuildingId;
+  }
+  
+  currentSystemTime.value = getSettingPageTime();
+  
+  await Promise.all([
+    fetchBuildingDetail(),
+    fetchMonitorData()
+  ]);
 });
 </script>
 
 <style scoped>
+/* 样式部分保持不变，与提供的一致 */
 .building-detail {
   min-height: 100%;
   background: #f5f7fa;
@@ -1450,7 +1518,6 @@ onMounted(() => {
   border-radius: 12px;
 }
 
-
 .metrics-card {
   background: white;
   border-radius: 12px;
@@ -1533,14 +1600,12 @@ onMounted(() => {
   margin: 0;
 }
 
-/* 新增：按钮组容器样式 */
 .header-actions {
   display: flex;
   gap: 8px;
   align-items: center;
 }
 
-/* 新增：图标按钮基础样式 */
 .btn-icon {
   width: 36px;
   height: 36px;
@@ -1562,7 +1627,6 @@ onMounted(() => {
   background: #e6f7ff;
 }
 
-/* 新增：筛选按钮特殊样式 */
 .btn-filter:hover {
   border-color: #52c41a;
   color: #52c41a;
@@ -1717,7 +1781,6 @@ onMounted(() => {
   border-radius: 12px;
 }
 
-/* 弹窗样式 */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -1941,7 +2004,6 @@ onMounted(() => {
   gap: 16px;
 }
 
-/* 加载状态样式 */
 .loading-container {
   display: flex;
   flex-direction: column;
@@ -1969,7 +2031,6 @@ onMounted(() => {
   to { transform: rotate(360deg); }
 }
 
-/* 错误状态样式 */
 .error-container {
   display: flex;
   flex-direction: column;
@@ -2014,5 +2075,25 @@ onMounted(() => {
 .btn-retry:hover {
   background: #004494;
 }
-</style>
 
+.energy-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #999;
+  grid-column: span 2;
+}
+
+.empty-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  opacity: 0.5;
+}
+
+.energy-empty p {
+  font-size: 14px;
+  margin: 0;
+}
+</style>
