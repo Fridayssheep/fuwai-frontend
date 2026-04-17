@@ -79,7 +79,7 @@ const handleSelect = async (item: HeaderNotificationItem) => {
     return
   }
 
-  await router.push(item.target || '/')
+  await router.push('/')
 }
 
 const handleDocumentClick = (event: MouseEvent) => {

@@ -8,7 +8,6 @@ export interface HeaderNotificationItem {
   type: HeaderNotificationType
   title: string
   description: string
-  target?: string
   targetId?: string
   unread: boolean
 }
@@ -49,7 +48,6 @@ const toNotificationItem = (item: HighlightItem): HeaderNotificationItem => {
     type: item.type,
     title: item.title,
     description: item.description,
-    target: item.target,
     targetId: item.target_id,
     unread: !readIds.value.includes(id)
   }
