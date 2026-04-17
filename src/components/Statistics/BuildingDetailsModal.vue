@@ -1,6 +1,7 @@
 <template>
-  <div v-if="visible" class="modal-overlay" @click.self="close">
-    <div class="modal-content">
+  <Teleport to="body">
+    <div v-if="visible" class="modal-overlay" @click.self="close">
+      <div class="modal-content">
       <!-- 模态框头部 -->
       <div class="modal-header">
         <div class="title-area">
@@ -10,7 +11,7 @@
             检测到 {{ anomalyCount }} 个表计异常 <Icon icon="lucide:chevron-down" class="ml-1" />
           </div>
         </div>
-        <button class="close-btn" @click="close">
+        <button class="close-btn" type="button" @click="close">
           <Icon icon="lucide:x" />
         </button>
       </div>
@@ -89,12 +90,12 @@
 
       <!-- 模态框底部 -->
       <div class="modal-footer">
-        <button class="btn btn-default" @click="close">返回</button>
-        <button class="btn btn-primary" @click="openOpsPanel">
+        <button class="btn btn-default" type="button" @click="close">返回</button>
+        <button class="btn btn-primary" type="button" @click="openOpsPanel">
           <Icon icon="lucide:bot" class="mr-1" />
           AI 运维分析
         </button>
-        <button class="btn btn-primary btn-icon" @click="exportMarkdown" :disabled="exporting">
+        <button class="btn btn-primary btn-icon" type="button" @click="exportMarkdown" :disabled="exporting">
           <Icon v-if="exporting" icon="lucide:loader-2" class="spin mr-1" />
           <span v-if="exporting">导出中...</span>
           <template v-else>
@@ -102,12 +103,13 @@
           </template>
         </button>
       </div>
+      </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { Teleport, ref, watch, computed } from 'vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import { Icon } from '@iconify/vue'
 import { 

@@ -1,6 +1,7 @@
 <template>
-  <div v-if="visible" class="modal-overlay" @click.self="close">
-    <div class="modal-content">
+  <Teleport to="body">
+    <div v-if="visible" class="modal-overlay" @click.self="close">
+      <div class="modal-content">
       <!-- 模态框头部 -->
       <div class="modal-header">
         <div class="title-area">
@@ -14,7 +15,7 @@
             {{ getStatusText(meterDetail.meter.status) }}
           </span>
         </div>
-        <button class="close-btn" @click="close">
+        <button class="close-btn" type="button" @click="close">
           <Icon icon="lucide:x" />
         </button>
       </div>
@@ -32,7 +33,7 @@
         <div class="error-state">
           <Icon icon="lucide:alert-circle" class="error-icon" />
           <p>{{ error }}</p>
-          <button class="retry-btn" @click="fetchData">重试</button>
+          <button class="retry-btn" type="button" @click="fetchData">重试</button>
         </div>
       </div>
 
@@ -150,14 +151,15 @@
 
       <!-- 模态框底部 -->
       <div class="modal-footer">
-        <button class="btn btn-default" @click="close">关闭</button>
+        <button class="btn btn-default" type="button" @click="close">关闭</button>
       </div>
     </div>
-  </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { Teleport, ref, watch, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getMeterById, type MeterDetailResponse } from '../../api/statistics'
 

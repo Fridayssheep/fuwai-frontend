@@ -203,14 +203,14 @@ export interface BuildingDetailResponse {
 export const getBuildings = (params?: BuildingListParams) => {
     return request.get<BuildingListResponse>('/buildings', {
         params: { ...params },
-        timeout: 10000
+        timeout: 30000
     })
 }
 
 /** 获取建筑详情 */
 export const getBuildingById = (buildingId: string) => {
     return request.get<BuildingDetailResponse>(`/buildings/${buildingId}`, {
-        timeout: 10000
+        timeout: 30000
     })
 }
 
@@ -218,7 +218,7 @@ export const getBuildingById = (buildingId: string) => {
 export const getMeters = (params?: MeterListParams) => {
     return request.get<MeterListResponse>('/meters', {
         params: { ...params },
-        timeout: 10000
+        timeout: 30000
     })
 }
 
@@ -242,7 +242,7 @@ export interface MeterDetailResponse {
 /** 获取设备详情 */
 export const getMeterById = (meterId: string) => {
     return request.get<MeterDetailResponse>(`/meters/${meterId}`, {
-        timeout: 10000
+        timeout: 30000
     })
 }
 
@@ -264,7 +264,7 @@ export interface BuildingEnergySummaryResponse {
 export const getBuildingEnergySummary = (buildingId: string, params?: BuildingEnergySummaryParams) => {
     return request.get<BuildingEnergySummaryResponse>(`/buildings/${buildingId}/energy/summary`, {
         params: { ...params },
-        timeout: 15000
+        timeout: 30000
     })
 }
 

@@ -27,6 +27,12 @@
       </div>
     </div>
 
+    <div v-if="loadError" class="table-error-banner">
+      <Icon icon="lucide:alert-circle" class="error-icon" />
+      <span>{{ loadError }}</span>
+      <button class="error-retry" type="button" @click="fetchData">重试</button>
+    </div>
+
     <div class="table-container">
       <table class="performance-table">
         <thead>
@@ -73,7 +79,7 @@
             </td>
             <td class="font-numeric last-seen-cell">{{ formatLastSeen(row.last_seen_at) }}</td>
             <td class="action-col">
-              <button class="action-link" @click="viewDetails(row)">详情</button>
+              <button class="action-link" type="button" @click="viewDetails(row)">详情</button>
             </td>
           </tr>
         </tbody>
@@ -145,6 +151,7 @@ const meterTypes = [
 
 const tableData = ref<MeterRow[]>([])
 const loading = ref(false)
+const loadError = ref('')
 const lastUpdated = ref('')
 const filterMeterType = ref('')
 const filterStatus = ref('')
@@ -217,6 +224,7 @@ const onFilterChange = () => {
 
 const fetchData = async () => {
   loading.value = true
+  loadError.value = ''
   try {
     const params: Record<string, any> = {
       page: currentPage.value,
@@ -259,6 +267,7 @@ const fetchData = async () => {
     lastUpdated.value = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
   } catch (err) {
     console.error('设备列表获取失败:', err)
+    loadError.value = '设备列表加载失败，当前响应较慢。你可以稍后重试。'
   } finally {
     loading.value = false
   }
@@ -299,6 +308,35 @@ onMounted(() => {
   margin-bottom: 20px;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.table-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fff5f5;
+  color: #b42318;
+  font-size: 13px;
+}
+
+.table-error-banner .error-icon {
+  flex-shrink: 0;
+}
+
+.error-retry {
+  margin-left: auto;
+  border: none;
+  border-radius: 8px;
+  background: rgba(180, 35, 24, 0.08);
+  color: inherit;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .panel-header h3 {

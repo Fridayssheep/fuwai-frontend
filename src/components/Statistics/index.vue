@@ -185,8 +185,11 @@ const budgetPercent = computed(() => {
   // 简单 mock: 基于总能耗 / 预设预算值给一个示意百分比
   // 实际可后期接入预算 API
   if (!energySummary.value) return 0
-  const budget = energySummary.value.total * 1.3 // 假设预算为总量的 130%
-  return Math.min(100, Math.round((energySummary.value.total / budget) * 100))
+  const total = Number(energySummary.value.total)
+  if (!Number.isFinite(total) || total <= 0) return 0
+  const budget = total * 1.3 // 假设预算为总量的 130%
+  if (!Number.isFinite(budget) || budget <= 0) return 0
+  return Math.min(100, Math.round((total / budget) * 100))
 })
 
 const copRatingClass = computed(() => {
@@ -209,7 +212,7 @@ const copRatingText = computed(() => {
 
 // ─── Helpers ────────────────────────────────────────────────────
 const formatNumber = (val: number | null | undefined): string => {
-  if (val == null) return '—'
+  if (val == null || !Number.isFinite(val)) return '—'
   // 如果单位是 kWh 且 >= 1000，转 MWh
   if (val >= 1000 && energySummary.value?.unit?.toLowerCase() === 'kwh') {
     return (val / 1000).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })

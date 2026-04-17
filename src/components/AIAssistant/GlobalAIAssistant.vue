@@ -121,7 +121,7 @@
                 <span>正在载入历史会话…</span>
               </div>
 
-              <template v-else-if="messages.length === 0">
+              <template v-else-if="showWelcomeState">
                 <div class="welcome-card">
                   <div class="welcome-media">
                     <img src="/character.png" alt="" class="welcome-avatar" />
@@ -150,7 +150,7 @@
                 </div>
               </template>
 
-              <template v-else>
+              <template v-else-if="messages.length > 0">
                 <article
                   v-for="message in messages"
                   :key="message.message_id"
@@ -456,6 +456,10 @@ const promptSuggestions = computed(() => {
 
 const hasMoreSessions = computed(() => {
   return sessions.value.length < pagination.value.total
+})
+
+const showWelcomeState = computed(() => {
+  return messages.value.length === 0 && !showHistory.value && !sessionLoading.value
 })
 
 const normalizeContext = (value: AIQAContext | null | undefined): AIQAContext | null => {

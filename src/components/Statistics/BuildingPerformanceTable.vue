@@ -49,7 +49,7 @@
               </span>
             </td>
             <td class="action-col">
-              <button class="action-link" @click="viewDetails(row)">详情</button>
+              <button class="action-link" type="button" @click="viewDetails(row)">详情</button>
             </td>
           </tr>
         </tbody>
