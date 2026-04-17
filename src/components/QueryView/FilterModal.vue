@@ -45,69 +45,29 @@
             </div>
             <div class="form-row">
               <div class="form-item">
-                <label>建筑ID：</label>
-                <input type="text" placeholder="请输入文字" class="input-box" v-model="form.buildingId" />
-              </div>
-              <div class="form-item">
-                <label>站点：</label>
-                <input type="text" placeholder="请输入文字" class="input-box" v-model="form.site" />
-              </div>
-            </div>
-          </div>
+  <label>建筑ID：</label>
+  <input type="text" placeholder="请输入建筑ID，如 BLDG-001" class="input-box" v-model="form.buildingId" />
+</div>
+<div class="form-item">
+  <label>站点：</label>
+  <input type="text" placeholder="请输入站点名称或编号" class="input-box" v-model="form.site" />
+</div>
+<div class="form-item">
+  <label>建筑类型：</label>
+  <input type="text" placeholder="如：办公楼、商场、医院" class="input-box" v-model="form.buildingType" />
+</div>
+<div class="form-item">
+  <label>细分用途：</label>
+  <input type="text" placeholder="如：总部大楼、分店、仓库" class="input-box" v-model="form.subUsage" />
+</div>
+<div class="form-item">
+  <label>LEED等级：</label>
+  <input type="text" placeholder="如：PLATINUM、GOLD、SILVER" class="input-box" v-model="form.leedLevel" />
+</div>
 
-          <div class="section">
-            <div class="section-title">
-              <span class="title-dot"></span>
-              <span>物理属性</span>
-            </div>
-            <div class="form-row">
-              <div class="form-item">
-                <label>建筑类型：</label>
-                <input type="text" placeholder="请选择" class="input-box" v-model="form.buildingType" />
-              </div>
-              <div class="form-item">
-                <label>细分用途：</label>
-                <input type="text" placeholder="请选择" class="input-box" v-model="form.subUsage" />
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-item">
-                <label>建造年份：</label>
-                <input type="text" placeholder="请输入年份数字" class="input-box" v-model="form.builtYear" />
-              </div>
-              <div class="form-item">
-                <label>建造面积：</label>
-                <div class="input-with-unit">
-                  <input type="text" placeholder="请输入面积数字" class="input-box" v-model="form.area" />
-                  <span class="unit">m²</span>
-                </div>
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="form-item">
-                <label>楼层数：</label>
-                <input type="text" placeholder="请输入楼层数字" class="input-box" v-model="form.floors" />
-              </div>
-              <div class="form-item">
-                <label>容纳人数：</label>
-                <input type="text" placeholder="请输入使用者数量" class="input-box" v-model="form.occupancy" />
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">
-              <span class="title-dot"></span>
-              <span>能效基准</span>
-            </div>
-            <div class="form-row">
-              <div class="form-item">
-                <label>LEED等级：</label>
-                <input type="text" placeholder="请选择" class="input-box" v-model="form.leedLevel" />
-              </div>
               <div class="form-item">
                 <label>EnergyStar：</label>
-                <input type="text" placeholder="请输入评分数字" class="input-box" v-model="form.energyStar" />
+                <input type="text" placeholder="请输入EnergyStar评分" class="input-box" v-model="form.energyStar" />
               </div>
             </div>
             <div class="form-row">
@@ -261,7 +221,7 @@
                     <option value="=">=</option>
                   </select>
                   <input type="text" placeholder="请输入" v-model="form.carbonTotal.value" />
-                  <span class="unit">kgCå₂/m²</span>
+                  <span class="unit">kgCO₂/m²</span>
                 </div>
               </div>
               <div class="carbon-item">
@@ -273,7 +233,7 @@
                     <option value="=">=</option>
                   </select>
                   <input type="text" placeholder="请输入" v-model="form.carbonPerArea.value" />
-                  <span class="unit">kgCå₂/m²</span>
+                  <span class="unit">kgCO₂/m²</span>
                 </div>
               </div>
               <div class="carbon-item">
@@ -285,7 +245,7 @@
                     <option value="=">=</option>
                   </select>
                   <input type="text" placeholder="请输入" v-model="form.carbonPerCapita.value" />
-                  <span class="unit">kgCå₂/m²</span>
+                  <span class="unit">kgCO₂/m²</span>
                 </div>
               </div>
             </div>
@@ -460,19 +420,6 @@ const handleSave = () => {
 
 .btn-primary:hover {
   background: #004494;
-}
-
-.content-grid {
-  display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: 24px;
-  align-items: start;
-}
-
-.left-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
 }
 
 .tab-header {
@@ -945,8 +892,19 @@ h3 {
   display: flex;
   gap: 0;
   padding: 0 24px;
-  border-bottom: 1px solid #E5E7EB;
   background: #F9FAFB;
+  position: relative;
+}
+
+.modal-tabs::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #E5E7EB;
+  z-index: 0;
 }
 
 .tab-btn {
@@ -957,7 +915,8 @@ h3 {
   color: #6B7280;
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
   transition: all 0.2s;
 }
 

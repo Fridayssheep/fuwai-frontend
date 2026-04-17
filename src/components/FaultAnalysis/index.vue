@@ -211,7 +211,7 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 12px;
 }
-.header-left { display: flex; flex-direction: column; gap: 2px; }
+
 .page-title {
   margin: 0;
   font-size: 22px;
