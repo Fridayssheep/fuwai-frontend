@@ -105,6 +105,7 @@ const formatIdx = (i: number) => {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+  flex-shrink: 0;
   color: #e0ecff;
   position: relative;
   overflow: hidden;

@@ -1,4 +1,4 @@
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, watch } from 'vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import { useAnomalyTaskStore } from '../../store/anomalyTask'
 import {
@@ -18,6 +18,29 @@ import {
 export type ChartRange = 'day' | 'week' | 'month'
 
 const DEFAULT_PAGINATION = { page: 1, page_size: 10, total: 0 }
+const AI_STATE_CACHE_KEY = 'fw_fault_analysis_ai_state_cache_v1'
+
+type CachedAIState = {
+  aiError: string
+  aiResult: AIAnalyzeAnomalyResponse | null
+  selectedCauseId: string | null
+  feedbackError: string
+  feedbackResult: AnomalyFeedbackResponse | null
+  feedbackComment: string
+  aiLoading?: boolean
+  feedbackLoading?: boolean
+}
+
+const loadCachedAIStateMap = (): Record<string, CachedAIState> => {
+  try {
+    const raw = sessionStorage.getItem(AI_STATE_CACHE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
 
 export function useFaultAnalysis() {
   const { 
@@ -137,14 +160,89 @@ export function useFaultAnalysis() {
   const detailLoading = ref(false)
   const detailError = ref('')
   const detailData = ref<EnergyAnomalyAnalysisResponse | null>(null)
+  const aiStateCache = ref<Record<string, CachedAIState>>(loadCachedAIStateMap())
+
+  const persistCachedAIStateMap = () => {
+    try {
+      const serializable = Object.fromEntries(
+        Object.entries(aiStateCache.value).map(([anomalyId, state]) => [
+          anomalyId,
+          {
+            aiError: state.aiError,
+            aiResult: state.aiResult,
+            selectedCauseId: state.selectedCauseId,
+            feedbackError: state.feedbackError,
+            feedbackResult: state.feedbackResult,
+            feedbackComment: state.feedbackComment
+          }
+        ])
+      )
+      sessionStorage.setItem(AI_STATE_CACHE_KEY, JSON.stringify(serializable))
+    } catch {
+      // ignore cache persistence failures
+    }
+  }
+
+  const clearCurrentAIState = () => {
+    aiLoading.value = false
+    aiError.value = ''
+    aiResult.value = null
+    selectedCause.value = null
+    feedbackLoading.value = false
+    feedbackError.value = ''
+    feedbackResult.value = null
+    feedbackComment.value = ''
+  }
+
+  const applyCachedAIState = (anomalyId: string | null) => {
+    if (!anomalyId) {
+      clearCurrentAIState()
+      return
+    }
+
+    const cached = aiStateCache.value[anomalyId]
+    if (!cached) {
+      clearCurrentAIState()
+      return
+    }
+
+    aiLoading.value = !!cached.aiLoading
+    aiError.value = cached.aiError || ''
+    aiResult.value = cached.aiResult || null
+    feedbackLoading.value = !!cached.feedbackLoading
+    feedbackError.value = cached.feedbackError || ''
+    feedbackResult.value = cached.feedbackResult || null
+    feedbackComment.value = cached.feedbackComment || ''
+    selectedCause.value =
+      cached.selectedCauseId && cached.aiResult
+        ? cached.aiResult.candidate_causes.find(cause => cause.cause_id === cached.selectedCauseId) || null
+        : null
+  }
+
+  const updateCachedAIState = (anomalyId: string, patch: Partial<CachedAIState>) => {
+    const previous = aiStateCache.value[anomalyId] || {
+      aiError: '',
+      aiResult: null,
+      selectedCauseId: null,
+      feedbackError: '',
+      feedbackResult: null,
+      feedbackComment: '',
+      aiLoading: false,
+      feedbackLoading: false
+    }
+    aiStateCache.value = {
+      ...aiStateCache.value,
+      [anomalyId]: {
+        ...previous,
+        ...patch
+      }
+    }
+    persistCachedAIStateMap()
+  }
 
   const selectAnomaly = async (anomaly: AnomalySummary) => {
     selectedAnomaly.value = anomaly
-    // 重置 AI 状态
-    aiResult.value = null
-    aiError.value = ''
-    feedbackResult.value = null
-    selectedCause.value = null
+    applyCachedAIState(anomaly.anomaly_id)
 
     detailLoading.value = true
     detailError.value = ''
@@ -176,9 +274,7 @@ export function useFaultAnalysis() {
   const clearSelection = () => {
     selectedAnomaly.value = null
     detailData.value = null
-    aiResult.value = null
-    feedbackResult.value = null
-    selectedCause.value = null
+    clearCurrentAIState()
   }
 
   // ─── AI 诊断 ──────────────────────────────────────
@@ -188,11 +284,23 @@ export function useFaultAnalysis() {
 
   const runAIDiagnosis = async () => {
     if (!selectedAnomaly.value || !detailData.value) return
+    const anomalyId = selectedAnomaly.value.anomaly_id
     aiLoading.value = true
     aiError.value = ''
     aiResult.value = null
     selectedCause.value = null
     feedbackResult.value = null
+    feedbackError.value = ''
+    feedbackComment.value = ''
+    updateCachedAIState(anomalyId, {
+      aiLoading: true,
+      aiError: '',
+      aiResult: null,
+      selectedCauseId: null,
+      feedbackError: '',
+      feedbackResult: null,
+      feedbackComment: ''
+    })
 
     try {
       const res = await aiAnalyzeAnomaly({
@@ -203,12 +311,31 @@ export function useFaultAnalysis() {
         include_history_feedback: true,
         max_candidate_causes: 3
       }) as any
-      aiResult.value = res
+      updateCachedAIState(anomalyId, {
+        aiLoading: false,
+        aiError: '',
+        aiResult: res,
+        selectedCauseId: null,
+        feedbackError: '',
+        feedbackResult: null
+      })
+      if (selectedAnomaly.value?.anomaly_id === anomalyId) {
+        aiResult.value = res
+      }
     } catch (err: any) {
       console.error('AI 诊断失败:', err)
-      aiError.value = err?.response?.data?.detail || err?.message || 'AI 分析失败'
+      const errorMessage = err?.response?.data?.detail || err?.message || 'AI 分析失败'
+      updateCachedAIState(anomalyId, {
+        aiLoading: false,
+        aiError: errorMessage
+      })
+      if (selectedAnomaly.value?.anomaly_id === anomalyId) {
+        aiError.value = errorMessage
+      }
     } finally {
-      aiLoading.value = false
+      if (selectedAnomaly.value?.anomaly_id === anomalyId) {
+        aiLoading.value = false
+      }
     }
   }
 
@@ -221,12 +348,25 @@ export function useFaultAnalysis() {
 
   const selectCause = (cause: AICandidateCause) => {
     selectedCause.value = cause
+    if (selectedAnomaly.value) {
+      updateCachedAIState(selectedAnomaly.value.anomaly_id, {
+        selectedCauseId: cause.cause_id
+      })
+    }
   }
 
   const submitFeedback = async () => {
     if (!aiResult.value || !selectedCause.value || !detailData.value) return
+    const anomalyId = selectedAnomaly.value?.anomaly_id
     feedbackLoading.value = true
     feedbackError.value = ''
+    if (anomalyId) {
+      updateCachedAIState(anomalyId, {
+        feedbackLoading: true,
+        feedbackError: '',
+        feedbackComment: feedbackComment.value
+      })
+    }
 
     try {
       const res = await submitAnomalyFeedback({
@@ -248,6 +388,14 @@ export function useFaultAnalysis() {
         analysis_mode: aiResult.value.meta?.analysis_mode
       }) as any
       feedbackResult.value = res
+      if (anomalyId) {
+        updateCachedAIState(anomalyId, {
+          feedbackLoading: false,
+          feedbackError: '',
+          feedbackResult: res,
+          feedbackComment: ''
+        })
+      }
 
       // 核心修复：反馈成功后同步更新列表状态，实现全站联动
       if (overview.value?.items && selectedAnomaly.value) {
@@ -267,11 +415,26 @@ export function useFaultAnalysis() {
       
     } catch (err: any) {
       console.error('提交反馈失败:', err)
-      feedbackError.value = err?.response?.data?.detail || err?.message || '提交失败'
+      const errorMessage = err?.response?.data?.detail || err?.message || '提交失败'
+      feedbackError.value = errorMessage
+      if (anomalyId) {
+        updateCachedAIState(anomalyId, {
+          feedbackLoading: false,
+          feedbackError: errorMessage,
+          feedbackComment: feedbackComment.value
+        })
+      }
     } finally {
       feedbackLoading.value = false
     }
   }
+
+  watch(feedbackComment, value => {
+    if (!selectedAnomaly.value) return
+    updateCachedAIState(selectedAnomaly.value.anomaly_id, {
+      feedbackComment: value
+    })
+  })
 
   // ─── 统计计算 ─────────────────────────────────────
   const severityStats = computed(() => {

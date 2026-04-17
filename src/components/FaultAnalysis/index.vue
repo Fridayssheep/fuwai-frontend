@@ -207,6 +207,7 @@ onMounted(() => {
   gap: 20px;
   height: 100%;
   box-sizing: border-box;
+  overflow-y: auto;
 }
 
 /* Header */
@@ -337,6 +338,7 @@ onMounted(() => {
   gap: 20px;
   flex: 1;
   min-height: 500px; /* 保证至少有 5 条左右信息的高度展示空间，防止在短窗口下被过度压缩 */
+  align-items: stretch;
 }
 
 .list-column {
