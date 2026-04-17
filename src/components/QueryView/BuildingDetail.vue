@@ -25,8 +25,30 @@
       </div>
     </div>
 
-    <div class="content-grid">
+    <!-- 加载状态 -->
+    <div v-if="loading" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p>正在加载建筑数据...</p>
+    </div>
+
+    <!-- 错误状态 -->
+    <div v-else-if="error" class="error-container">
+      <div class="error-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+      </div>
+      <h3>{{ errorTitle }}</h3>
+      <p>{{ errorMessage }}</p>
+      <button class="btn-retry" @click="fetchBuildingDetail">重新加载</button>
+    </div>
+
+    <!-- 数据内容（添加 v-else 条件） -->
+    <div v-else class="content-grid">
       <!-- 左侧信息面板 -->
+
       <div class="left-panel">
         <!-- 标签页切换 -->
         <div class="tab-header">
@@ -116,6 +138,9 @@
 
         <!-- 建筑衍生数据面板 -->
         <div v-show="activeTab === 'derived'" class="info-card derived-card">
+          <div class="derived-header">
+            <span class="derived-time-range">统计周期：{{ timeRangeText }}</span>
+          </div>
           <div class="derived-grid">
             <div class="derived-item">
               <span class="derived-label">COP</span>
@@ -167,7 +192,18 @@
             </div>
             <div class="derived-item">
               <span class="derived-label">能耗类别</span>
-              <span class="derived-value">{{ derivedData.energyType }}</span>
+              <div class="derived-value">
+                <select v-model="energyCategory" class="energy-select" @change="handleEnergyCategoryChange">
+                  <option value="电力">电力</option>
+                  <option value="热水">热水</option>
+                  <option value="冷冻水">冷冻水</option>
+                  <option value="蒸汽">蒸汽</option>
+                  <option value="灌溉">灌溉</option>
+                  <option value="太阳能">太阳能</option>
+                  <option value="燃气">燃气</option>
+                  <option value="水">水</option>
+                </select>
+              </div>
             </div>
             <div class="derived-item">
               <span class="derived-label">对应总能耗(kWh)</span>
@@ -560,6 +596,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import axios from 'axios'; // 新增：引入axios
 import { usePageAIContext } from '../../composables/useAIContext';
 import { getCurrentTimeString } from '@/utils/timeManager';
 // 新增：导入弹窗组件
@@ -574,8 +611,37 @@ usePageAIContext('building-detail', computed(() => ({
   building_id: buildingId.value
 })));
 
+// 新增：能耗类别（可切换）
+const energyCategory = ref('电力'); // 默认电力
+
+// 新增：时间范围（从查询页面传递或默认）
+const timeRange = ref<'today' | 'week' | 'month' | 'quarter' | 'year'>('month'); // 默认本月
+
+// 新增：时间范围文本映射
+const timeRangeText = computed(() => {
+  const map: Record<string, string> = {
+    'today': '今日',
+    'week': '本周',
+    'month': '本月',
+    'quarter': '本季',
+    'year': '本年'
+  };
+  return map[timeRange.value] || '本月';
+});
+
+// 新增：中国办公建筑EUI基准值（行业标准GB 50189-2015，办公建筑约束值约100-120 kWh/m²/年）
+const EUI_BASELINE_CHINA = 110; // kWh/m²/年，取中位数
+
+// 新增：原始数据存储（用于计算）
+const rawData = ref({
+  buildingDetail: null as any,      // 建筑详情接口返回
+  energySummary: null as any,       // 能耗摘要接口返回
+  categoryEnergy: null as any       // 分类能耗查询返回
+});
+
 // 新增：弹窗显示状态控制
 const showTimeFilter = ref(false);
+
 const showExportModal = ref(false);
 
 // 新增：当前系统时间（从设置页面获取）
@@ -611,77 +677,310 @@ const statusClass = computed(() => status.value);
 const showEnergyModal = ref(false);
 const showEnvModal = ref(false);
 
-// 建筑元数据
-const buildingInfo = ref({
-  buildingId: 'BLDG-HQ-A01-SH',
-  siteId: 'East-China-04 / site_4',
-  primaryUse: '办公/商业',
-  area: '124,500',
-  areaFt: '1,340,107',
-  subUse: '建筑',
-  buildYear: '2018',
-  floors: '42',
-  timezone: 'UTC+8 (北京)',
-  startDate: '2018-06-28',
-  occupancy: '8,500',
-  coordinates: '31.23° N, 121.47° E'
+// 建筑元数据（接口获取）
+const buildingInfo = ref<any>({
+  buildingId: '-',
+  siteId: '-',
+  primaryUse: '-',
+  area: '0',
+  areaFt: '0',
+  subUse: '-',
+  buildYear: '-',
+  floors: '0',
+  timezone: '-',
+  startDate: '-',
+  occupancy: '0',
+  coordinates: '-'
 });
 
-// 建筑衍生数据
-const derivedData = ref({
-  cop: '111',
-  annualCarbon: '1,245.50',
-  carbonPerArea: '12.4',
-  carbonPerPerson: '0.85',
-  carbonReduction: '111',
-  carbonReductionRate: '12.5%',
-  renewableRate: '24%',
-  euiBaseline: '111',
-  euiSource: '111',
-  euiSite: '111',
-  waterPerArea: '111',
-  energyPerPerson: '11',
-  energyType: '电力(Electricity)',
-  totalEnergy: '111',
-  energyRatio: '11%',
-  totalEnergyAll: '3510.12'
-});
 
-// 运行关键指标
-const metrics = ref({
-  abnormalRate: '0.42',
-  euiRate: '104.2'
-});
-
-// 模拟数据（142条）- 基于2024年5月12日的数据
-const allMonitorData = ref([
-  { time: '2024-05-12 08:00' }, { time: '2024-05-12 09:00' },
-  { time: '2024-05-12 10:00' }, { time: '2024-05-12 11:00' },
-  { time: '2024-05-12 12:00' }, { time: '2024-05-12 13:00' },
-  { time: '2024-05-12 14:00' }, { time: '2024-05-12 15:00' },
-  { time: '2024-05-12 16:00' }, { time: '2024-05-12 17:00' },
-  { time: '2024-05-12 18:00' }, { time: '2024-05-12 19:00' },
-]);
-
-// 生成142条模拟数据（基于当前系统时间2026-04-15生成一些模拟历史数据）
-const generateMockData = () => {
-  const data = [];
-  const current = new Date(currentSystemTime.value);
+// 新增：建筑衍生数据（前端计算生成）
+const derivedData = computed(() => {
+  const building = rawData.value.buildingDetail;
+  const summary = rawData.value.energySummary;
+  const categoryData = rawData.value.categoryEnergy;
   
-  // 生成最近30天的数据，每小时一条
-  for (let i = 0; i < 142; i++) {
-    const date = new Date(current);
-    date.setHours(date.getHours() - i);
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    const hour = date.getHours().toString().padStart(2, '0');
-    data.unshift({ time: `${year}-${month}-${day} ${hour}:00` });
+  if (!building || !summary) return {
+    cop: '0',
+    annualCarbon: '0',
+    carbonPerArea: '0',
+    carbonPerPerson: '0',
+    carbonReduction: '0',
+    carbonReductionRate: '0%',
+    renewableRate: '0%',
+    euiBaseline: EUI_BASELINE_CHINA.toString(),
+    euiSource: '0',
+    euiSite: '0',
+    waterPerArea: '0',
+    energyPerPerson: '0',
+    energyType: energyCategory.value,
+    totalEnergy: '0',
+    energyRatio: '0%',
+    totalEnergyAll: '0'
+  };
+  
+  // 基础数据解析（移除逗号）
+  const area = parseFloat(buildingInfo.value.area?.toString().replace(/,/g, '')) || 124500; // m²
+  const occupancy = parseInt(buildingInfo.value.occupancy?.toString().replace(/,/g, '')) || 8500; // 人
+  
+  // 1. 从接口获取：COP（当作EUI使用）、源头级EUI、场地级EUI
+  const cop = building.cop || building.eui || 0;
+  const euiSource = building.sourceEui || building.source_eui || 0;
+  const euiSite = building.siteEui || building.site_eui || 0;
+  
+  // 2. 从能耗摘要获取：总能耗（所有类型合计）
+  const totalEnergyAll = summary.totalEnergy || summary.total_energy || 0;
+  
+  // 3. 根据能耗类别获取：对应总能耗
+  let totalEnergy = 0;
+  if (categoryData && categoryData.energy !== undefined) {
+    totalEnergy = categoryData.energy;
+  } else {
+    // 如果分类接口未返回，从summary中根据类别查找
+    const categoryMap: Record<string, string> = {
+      '电力': 'electricity',
+      '热水': 'hotWater',
+      '冷冻水': 'chilledWater',
+      '蒸汽': 'steam',
+      '灌溉': 'irrigation',
+      '太阳能': 'solar',
+      '燃气': 'gas',
+      '水': 'water'
+    };
+    const key = categoryMap[energyCategory.value];
+    totalEnergy = (key && summary[key]) || 0;
   }
-  return data;
+  
+  // 4. 计算建筑年度总碳排放量 (kgCO2e) = 总能耗 × 排放因子
+  const emissionFactor = getEmissionFactor(energyCategory.value);
+  const annualCarbon = totalEnergyAll * emissionFactor;
+  
+  // 5. 计算单位面积碳排放量 (kgCO2e/m²)
+  const carbonPerArea = area > 0 ? annualCarbon / area : 0;
+  
+  // 6. 计算人均碳排放量 (kgCO2e/人)
+  const carbonPerPerson = occupancy > 0 ? annualCarbon / occupancy : 0;
+  
+  // 7. 计算碳减排量（相对于基准）= 基准排放 - 实际排放
+  const baselineEmission = area * EUI_BASELINE_CHINA * 0.5703;
+  const carbonReduction = Math.max(0, baselineEmission - annualCarbon);
+  
+  // 8. 计算碳减排率 (%)
+  const carbonReductionRate = baselineEmission > 0 ? (carbonReduction / baselineEmission * 100) : 0;
+  
+  // 9. 计算可再生能源替代率 (%) = 太阳能发电量 / 总用电量 × 100
+  const solarEnergy = summary.solar || summary.solarEnergy || 0;
+  const electricityEnergy = summary.electricity || totalEnergyAll * 0.6;
+  const renewableRate = electricityEnergy > 0 ? (solarEnergy / electricityEnergy * 100) : 0;
+  
+  // 10. 能耗强度基准值EUI（中国标准）
+  const euiBaseline = EUI_BASELINE_CHINA;
+  
+  // 11. 计算单位面积水耗 (m³/m²)
+  const waterConsumption = summary.water || 0;
+  const waterPerArea = area > 0 ? waterConsumption / area : 0;
+  
+  // 12. 计算人均能耗强度 (kWh/人)
+  const energyPerPerson = occupancy > 0 ? (totalEnergyAll / occupancy) : 0;
+  
+  // 13. 分项能耗占比 (%)
+  const energyRatio = totalEnergyAll > 0 ? (totalEnergy / totalEnergyAll * 100) : 0;
+  
+  return {
+    cop: cop.toFixed(1),
+    annualCarbon: annualCarbon.toFixed(2),
+    carbonPerArea: carbonPerArea.toFixed(1),
+    carbonPerPerson: carbonPerPerson.toFixed(2),
+    carbonReduction: carbonReduction.toFixed(1),
+    carbonReductionRate: carbonReductionRate.toFixed(1) + '%',
+    renewableRate: renewableRate.toFixed(0) + '%',
+    euiBaseline: euiBaseline.toString(),
+    euiSource: euiSource.toString(),
+    euiSite: euiSite.toString(),
+    waterPerArea: waterPerArea.toFixed(3),
+    energyPerPerson: energyPerPerson.toFixed(1),
+    energyType: energyCategory.value,
+    totalEnergy: totalEnergy.toFixed(1),
+    energyRatio: energyRatio.toFixed(0) + '%',
+    totalEnergyAll: totalEnergyAll.toFixed(2)
+  };
+});
+
+// 获取不同能耗类别的碳排放因子
+const getEmissionFactor = (category: string): number => {
+  const factors: Record<string, number> = {
+    '电力': 0.5703,
+    '热水': 0.11,
+    '冷冻水': 0.5703,
+    '蒸汽': 0.15,
+    '灌溉': 0.0,
+    '太阳能': 0.0,
+    '燃气': 0.2,
+    '水': 0.0
+  };
+  return factors[category] || 0.5703;
 };
 
-allMonitorData.value = generateMockData();
+// 新增：能耗类别改变时重新获取分类数据
+const handleEnergyCategoryChange = async () => {
+
+  await fetchCategoryEnergy();
+  // 更新分页等
+  updatePaginationRange();
+};
+
+// 新增：获取分类能耗数据
+const fetchCategoryEnergy = async () => {
+  try {
+    // 根据时间范围计算起止时间
+    const { startTime, endTime } = calculateTimeRange(timeRange.value);
+    
+    // 通用能耗查询接口
+    const response = await axios.post('/api/energy/query', {
+      buildingId: buildingId.value,
+      energyType: energyCategory.value,
+      startTime,
+      endTime
+    });
+    
+    rawData.value.categoryEnergy = response.data;
+  } catch (err) {
+    console.error('获取分类能耗失败:', err);
+    rawData.value.categoryEnergy = null;
+  }
+};
+
+const calculateTimeRange = (range: string) => {
+  const now = new Date(currentSystemTime.value);
+  const formatDate = (d: Date) => d.toISOString().split('T')[0]; // 只取日期部分
+  
+  let start = new Date(now);
+  let end = new Date(now);
+  
+  switch(range) {
+    case 'today':
+      break;
+    case 'week':
+      const day = start.getDay() || 7;
+      start.setDate(start.getDate() - day + 1);
+      break;
+    case 'month':
+      start.setDate(1);
+      break;
+    case 'quarter':
+      const quarter = Math.floor(start.getMonth() / 3);
+      start.setMonth(quarter * 3, 1);
+      break;
+    case 'year':
+      start.setMonth(0, 1);
+      break;
+  }
+  
+  return {
+    startTime: formatDate(start) + ' 00:00:00',
+    endTime: formatDate(end) + ' 23:59:59'  // ✅ 正确： "2024-01-01 23:59:59"
+  };
+};
+
+
+const fetchBuildingDetail = async () => {
+  loading.value = true;
+  error.value = false;
+  
+  try {
+    const [detailRes, summaryRes] = await Promise.all([
+      axios.get(`/api/buildings/${buildingId.value}`),
+      axios.get(`/api/buildings/${buildingId.value}/energy/summary`)
+    ]);
+    
+    // 保存原始数据用于计算
+    rawData.value.buildingDetail = detailRes.data;
+    rawData.value.energySummary = summaryRes.data;
+    
+    // ✅ 使用对象展开运算符合并数据，保留默认值作为后备
+    const detailData = detailRes.data.basicInfo || detailRes.data || {};
+    buildingInfo.value = {
+      buildingId: buildingId.value,  // 确保ID始终有值
+      ...buildingInfo.value,         // 保留原有默认值
+      ...detailData                  // 用接口数据覆盖
+    };
+    
+    // 获取初始分类能耗（电力）
+    await fetchCategoryEnergy();
+    
+    // 赋值建筑状态
+    if (detailRes.data.status) {
+      status.value = detailRes.data.status;
+    }
+    
+    // 赋值运行关键指标（使用计算后的EUI达标率）
+    const currentEui = parseFloat(derivedData.value.euiSite) || 0;
+    const euiRate = EUI_BASELINE_CHINA > 0 
+      ? Math.max(0, (1 - (currentEui / EUI_BASELINE_CHINA)) * 100).toFixed(2)
+      : '0.00';
+    
+    metrics.value = {
+      abnormalRate: detailRes.data.metrics?.abnormalRate || '0.42',
+      euiRate: euiRate
+    };
+    
+    // 更新监控数据
+    if (detailRes.data.monitorData && Array.isArray(detailRes.data.monitorData)) {
+      allMonitorData.value = detailRes.data.monitorData;
+    } else {
+      allMonitorData.value = []; // 如果没有数据，显示空表格
+    }
+    pagination.value.total = allMonitorData.value.length;
+    updatePaginationRange();
+    
+  } catch (err: any) {
+    console.error('获取建筑详情失败:', err);
+    error.value = true;
+    
+    // 出错时保持默认值显示，不显示undefined
+    if (err.response) {
+      if (err.response.status === 404) {
+        errorTitle.value = '建筑不存在';
+        errorMessage.value = `未找到ID为 ${buildingId.value} 的建筑信息`;
+      } else {
+        errorTitle.value = `服务器错误 (${err.response.status})`;
+        errorMessage.value = '后端服务异常，请稍后再试';
+      }
+    } else if (err.request) {
+      errorTitle.value = '网络连接失败';
+      errorMessage.value = '无法连接到后端服务，请检查代理配置';
+    } else {
+      errorTitle.value = '请求错误';
+      errorMessage.value = err.message || '未知错误';
+    }
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 运行关键指标（接口获取）
+const metrics = ref<any>({
+  abnormalRate: '0.00',
+  euiRate: '0.00'
+});
+
+
+// 小时级监控数据（接口获取）
+const allMonitorData = ref<any[]>([]);
+
+// 新增：loading和error状态
+const loading = ref(true);
+const error = ref(false);
+const errorTitle = ref('加载失败');
+const errorMessage = ref('无法获取建筑详情数据');
+
+// 删除：模拟数据生成代码（已移除）
+
+
+// 删除：模拟数据生成函数（数据改为从接口获取）
+// const generateMockData = () => { ... };
+// allMonitorData.value = generateMockData();
+
 
 // 新增：根据时间筛选过滤后的数据
 const filteredData = computed(() => {
@@ -838,7 +1137,12 @@ const handleNextPage = () => {
 
 // 初始化
 onMounted(() => {
-  updatePaginationRange();
+  // 从路由查询参数获取时间范围（如果有）
+  if (route.query.timeRange) {
+    timeRange.value = route.query.timeRange as any;
+  }
+  
+  fetchBuildingDetail();
 });
 </script>
 
@@ -1112,6 +1416,40 @@ onMounted(() => {
   color: #333;
   font-weight: 600;
 }
+
+.energy-select {
+  width: 100%;
+  height: 32px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 0 8px;
+  font-size: 14px;
+  color: #333;
+  background: white;
+  cursor: pointer;
+  outline: none;
+}
+
+.energy-select:focus {
+  border-color: #0056b3;
+}
+
+.derived-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.derived-time-range {
+  font-size: 12px;
+  color: #666;
+  background: #f5f5f5;
+  padding: 4px 12px;
+  border-radius: 12px;
+}
+
 
 .metrics-card {
   background: white;
@@ -1602,4 +1940,79 @@ onMounted(() => {
   display: grid;
   gap: 16px;
 }
+
+/* 加载状态样式 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  margin-top: 24px;
+  color: #666;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #E5E7EB;
+  border-top-color: #0056b3;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 错误状态样式 */
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  margin-top: 24px;
+  text-align: center;
+}
+
+.error-icon {
+  color: #DC2626;
+  margin-bottom: 16px;
+}
+
+.error-container h3 {
+  font-size: 18px;
+  color: #1F2937;
+  margin: 0 0 8px 0;
+}
+
+.error-container p {
+  color: #6B7280;
+  margin-bottom: 24px;
+}
+
+.btn-retry {
+  padding: 10px 24px;
+  background: #0056b3;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.btn-retry:hover {
+  background: #004494;
+}
 </style>
+
