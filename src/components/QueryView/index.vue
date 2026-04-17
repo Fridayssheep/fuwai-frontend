@@ -175,9 +175,9 @@
   :advanced-filters="advancedFilters"
   :sort-config="sortConfig"
   :time-range="(filterForm.timeRange as 'today' | 'week' | 'month' | 'quarter' | 'year')"
-  @view="handleView" 
-  @suggest="handleSuggest" 
-  @fault="handleFault"
+  @view-detail="handleViewDetail" 
+  @view-stats="handleViewStats" 
+  @fault-analysis="handleFaultAnalysis"
 />
 
     <!-- 高级筛选弹窗 -->
@@ -191,6 +191,14 @@
       v-model:visible="showExportModal" 
       @export="handleExportConfirm"
     />
+
+<!-- 统计详情弹窗 -->
+<BuildingDetailsModal
+  v-model:visible="showStatsModal"
+  :building-id="selectedBuildingId"
+  :start-time="timeFilterStart"
+  :end-time="timeFilterEnd"
+/>
 
   </div>
 </div>
@@ -248,6 +256,18 @@ const pagination = ref({
   pageSize: 7,
   total: 0
 });
+
+const timeFilterStart = computed(() => {
+  // 根据 filterForm.timeRange 计算开始时间
+  const now = new Date()
+  const range = filterForm.value.timeRange
+  // ... 计算逻辑
+  return '2024-01-01 00:00:00'  // 实际应根据 range 计算
+})
+
+const timeFilterEnd = computed(() => {
+  return '2024-01-01 23:59:59'  // 实际应根据 range 计算
+})
 
 // 模拟数据
 interface BuildingItem {
@@ -347,15 +367,33 @@ const clearAllAdvancedFilters = () => {
   advancedFilters.value = {};
 };
 
-const handleView = (item: BuildingItem) => router.push(`/building/${item.buildingId}`);
-const handleSuggest = (item: BuildingItem) => console.log('减排建议:', item.buildingId);
-const handleFault = (item: BuildingItem) => router.push({
-  path: '/fault-analysis',
-  query: {
-    building_id: item.buildingId,
-    meter: 'electricity'
-  }
-});
+// 导入统计弹窗组件
+import BuildingDetailsModal from '../../components/Statistics/BuildingDetailsModal.vue'
+
+// 控制统计弹窗显示
+const showStatsModal = ref(false)
+const selectedBuildingId = ref('')
+
+// 查看建筑详情（蓝色眼睛）- 跳转到 BuildingDetail.vue
+const handleViewDetail = (item: BuildingItem) => {
+  router.push(`/building/${item.buildingId}`)
+}
+
+// 查看统计（绿色叶子）- 打开 BuildingDetailsModal.vue
+const handleViewStats = (item: BuildingItem) => {
+  selectedBuildingId.value = item.buildingId
+  showStatsModal.value = true
+}
+
+// 故障分析（橙色警告）- 跳转到 FaultAnalysis
+const handleFaultAnalysis = (item: BuildingItem) => {
+  router.push({
+    path: '/fault-analysis',
+    query: {
+      building_id: item.buildingId
+    }
+  })
+}
 
 // 调用后端接口获取高亮事项数据
 const fetchHighlights = async () => {
