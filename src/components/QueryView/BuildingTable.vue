@@ -8,7 +8,6 @@
             <th>建筑标识ID</th>
             <th>设备</th>
             <th class="text-right">总能耗</th>
-            <th class="text-center">COP</th>
             <th class="text-right">EUI 指数</th>
             <th class="text-right">碳排放</th>
             <th class="text-center">系统状态</th>
@@ -16,7 +15,17 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in data" :key="item.id">
+          <tr v-if="loading">
+            <td colspan="7" style="text-align: center; padding: 40px; color: #999;">
+              数据加载中...
+            </td>
+          </tr>
+          <tr v-else-if="buildings.length === 0">
+            <td colspan="7" style="text-align: center; padding: 40px; color: #999;">
+              暂无数据
+            </td>
+          </tr>
+          <tr v-else v-for="item in buildings" :key="item.id">
             <td>
               <div class="building-id">{{ item.buildingId }}</div>
             </td>
@@ -26,9 +35,6 @@
             <td class="text-right">
               <div class="energy">{{ item.energy.toLocaleString() }}</div>
               <div class="unit">kWh</div>
-            </td>
-            <td class="text-center">
-              <span :class="['cop', item.cop < 3.0 ? 'warning' : 'good']">{{ item.cop }}</span>
             </td>
             <td class="text-right">{{ item.eui }}</td>
             <td class="text-right">{{ item.carbon }}</td>
@@ -62,16 +68,10 @@
               </div>
             </td>
           </tr>
+
         </tbody>
       </table>
-    </div>
 
-    <!-- 分页栏（从 index.vue 移到这里） -->
-    <div class="pagination-bar" v-if="pagination && pagination.total > 0">
-      <div class="pagination-info">
-        显示第 {{ displayStart }}-{{ displayEnd }} 条，共 {{ pagination.total }} 条建筑运行记录
-      </div>
-      
       <div class="pagination-controls">
         <!-- 上一页 -->
         <button 
@@ -110,14 +110,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
+import axios from 'axios'
 
 interface TableItem {
   id: string
   buildingId: string
   site: string
   energy: number
-  cop: number
   eui: number
   carbon: number
   status: 'normal' | 'warning' | 'error'
@@ -130,37 +130,256 @@ interface PaginationInfo {
   total: number
 }
 
+// 不再接收外部死数据，完全自主获取
 const props = defineProps<{
-  data: TableItem[]
-  pagination?: PaginationInfo  // 新增：分页信息
+  filterForm?: {
+    status?: string
+  },
+  advancedFilters?: Record<string, any>,
+  sortConfig?: {
+    field: string,
+    order: 'asc' | 'desc'
+  },
+  timeRange?: 'today' | 'week' | 'month' | 'quarter' | 'year'
 }>()
 
-const emit = defineEmits(['view', 'suggest', 'fault', 'page-change'])
+// 注意：computed/ref/onMounted/watch 已经在第1行导入过了，这里不需要再导入
+
+// 模板直接使用 buildings，不需要 displayData
+
+const emit = defineEmits(['view', 'suggest', 'fault'])
+
+// 内部数据状态（自主管理）- 必须先声明
+const buildings = ref<TableItem[]>([])
+const pagination = ref({
+  currentPage: 1,
+  pageSize: 7,  // 一页七个
+  total: 0
+})
+const loading = ref(false)
+
+// 导入时间管理工具（根据实际路径调整，如果在 QueryView 目录下，通常是 ../../utils/timeManager）
+import { useTimeManager } from '../../utils/timeManager'
+
+// 初始化时间管理器
+const { getCurrentTimeString } = useTimeManager()
+
+// 获取设置页面配置的当前时间（如果没有设置则使用系统时间）
+const getCurrentTime = () => {
+  const timeStr = getCurrentTimeString()
+  // 如果 timeManager 返回的是字符串，转换为 Date 对象
+  return new Date(timeStr)
+}
+
+const getStatusText = (status: string): string => {
+  const map: Record<string, string> = {
+    'normal': '运行正常',
+    'warning': '告警',
+    'error': '异常'
+  }
+  return map[status] || '运行正常'
+}
+// 获取建筑级能耗摘要（总能耗 = 电力 + 热水 + 冷冻水等）
+const fetchEnergySummary = async (buildingId: string, timeRange: any) => {
+  try {
+    const response = await axios.get(`/api/buildings/${buildingId}/energy/summary`, {
+      params: {
+        start_time: timeRange.start_time,
+        end_time: timeRange.end_time
+      }
+    })
+    const data = response.data
+    if (data && data.summary) {
+      return data.summary.total || 0
+    }
+    if (Array.isArray(data)) {
+      return data.reduce((sum: number, item: any) => sum + (item.total || 0), 0)
+    }
+    return 0
+  } catch (error) {
+    console.error(`获取建筑 ${buildingId} 能耗摘要失败:`, error)
+    return 0
+  }
+}
+
+// 获取EUI计算结果
+const fetchEUI = async (buildingId: string, timeRange: any) => {
+  try {
+    const response = await axios.get('/api/energy/cop', {
+      params: {
+        building_id: buildingId,
+        start_time: timeRange.start_time,
+        end_time: timeRange.end_time
+      }
+    })
+    return response.data.eui || response.data.value || 0
+  } catch (error) {
+    console.error(`获取建筑 ${buildingId} EUI失败:`, error)
+    return 0
+  }
+}
+
+// 获取碳排放（gas类型）
+const fetchCarbon = async (buildingId: string, timeRange: any) => {
+  try {
+    const response = await axios.get('/api/energy/query', {
+      params: {
+        meter_type: 'gas',
+        building_id: buildingId,
+        start_time: timeRange.start_time,
+        end_time: timeRange.end_time
+      }
+    })
+    return response.data.total || response.data.value || 0
+  } catch (error) {
+    console.error(`获取建筑 ${buildingId} 碳排放失败:`, error)
+    return 0
+  }
+}
+
+// 根据时间范围计算开始和结束时间
+const calculateTimeRange = (range: string) => {
+  const now = getCurrentTime()
+  const end = now.toISOString()
+  let start = now
+  
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  const date = now.getDate()
+  const day = now.getDay() // 0是周日
+  
+  switch (range) {
+    case 'today':
+      start = new Date(year, month, date, 0, 0, 0)
+      break
+    case 'week':
+      // 本周一（如果今天是周日，则回退6天，否则回退到本周一）
+      const diff = day === 0 ? 6 : day - 1
+      start = new Date(year, month, date - diff, 0, 0, 0)
+      break
+    case 'month':
+      start = new Date(year, month, 1, 0, 0, 0)
+      break
+    case 'quarter':
+      const quarter = Math.floor(month / 3)
+      start = new Date(year, quarter * 3, 1, 0, 0, 0)
+      break
+    case 'year':
+      start = new Date(year, 0, 1, 0, 0, 0)
+      break
+    default:
+      start = new Date(year, month, date, 0, 0, 0)
+  }
+  
+  return {
+    start_time: start.toISOString(),
+    end_time: end
+  }
+}
+
+// 获取建筑列表数据
+const fetchBuildings = async () => {
+  loading.value = true
+  try {
+    // 第一步：获取建筑基础列表（ID、站点、状态）
+    const response = await axios.get('/api/meters', {
+      params: {
+        page: pagination.value.currentPage,
+        page_size: pagination.value.pageSize,
+        status: props.filterForm?.status || undefined,
+        building_id: props.advancedFilters?.buildingId || undefined,
+        site: props.advancedFilters?.site || undefined,
+        sort_field: props.sortConfig?.field || undefined,
+        sort_order: props.sortConfig?.order || undefined
+      }
+    })
+    
+    const responseData = response.data
+    const basicList = (responseData.data || responseData.items || [])
+    pagination.value.total = responseData.total || responseData.total_count || 0
+    
+    // 第二步：计算时间范围
+    const timeRange = calculateTimeRange(props.timeRange || 'today')
+    
+    // 第三步：为每个建筑获取详细数据（能耗、EUI、碳排放）
+    const detailedBuildings = await Promise.all(
+      basicList.map(async (item: any) => {
+        const buildingId = item.building_id || item.buildingId || item.id
+        const site = item.site || item.site_name || item.device
+        
+        // 并行获取三个指标
+        const [energy, eui, carbon] = await Promise.all([
+          fetchEnergySummary(buildingId, timeRange),
+          fetchEUI(buildingId, timeRange),
+          fetchCarbon(buildingId, timeRange)
+        ])
+        
+        return {
+          id: item.id || buildingId,
+          buildingId: buildingId,
+          site: site,
+          energy: energy,
+          eui: eui,
+          carbon: carbon,
+          status: item.status || 'normal',
+          statusText: getStatusText(item.status || 'normal')
+        }
+      })
+    )
+    
+    buildings.value = detailedBuildings
+    
+  } catch (error) {
+    console.error('获取建筑列表失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+
+// 组件挂载时自动获取数据
+onMounted(() => {
+  fetchBuildings()
+})
+
+// 监听筛选条件变化，变化时重置到第一页并重新获取
+watch(() => [props.filterForm?.status, props.advancedFilters, props.sortConfig], () => {
+  pagination.value.currentPage = 1
+  fetchBuildings()
+}, { deep: true, immediate: false })
+
+// 监听页码变化（已有 onPageChange 修改内部状态，这里确保页码变化时重新请求）
+watch(() => pagination.value.currentPage, () => {
+  fetchBuildings()
+})
+
+// 监听时间范围变化
+watch(() => props.timeRange, () => {
+  pagination.value.currentPage = 1
+  fetchBuildings()
+}, { immediate: false })
 
 // 计算总页数
 const totalPages = computed(() => {
-  if (!props.pagination) return 1
-  return Math.ceil(props.pagination.total / props.pagination.pageSize)
+  return Math.ceil(pagination.value.total / pagination.value.pageSize)
 })
 
 // 计算显示范围
 const displayStart = computed(() => {
-  if (!props.pagination || props.pagination.total === 0) return 0
-  return (props.pagination.currentPage - 1) * props.pagination.pageSize + 1
+  if (pagination.value.total === 0) return 0
+  return (pagination.value.currentPage - 1) * pagination.value.pageSize + 1
 })
 
 const displayEnd = computed(() => {
-  if (!props.pagination) return 0
-  const end = props.pagination.currentPage * props.pagination.pageSize
-  return Math.min(end, props.pagination.total)
+  const end = pagination.value.currentPage * pagination.value.pageSize
+  return Math.min(end, pagination.value.total)
 })
 
 // 可见页码（最多显示5个）
 const visiblePages = computed(() => {
-  if (!props.pagination) return []
   const pages: number[] = []
   const maxVisible = 5
-  const current = props.pagination.currentPage
+  const current = pagination.value.currentPage
   const total = totalPages.value
   
   let start = Math.max(1, current - Math.floor(maxVisible / 2))
@@ -176,11 +395,12 @@ const visiblePages = computed(() => {
   return pages
 })
 
-// 页码切换事件
+// 页码切换事件（内部处理，不再emit）
 const onPageChange = (page: number) => {
   if (page < 1 || page > totalPages.value) return
-  emit('page-change', page)
+  pagination.value.currentPage = page  // 直接修改内部状态，watch会自动触发fetchBuildings
 }
+
 </script>
 
 <style scoped>
@@ -250,18 +470,6 @@ tr:hover {
   font-size: 12px;
   color: #9CA3AF;
   margin-top: 2px;
-}
-
-.cop {
-  font-weight: 600;
-}
-
-.cop.good {
-  color: #27AE60;
-}
-
-.cop.warning {
-  color: #F39C12;
 }
 
 .status-tag {

@@ -13,10 +13,22 @@
           </div>
           <h2>查询筛选面板</h2>
           
-          <div class="alert-badge">
-            <span class="dot red"></span>
-            <span>系统运行状态：检测到2处紧急故障待处理</span>
+          <!-- 接口获取失败时显示错误状态 -->
+          <div v-if="isHighlightsError" class="alert-badge" style="background: #FEF3F2; border-color: #FECACA; color: #DC2626;">
+            <span class="dot" style="background: #DC2626;"></span>
+            <span>系统运行状态：数据获取失败</span>
           </div>
+          <!-- 有异常数据时显示异常状态 -->
+          <div v-else-if="highlights.abnormalBuildings > 0 || highlights.alertCount > 0" class="alert-badge">
+            <span class="dot red"></span>
+            <span>系统运行状态：检测到{{ highlights.abnormalBuildings }}处异常状态建筑，{{ highlights.alertCount }}个告警待处理</span>
+          </div>
+          <!-- 正常状态 -->
+          <div v-else class="alert-badge" style="background: #F0FDF4; border-color: #86EFAC; color: #16A34A;">
+            <span class="dot" style="background: #16A34A;"></span>
+            <span>系统运行状态：运行正常</span>
+          </div>
+
         </div>
       </div>
       
@@ -29,6 +41,18 @@
             <option value="normal">正常</option>
             <option value="error">异常</option>
             <option value="warning">告警</option>
+          </select>
+        </div>
+
+        <!-- 时间范围筛选（新增） -->
+        <div class="filter-item">
+          <label>时间范围</label>
+          <select v-model="filterForm.timeRange" class="select-box">
+            <option value="today">今日</option>
+            <option value="week">本周</option>
+            <option value="month">本月</option>
+            <option value="quarter">本季</option>
+            <option value="year">本年</option>
           </select>
         </div>
 
@@ -144,114 +168,17 @@
       </div>
 
       <!-- 表格区域 -->
-      <div class="table-wrapper">
-        <table class="data-table" v-if="displayData.length > 0">
-          <thead>
-            <tr>
-              <th v-if="isExportMode" class="checkbox-col">
-                <label class="checkbox-label">
-                  <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll" />
-                  <span class="check-box"></span>
-                </label>
-              </th>
-              <th>建筑标识ID</th>
-              <th>站点</th>
-              <th>总能耗</th>
-              <th>COP</th>
-              <th>EUI指数</th>
-              <th>碳排放</th>
-              <th>系统状态</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in displayData" :key="item.id">
-              <td v-if="isExportMode" class="checkbox-col">
-                <label class="checkbox-label">
-                  <input type="checkbox" :value="item.id" v-model="selectedBuildings" />
-                  <span class="check-box"></span>
-                </label>
-              </td>
-              <td>
-                <div class="building-id">{{ item.buildingId }}</div>
-              </td>
-              <td>
-                <div class="site-name">{{ item.site }}</div>
-              </td>
-              <td>
-                <div class="energy-value">{{ item.totalEnergy.toLocaleString() }}</div>
-                <div class="energy-unit">kWh</div>
-              </td>
-              <td :class="['cop-value', getCopClass(item.cop)]">{{ item.cop }}</td>
-              <td>{{ item.eui }}</td>
-              <td>{{ item.carbonEmission }}</td>
-              <td>
-                <span :class="['status-tag', item.status]">
-                  <span class="status-dot"></span>
-                  {{ item.statusText }}
-                </span>
-              </td>
-              <td>
-                <div class="action-btns">
-                  <button class="action-btn view" @click="handleView(item)" title="查看">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                      <circle cx="12" cy="12" r="3"></circle>
-                    </svg>
-                  </button>
-                  <button class="action-btn leaf" @click="handleSuggest(item)" title="减排建议">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
-                    </svg>
-                  </button>
-                  <button class="action-btn warning" @click="handleFault(item)" title="故障查询">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                      <line x1="12" y1="9" x2="12" y2="13"></line>
-                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                    </svg>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        
-        <!-- 空状态提示 -->
-        <div v-else class="empty-state">
-          <p>暂无符合条件的数据</p>
-          <button class="btn-text" @click="handleReset">重置筛选条件</button>
-        </div>
-      </div>
+      <!-- 直接调用 BuildingTable 组件，自主获取数据 -->
+<BuildingTable 
+  :filter-form="filterForm"
+  :advanced-filters="advancedFilters"
+  :sort-config="sortConfig"
+  :time-range="(filterForm.timeRange as 'today' | 'week' | 'month' | 'quarter' | 'year')"
+  @view="handleView" 
+  @suggest="handleSuggest" 
+  @fault="handleFault"
+/>
 
-      <!-- 分页 -->
-      <div class="pagination-section" v-if="pagination.total > 0">
-        <div class="pagination-info">
-          显示第 {{ displayStart }} - {{ displayEnd }} 条，共 {{ pagination.total }} 条建筑运行记录
-        </div>
-        <div class="pagination-controls">
-          <button class="page-btn" :disabled="pagination.currentPage === 1" @click="handlePageChange(pagination.currentPage - 1)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
-          <button 
-            v-for="page in visiblePages" 
-            :key="page"
-            :class="['page-btn', { active: page === pagination.currentPage }]"
-            @click="handlePageChange(page)"
-          >
-            {{ page }}
-          </button>
-          <button class="page-btn" :disabled="pagination.currentPage === totalPages" @click="handlePageChange(pagination.currentPage + 1)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
-    
     <!-- 高级筛选弹窗 -->
     <FilterModal 
       v-model:visible="showAdvanced" 
@@ -265,17 +192,28 @@
     />
 
   </div>
+</div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import axios from 'axios';
 import { useRouter } from 'vue-router';
 import FilterModal from './FilterModal.vue';
-import ExportModal from './ExportModal.vue'; // 引入 ExportModal 组件
+import BuildingTable from './BuildingTable.vue'  // 根据实际路径调整
+import ExportModal from './ExportModal.vue'  
 
 const router = useRouter();
 const showAdvanced = ref(false);
 const showExportModal = ref(false); // 控制 ExportModal 显示
+
+// 存储后端返回的高亮事项数据（异常建筑数、告警数等）
+const highlights = ref({
+  abnormalBuildings: 0,  // 异常建筑数量
+  alertCount: 0,         // 告警数量
+  warningCount: 0        // 高能耗预警数量
+})
+const isHighlightsError = ref(false)  // 标记接口是否获取失败
 
 // 导出相关状态
 const isExportMode = ref(false);
@@ -283,9 +221,9 @@ const selectedBuildings = ref<string[]>([]);
 
 // 筛选表单
 const filterForm = ref({
-  status: ''
+  status: '',
+  timeRange: 'today' // 默认今日
 });
-
 const advancedFilters = ref<Record<string, any>>({});
 
 const hasActiveAdvancedFilters = computed(() => {
@@ -300,7 +238,7 @@ const hasActiveAdvancedFilters = computed(() => {
 });
 
 const sortConfig = ref({
-  field: 'eui' as 'eui' | 'totalEnergy' | 'status' | 'cop' | 'carbonEmission',
+  field: 'eui' as 'eui' | 'totalEnergy' | 'status' | 'carbonEmission',
   order: 'asc' as 'asc' | 'desc'
 });
 
@@ -318,122 +256,10 @@ interface BuildingItem {
   status: 'normal' | 'warning' | 'error';
   statusText: string;
   totalEnergy: number;
-  cop: number;
   eui: number;
   carbonEmission: number;
   [key: string]: any;
 }
-
-const mockData: BuildingItem[] = [
-  { id: 'BLDG-HQ-A01', buildingId: 'BLDG-HQ-A01', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 1424.52, cop: 4.21, eui: 12.4, carbonEmission: 842.2 },
-  { id: 'BLDG-RD-B04', buildingId: 'BLDG-RD-B04', site: 'BLDG-HQ-A01', status: 'warning', statusText: '告警状态', totalEnergy: 2108.88, cop: 3.15, eui: 18.2, carbonEmission: 1244.5 },
-  { id: 'BLDG-DORM-01', buildingId: 'BLDG-DORM-01', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 852.12, cop: 4.88, eui: 9.1, carbonEmission: 504.2 },
-  { id: 'BLDG-PLANT-02', buildingId: 'BLDG-PLANT-02', site: 'BLDG-HQ-A01', status: 'error', statusText: '运行正常', totalEnergy: 3842.4, cop: 5.12, eui: 24.5, carbonEmission: 2284.1 },
-  { id: 'BLDG-OFFICE-03', buildingId: 'BLDG-OFFICE-03', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 1650.0, cop: 3.8, eui: 15.0, carbonEmission: 980.0 },
-  { id: 'BLDG-WORK-05', buildingId: 'BLDG-WORK-05', site: 'BLDG-HQ-A01', status: 'warning', statusText: '告警状态', totalEnergy: 3100.5, cop: 4.2, eui: 22.1, carbonEmission: 1850.3 },
-  { id: 'BLDG-LAB-06', buildingId: 'BLDG-LAB-06', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 1200.8, cop: 3.9, eui: 8.5, carbonEmission: 720.5 },
-  { id: 'BLDG-STORE-07', buildingId: 'BLDG-STORE-07', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 680.25, cop: 5.5, eui: 6.2, carbonEmission: 405.0 },
-  { id: 'BLDG-CLUB-08', buildingId: 'BLDG-CLUB-08', site: 'BLDG-HQ-A01', status: 'error', statusText: '异常状态', totalEnergy: 2450.0, cop: 3.2, eui: 19.8, carbonEmission: 1450.0 },
-  { id: 'BLDG-HOSP-09', buildingId: 'BLDG-HOSP-09', site: 'BLDG-HQ-A01', status: 'warning', statusText: '告警状态', totalEnergy: 4200.0, cop: 4.0, eui: 28.5, carbonEmission: 2500.0 },
-  { id: 'BLDG-SCH-10', buildingId: 'BLDG-SCH-10', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 980.0, cop: 4.5, eui: 11.3, carbonEmission: 580.0 },
-  { id: 'BLDG-MALL-11', buildingId: 'BLDG-MALL-11', site: 'BLDG-HQ-A01', status: 'error', statusText: '异常状态', totalEnergy: 5600.0, cop: 3.8, eui: 35.2, carbonEmission: 3320.0 },
-  { id: 'BLDG-PARK-12', buildingId: 'BLDG-PARK-12', site: 'BLDG-HQ-A01', status: 'normal', statusText: '运行正常', totalEnergy: 450.0, cop: 6.0, eui: 4.8, carbonEmission: 268.0 },
-  { id: 'BLDG-GYM-13', buildingId: 'BLDG-GYM-13', site: 'BLDG-HQ-A01', status: 'warning', statusText: '告警状态', totalEnergy: 1800.0, cop: 3.6, eui: 16.5, carbonEmission: 1070.0 },
-];
-
-// 核心：根据状态筛选数据
-const filteredSortedData = computed(() => {
-  let result = [...mockData];
-  
-  // 状态筛选
-  if (filterForm.value.status) {
-    result = result.filter(item => item.status === filterForm.value.status);
-  }
-  
-  // 高级筛选
-  const adv = advancedFilters.value;
-  if (adv.buildingId) {
-    result = result.filter(item => item.buildingId.toLowerCase().includes(adv.buildingId.toLowerCase()));
-  }
-  if (adv.buildingType?.length > 0) {
-    result = result.filter(item => adv.buildingType.includes(item.buildingType));
-  }
-  
-  // 排序
-  result.sort((a, b) => {
-    let aVal: number | string;
-    let bVal: number | string;
-    
-    switch (sortConfig.value.field) {
-      case 'eui':
-        aVal = a.eui;
-        bVal = b.eui;
-        break;
-      case 'totalEnergy':
-        aVal = a.totalEnergy;
-        bVal = b.totalEnergy;
-        break;
-      case 'carbonEmission':
-        aVal = a.carbonEmission;
-        bVal = b.carbonEmission;
-        break;
-      case 'status':
-        // 系统状态排序：按状态优先级排序
-        const statusOrder = { 'error': 0, 'warning': 1, 'normal': 2 };
-        aVal = statusOrder[a.status] ?? 3;
-        bVal = statusOrder[b.status] ?? 3;
-        break;
-      default:
-        aVal = a.eui;
-        bVal = b.eui;
-    }
-    
-    if (typeof aVal === 'number' && typeof bVal === 'number') {
-      return sortConfig.value.order === 'asc' 
-        ? aVal - bVal
-        : bVal - aVal;
-    }
-    
-    if (aVal < bVal) return sortConfig.value.order === 'asc' ? -1 : 1;
-    if (aVal > bVal) return sortConfig.value.order === 'asc' ? 1 : -1;
-    return 0;
-  });
-  
-  return result;
-});
-
-// 监听总数变化
-watch(
-  () => filteredSortedData.value.length,
-  (newTotal) => {
-    pagination.value.total = newTotal;
-    const maxPage = Math.ceil(newTotal / pagination.value.pageSize) || 1;
-    if (pagination.value.currentPage > maxPage) {
-      pagination.value.currentPage = 1;
-    }
-  },
-  { immediate: true }
-);
-
-// 分页数据
-const displayData = computed(() => {
-  const start = (pagination.value.currentPage - 1) * pagination.value.pageSize;
-  return filteredSortedData.value.slice(start, start + pagination.value.pageSize);
-});
-
-const totalPages = computed(() => Math.ceil(pagination.value.total / pagination.value.pageSize) || 1);
-const displayStart = computed(() => pagination.value.total === 0 ? 0 : (pagination.value.currentPage - 1) * pagination.value.pageSize + 1);
-const displayEnd = computed(() => Math.min(pagination.value.currentPage * pagination.value.pageSize, pagination.value.total));
-
-const visiblePages = computed(() => {
-  const pages: number[] = [];
-  const maxVisible = 5;
-  let start = Math.max(1, pagination.value.currentPage - Math.floor(maxVisible / 2));
-  let end = Math.min(totalPages.value, start + maxVisible - 1);
-  if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
-  for (let i = start; i <= end; i++) pages.push(i);
-  return pages;
-});
 
 // 方法
 const handleSearch = () => {
@@ -459,10 +285,6 @@ const handleSort = (field: any) => {
 
 const toggleSortOrder = () => {
   sortConfig.value.order = sortConfig.value.order === 'asc' ? 'desc' : 'asc';
-};
-
-const handlePageChange = (page: number) => {
-  if (page >= 1 && page <= totalPages.value) pagination.value.currentPage = page;
 };
 
 const getCopClass = (cop: number) => {
@@ -502,16 +324,12 @@ const cancelExportMode = () => {
   selectedBuildings.value = [];
 };
 
-const isAllSelected = computed(() => displayData.value.length > 0 && displayData.value.every(item => selectedBuildings.value.includes(item.id)));
+// 临时禁用全选功能（因为数据已在子组件中管理，如需全选需通过子组件emit实现）
+const isAllSelected = computed(() => false);
 
 const toggleSelectAll = () => {
-  if (isAllSelected.value) {
-    selectedBuildings.value = selectedBuildings.value.filter(id => !displayData.value.some(item => item.id === id));
-  } else {
-    displayData.value.forEach(item => {
-      if (!selectedBuildings.value.includes(item.id)) selectedBuildings.value.push(item.id);
-    });
-  }
+  console.warn('全选功能需从子组件获取数据后实现');
+  // 如需实现，建议通过 ref 调用 BuildingTable 的方法或监听 emit 事件
 };
 
 const handleAdvancedSave = (filters: any) => {
@@ -537,6 +355,30 @@ const handleFault = (item: BuildingItem) => router.push({
     meter: 'electricity'
   }
 });
+
+// 调用后端接口获取高亮事项数据
+const fetchHighlights = async () => {
+  try {
+    isHighlightsError.value = false  // 重置错误状态
+    const response = await axios.get('/api/dashboard/highlights')
+    // 假设后端返回格式：{ abnormalBuildings: 2, alertCount: 5, warningCount: 1 }
+    if (response.data) {
+      highlights.value = {
+        abnormalBuildings: response.data.abnormalBuildings || 0,
+        alertCount: response.data.alertCount || 0,
+        warningCount: response.data.warningCount || 0
+      }
+    }
+  } catch (error) {
+    console.error('获取高亮事项失败:', error)
+    isHighlightsError.value = true  // 标记为错误状态
+  }
+}
+
+// 页面加载时自动获取高亮事项
+onMounted(() => {
+  fetchHighlights()
+})
 
 </script>
 
