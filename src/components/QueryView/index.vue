@@ -319,12 +319,19 @@ const fetchBuildingList = async () => {
     
     const response = await axios.get('/api/buildings', { params });
     
-    if (response.data && response.data.code === 200) {
+     // 【修改】兼容后端直接返回数组的情况
+    if (Array.isArray(response.data)) {
+      // 后端直接返回数组 [...]
+      buildingList.value = response.data;
+      pagination.value.total = response.data.length;
+    } else if (response.data && response.data.code === 200) {
+      // 标准格式 { code: 200, data: [...], total: 10 }
       buildingList.value = response.data.data || [];
       pagination.value.total = response.data.total || 0;
     } else {
-      console.error('获取建筑列表失败:', response.data?.message);
+      console.error('获取建筑列表失败:', response.data?.message || '未知错误');
     }
+
   } catch (error) {
     console.error('获取建筑列表接口错误:', error);
     // 这里可以添加错误提示toast
@@ -411,16 +418,27 @@ const fetchHighlights = async () => {
     const response = await axios.get('/api/dashboard/highlights', {
       timeout: 5000
     });
-    if (response.data && response.data.code === 200) {
-      const data = response.data.data || {};
-      highlights.value = {
-        abnormalBuildings: data.abnormalBuildings || data.abnormal_count || 0,
-        alertCount: data.alertCount || data.warning_count || 0,
-        warningCount: data.warningCount || 0
-      };
-    } else {
-      throw new Error(response.data?.message || '数据格式错误');
+    // 【修改】兼容不同返回格式
+    let data: any;
+    
+    if (Array.isArray(response.data)) {
+      // 如果直接返回数组（虽然不太可能，但以防万一）
+      throw new Error('返回格式错误，期望对象');
+    } else if (response.data && (response.data.code === 200 || response.data.success === true)) {
+      // 标准格式 { code: 200, data: {...} }
+      data = response.data?.data || {};
+    } else if (typeof response.data === 'object' && !Array.isArray(response.data)) {
+      // 直接返回对象 {...}
+      data = response.data;
     }
+    
+    // 赋值（无论上面哪种格式，都能正常处理）
+    highlights.value = {
+      abnormalBuildings: data.abnormalBuildings || data.abnormal_count || 0,
+      alertCount: data.alertCount || data.warning_count || 0,
+      warningCount: data.warningCount || 0
+    };
+
   } catch (error) {
     console.error('获取系统 highlights 失败:', error);
     isHighlightsError.value = true;
