@@ -16,9 +16,9 @@
               />
             </th>
             <th>建筑标识ID</th>
-            <th>设备</th>
-            <th class="text-right">总能耗</th>
-            <th class="text-right">EUI 指数</th>
+            <th>设备数量</th>
+            <th class="text-right">期间累计 (KWH)</th>
+            <th class="text-right">EUI 指数 (KWH/㎡)</th>
             <th class="text-right">碳排放</th>
             <th class="text-center">系统状态</th>
             <th class="text-right">操作</th>
@@ -26,17 +26,17 @@
         </thead>
         <tbody>
           <!-- 加载状态 -->
-          <tr v-if="props.loading" class="loading-row">
+          <tr v-if="loading" class="loading-row">
             <td :colspan="props.isExportMode ? 8 : 7" class="loading-cell">
               <div class="loading-content">
                 <div class="loading-spinner"></div>
-                <span>数据加载中...</span>
+                <span>数据检索中，请稍候...</span>
               </div>
             </td>
           </tr>
           
           <!-- 空状态 -->
-          <tr v-else-if="!props.buildingList || props.buildingList.length === 0" class="empty-row">
+          <tr v-else-if="!tableData || tableData.length === 0" class="empty-row">
             <td :colspan="props.isExportMode ? 8 : 7" class="empty-cell">
               <div class="empty-content">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" stroke-width="2">
@@ -45,42 +45,44 @@
                   <line x1="9" y1="13" x2="15" y2="13"></line>
                   <line x1="9" y1="17" x2="11" y2="17"></line>
                 </svg>
-                <p>暂无建筑运行数据</p>
+                <p>暂无建筑数据</p>
               </div>
             </td>
           </tr>
           
           <!-- 数据列表 -->
-          <tr v-else v-for="item in props.buildingList" :key="item.id" :class="{ 'selected-row': props.isExportMode && selectedIds.has(item.id) }">
+          <tr v-else v-for="item in tableData" :key="item.building_id" :class="{ 'selected-row': props.isExportMode && selectedIds.has(item.building_id) }">
             <!-- 导出模式显示多选框 -->
             <td v-if="props.isExportMode" class="checkbox-column">
               <input 
                 type="checkbox" 
-                :value="item.id"
-                :checked="selectedIds.has(item.id)"
-                @change="toggleSelection(item.id)"
+                :value="item.building_id"
+                :checked="selectedIds.has(item.building_id)"
+                @change="toggleSelection(item.building_id)"
                 class="custom-checkbox"
               />
             </td>
             <td>
-              <div class="building-id">{{ item.buildingId }}</div>
+              <div class="building-id">{{ item.building_id }}</div>
             </td>
             <td>
-              <div class="site">{{ item.site }}</div>
+              <div class="site font-numeric">{{ item.meterCount }} 个</div>
             </td>
             <td class="text-right">
-              <div class="energy">{{ item.energy?.toLocaleString() || 0 }}</div>
-              <div class="unit">kWh</div>
+              <div class="energy font-numeric">{{ formatNumber(item.energyTotal) }}</div>
+              <div class="unit">KWH</div>
             </td>
-            <td class="text-right">{{ item.eui || 0 }}</td>
-            <td class="text-right">{{ item.carbon || 0 }}</td>
+            <td class="text-right font-numeric">
+              <span class="eui-val">{{ formatNumber(item.eui) }}</span>
+              <span class="unit">KWH/㎡</span>
+            </td>
+            <td class="text-right font-numeric">{{ item.carbon || 0 }}</td>
             <td class="text-center">
-              <!-- 使用复用的状态组件 -->
-              <StatusBadge 
-                :status="item.status" 
-                :custom-text="item.statusText"
-                size="md"
-              />
+              <!-- 复用原代码状态展示逻辑 -->
+              <span class="status-badge" :class="item.status">
+                <span class="dot"></span>
+                {{ item.statusText }}
+              </span>
             </td>
             <td class="text-right">
               <div class="actions">
@@ -117,7 +119,7 @@
             已选择 <strong>{{ selectedIds.size }}</strong> 个建筑
           </template>
           <template v-else>
-            显示第 {{ displayStart }}-{{ displayEnd }} 条，共 {{ props.pagination?.total || 0 }} 条建筑运行记录
+            共计 {{ paginationInfo.total }} 栋建筑，第 {{ currentPage }} / {{ totalPages }} 页
           </template>
         </div>
         
@@ -125,28 +127,23 @@
           <div class="pagination-controls">
             <button 
               class="page-btn nav-btn" 
-              :disabled="(props.pagination?.current || 1) === 1" 
-              @click="onPageChange((props.pagination?.current || 1) - 1)"
+              :disabled="currentPage === 1" 
+              @click="changePage(currentPage - 1)"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="15 18 9 12 15 6"></polyline>
               </svg>
+              上一页
             </button>
 
-            <button 
-              v-for="page in visiblePages" 
-              :key="page" 
-              :class="['page-btn', { active: page === props.pagination?.current }]" 
-              @click="onPageChange(page)"
-            >
-              {{ page }}
-            </button>
+            <span class="page-indicator">第 {{ currentPage }} / {{ totalPages }} 页</span>
 
             <button 
               class="page-btn nav-btn" 
-              :disabled="(props.pagination?.current || 1) >= totalPages" 
-              @click="onPageChange((props.pagination?.current || 1) + 1)"
+              :disabled="currentPage >= totalPages" 
+              @click="changePage(currentPage + 1)"
             >
+              下一页
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
@@ -159,81 +156,162 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import StatusBadge from './StatusBadge.vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { getBuildings, getMeters, getEnergyQuery } from '../../api/statistics'
 
 // ===== Props & Emits =====
 const props = defineProps<{
-  buildingList?: any[]      
-  loading?: boolean          
-  pagination?: {
-    current: number
-    pageSize: number  
-    total: number
-  }
-  filterForm?: {
-    status?: string,
-    timeRange?: string
-  },
-  advancedFilters?: Record<string, any>,
-  sortConfig?: { field: string, order: 'asc' | 'desc' },
-  timeRange?: 'today' | 'week' | 'month' | 'quarter' | 'year',
   isExportMode?: boolean
+  startTime: string      // 新增：查询开始时间
+  endTime: string        // 新增：查询结束时间
 }>()
 
 const emit = defineEmits([
   'view-detail', 
   'view-stats', 
   'fault-analysis', 
-  'export-data',
   'selection-change',
-  'page-change'
 ])
 
-// ===== 响应式数据 =====
+// ===== 核心数据状态（复用原代码）=====
+interface BuildingRow {
+  building_id: string
+  meterCount: number
+  energyTotal: number
+  eui: number
+  carbon?: number      // 保持原有字段兼容
+  status: 'normal' | 'warning' | 'fault'
+  statusText: string
+}
+
+const tableData = ref<BuildingRow[]>([])
+const loading = ref(false)
+const currentPage = ref(1)
+const pageSize = ref(7)
+const paginationInfo = ref({ total: 0 })
+
+// 计算总页数（复用原代码逻辑）
+const totalPages = computed(() => Math.ceil(paginationInfo.value.total / pageSize.value))
+
 // 只保留选中状态（用于导出模式）
 const selectedIds = ref<Set<string>>(new Set())
 
 // ===== 计算属性 =====
-const totalPages = computed(() => {
-  const total = props.pagination?.total || 0
-  const pageSize = props.pagination?.pageSize || 7
-  return Math.ceil(total / pageSize) || 1
-})
-
-const displayStart = computed(() => {
-  if (!props.pagination || props.pagination.total === 0) return 0
-  return (props.pagination.current - 1) * props.pagination.pageSize + 1
-})
-
-const displayEnd = computed(() => {
-  if (!props.pagination || props.pagination.total === 0) return 0
-  return Math.min(props.pagination.current * props.pagination.pageSize, props.pagination.total)
-})
-
-const visiblePages = computed(() => {
-  const pages: number[] = []
-  const maxVisible = 5
-  const current = props.pagination?.current || 1
-  const total = totalPages.value
-  let start = Math.max(1, current - Math.floor(maxVisible / 2))
-  let end = Math.min(total, start + maxVisible - 1)
-  if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1)
-  for (let i = start; i <= end; i++) pages.push(i)
-  return pages
-})
-
 const isAllSelected = computed(() => {
-  const list = props.buildingList || []
-  return list.length > 0 && list.every(item => selectedIds.value.has(item.id))
+  const list = tableData.value || []
+  return list.length > 0 && list.every(item => selectedIds.value.has(item.building_id))
 })
 
 const isIndeterminate = computed(() => {
-  const list = props.buildingList || []
+  const list = tableData.value || []
   return selectedIds.value.size > 0 && selectedIds.value.size < list.length
 })
 
-// ===== 方法 =====
+// ===== 工具函数（复用原代码）=====
+const unwrap = (res: any) => res?.data ?? res
+
+const formatNumber = (val: number | null | undefined): string => {
+  if (val == null || isNaN(val)) return '—'
+  return val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
+
+// ===== 核心数据获取逻辑（完全复用原代码）=====
+const fetchData = async () => {
+  if (!props.startTime || !props.endTime) return
+  
+  loading.value = true
+  try {
+    // 1. 获取主建筑列表，带上分页参数
+    const buildRaw = await getBuildings({ page: currentPage.value, page_size: pageSize.value })
+    const buildData = unwrap(buildRaw)
+    const items = buildData?.items || []
+    
+    paginationInfo.value.total = buildData?.pagination?.total || 0
+    
+    // 2. 并发组装每栋建筑的数据（复用原代码策略）
+    const promises = items.map(async (b: any) => {
+      const bid = b.building_id
+      
+      // 请求设备数量和状态推导（复用原代码逻辑）
+      let meterCount = 0
+      let status: BuildingRow['status'] = 'normal'
+      let statusText = '正常运行'
+      
+      try {
+        const meterRaw = await getMeters({ building_id: bid })
+        const meterData = unwrap(meterRaw)
+        meterCount = meterData?.pagination?.total || 0
+        
+        let hasWarning = false
+        let hasOffline = false
+        const mItems = meterData?.items || []
+        
+        // 状态推导算法（复用原代码）
+        for (const m of mItems) {
+          if (m.status === 'fault') { status = 'fault'; statusText = '故障停机'; break; }
+          if (m.status === 'warning') { hasWarning = true }
+          if (m.status === 'offline') { hasOffline = true }
+        }
+
+        if (status !== 'fault') {
+          if (hasWarning) {
+            status = 'warning'
+            statusText = '告警状态'
+          } else if (hasOffline || mItems.length === 0) {
+            status = 'warning'
+            statusText = mItems.length === 0 ? '设备未接入' : '部分离线'
+          }
+        }
+      } catch (e) {
+        console.error(`Failed to fetch meters for ${bid}`, e)
+      }
+      
+      // 请求期间累计能耗（复用原代码）
+      let energyTotal = 0
+      try {
+        const queryRaw = await getEnergyQuery({ 
+          building_ids: [bid], 
+          start_time: props.startTime, 
+          end_time: props.endTime,
+          granularity: 'month'
+        })
+        const queryData = unwrap(queryRaw)
+        energyTotal = queryData?.summary?.total || 0
+      } catch (e) {
+        console.error(`Failed to fetch energy for ${bid}`, e)
+      }
+      
+      // 算 eui（复用原代码）
+      const sqm = b.sqm || 0
+      const eui = sqm > 0 ? (energyTotal / sqm) : 0
+      
+      return {
+        building_id: bid,
+        meterCount,
+        energyTotal,
+        eui,
+        status,
+        statusText,
+        carbon: b.carbon || 0  // 保持兼容
+      } as BuildingRow
+    })
+    
+    tableData.value = await Promise.all(promises)
+  } catch (err) {
+    console.error('建筑列表获取失败:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+// ===== 分页控制（复用原代码逻辑）=====
+const changePage = (p: number) => {
+  if (p < 1 || p > totalPages.value) return
+  currentPage.value = p
+  fetchData()
+}
+
+// ===== 导出模式方法 =====
 const toggleSelection = (id: string) => {
   if (selectedIds.value.has(id)) {
     selectedIds.value.delete(id)
@@ -244,29 +322,25 @@ const toggleSelection = (id: string) => {
 }
 
 const toggleSelectAll = () => {
-  const list = props.buildingList || []
+  const list = tableData.value || []
   if (isAllSelected.value) {
     selectedIds.value.clear()
   } else {
-    list.forEach(item => selectedIds.value.add(item.id))
+    list.forEach(item => selectedIds.value.add(item.building_id))
   }
   selectedIds.value = new Set(selectedIds.value)
 }
 
-const handleView = (item: any) => {
+const handleView = (item: BuildingRow) => {
   emit('view-detail', item)
 }
 
-const handleStats = (item: any) => {
+const handleStats = (item: BuildingRow) => {
   emit('view-stats', item)
 }
 
-const handleFault = (item: any) => {
+const handleFault = (item: BuildingRow) => {
   emit('fault-analysis', item)
-}
-
-const onPageChange = (page: number) => {
-  emit('page-change', page)
 }
 
 // ===== 监听 =====
@@ -282,14 +356,29 @@ watch(selectedIds, (newVal) => {
   emit('selection-change', Array.from(newVal))
 }, { deep: true })
 
-// 暴露方法给父组件调用
+// 监听时间变化（复用原代码逻辑）
+watch(
+  () => [props.startTime, props.endTime],
+  () => {
+    currentPage.value = 1
+    fetchData()
+  }
+)
+
+// ===== 生命周期（复用原代码）=====
+onMounted(() => {
+  fetchData()
+})
+
+// ===== 暴露方法 =====
 defineExpose({
   enterExportMode: () => {
     selectedIds.value.clear()
   },
   exitExportMode: () => {
     selectedIds.value.clear()
-  }
+  },
+  refresh: fetchData  // 新增：暴露刷新方法供父组件调用
 })
 </script>
 
@@ -364,7 +453,7 @@ tr:hover {
   text-align: center;
 }
 
-/* ===== 数据单元格样式 ===== */
+/* ===== 数据单元格样式（复用原代码设计） ===== */
 .building-id {
   font-family: 'Courier New', monospace;
   font-weight: 600;
@@ -378,16 +467,60 @@ tr:hover {
   font-size: 13px;
 }
 
+.font-numeric {
+  font-variant-numeric: tabular-nums;
+}
+
 .energy {
   font-weight: 600;
   color: #005BAC;
   font-size: 15px;
 }
 
+.eui-val {
+  font-weight: 700;
+  color: #d97706;
+}
+
 .unit {
   font-size: 11px;
   color: #9CA3AF;
-  margin-top: 2px;
+  margin-left: 4px;
+}
+
+/* ===== 状态标签样式（复用原代码三色系统） ===== */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.status-badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-badge.normal {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.status-badge.warning {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.status-badge.fault {
+  background: #fef2f2;
+  color: #dc2626;
 }
 
 /* ===== 操作按钮 ===== */
@@ -486,7 +619,7 @@ tr:hover {
   font-size: 14px;
 }
 
-/* ===== 分页栏 ===== */
+/* ===== 分页栏（复用原代码分页信息展示） ===== */
 .pagination-bar {
   display: flex;
   justify-content: space-between;
@@ -497,8 +630,8 @@ tr:hover {
 }
 
 .pagination-info {
-  font-size: 14px;
-  color: #6B7280;
+  font-size: 13px;
+  color: #64748b;
   font-weight: 400;
   display: flex;
   align-items: center;
@@ -519,35 +652,36 @@ tr:hover {
 .pagination-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .page-btn {
   min-width: 32px;
   height: 32px;
-  padding: 0 8px;
+  padding: 0 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 1px solid #E5E7EB;
   background: #fff;
-  border-radius: 50%;
-  font-size: 14px;
+  border-radius: 6px;
+  font-size: 13px;
   color: #374151;
   cursor: pointer;
   transition: all 0.2s ease;
   outline: none;
   font-weight: 500;
+  gap: 4px;
 }
 
-.page-btn:hover:not(:disabled):not(.active) {
+.page-btn:hover:not(:disabled) {
   border-color: #005BAC;
   color: #005BAC;
   background: #F5F7FA;
 }
 
 .nav-btn {
-  color: #9CA3AF;
+  color: #374151;
 }
 
 .nav-btn:disabled {
@@ -557,11 +691,11 @@ tr:hover {
   color: #D1D5DB;
 }
 
-.page-btn.active {
-  background: #005BAC;
-  color: #fff;
-  border-color: #005BAC;
-  font-weight: 600;
-  box-shadow: 0 2px 4px rgba(0, 91, 172, 0.2);
+.page-indicator {
+  font-size: 13px;
+  color: #334155;
+  font-weight: 500;
+  min-width: 100px;
+  text-align: center;
 }
 </style>

@@ -194,6 +194,8 @@
         :sort-config="sortConfig"
         :time-range="filterForm.timeRange"
         :is-export-mode="isExportMode"
+        :start-time="timeFilterStart"
+        :end-time="timeFilterEnd"
         @view-detail="handleViewDetail"
         @view-stats="handleViewStats"
         @fault-analysis="handleFaultAnalysis"
