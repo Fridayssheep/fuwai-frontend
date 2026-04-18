@@ -32,15 +32,15 @@
       </div>
       
       <div class="filter-row">
-        <!-- 建筑选择：中文值映射到英文API参数 -->
+        <!-- 建筑选择：直接使用英文值 -->
         <div class="filter-item">
           <label>建筑选择</label>
           <select v-model="filterForm.status" class="select-box" @change="handleStatusChange">
             <option value="">全部建筑</option>
-            <option value="正常">正常</option>
-            <option value="异常">异常</option>
-            <option value="告警">告警</option>
-            <option value="离线">离线</option>
+            <option value="normal">正常</option>
+            <option value="error">异常</option>
+            <option value="warning">告警</option>
+            <option value="offline">离线</option>
           </select>
         </div>
 
@@ -132,11 +132,18 @@
           </span>
         </div>
         
-        <!-- 导出按钮组 -->
+        <!-- 导出按钮组：优化导出模式切换逻辑 -->
         <div class="export-section">
           <template v-if="isExportMode">
-            <button class="btn-cancel-select" @click="cancelExportMode">取消选择</button>
-            <button class="btn-confirm-export-green" @click="handleConfirmExport" :disabled="selectedBuildings.length === 0">
+            <!-- 取消按钮：点击返回初始状态 -->
+            <button class="btn-cancel-select" @click="cancelExportMode">取消</button>
+            <!-- 确认导出按钮：未选择时灰色，选择后绿色 -->
+            <button 
+              class="btn-confirm-export" 
+              :class="{ 'btn-confirm-export-green': selectedBuildings.length > 0 }"
+              @click="handleConfirmExport" 
+              :disabled="selectedBuildings.length === 0"
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
@@ -144,7 +151,8 @@
               <span v-if="selectedBuildings.length > 0" class="selected-count">({{ selectedBuildings.length }})</span>
             </button>
           </template>
-          <button v-else class="btn-export" @click="handleExportClick" :disabled="loading">
+          <!-- 初始状态：导出运行数据按钮 -->
+          <button v-else class="btn-export" @click="enterExportMode" :disabled="loading">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
@@ -155,13 +163,16 @@
         </div>
       </div>
 
-      <!-- 表格区域：关键修改 - 添加ref和监听选择事件 -->
+      <!-- 表格区域：传递正确的筛选参数 -->
       <BuildingTable
         ref="buildingTableRef"
-        :filter-form="{ status: mappedStatus }"
+        :filter-form="{
+          status: filterForm.status
+        }"
         :advanced-filters="advancedFilters"
         :sort-config="sortConfig"
         :time-range="filterForm.timeRange as 'today' | 'week' | 'month' | 'quarter' | 'year'"
+        :is-export-mode="isExportMode"
         @view-detail="handleViewDetail"
         @view-stats="handleViewStats"
         @fault-analysis="handleFaultAnalysis"
@@ -233,19 +244,6 @@ const filterForm = ref({
   timeRange: 'today'
 });
 
-// 状态映射：中文 -> 英文API参数
-const statusMap: Record<string, string> = {
-  '正常': 'normal',
-  '异常': 'error',
-  '告警': 'warning',
-  '离线': 'offline'
-};
-
-// 计算映射后的状态值传给子组件
-const mappedStatus = computed(() => {
-  return filterForm.value.status ? statusMap[filterForm.value.status] : '';
-});
-
 const advancedFilters = ref<Record<string, any>>({});
 
 const hasActiveAdvancedFilters = computed(() => {
@@ -288,41 +286,31 @@ const calculateTimeRange = (range: string) => {
 const timeFilterStart = computed(() => calculateTimeRange(filterForm.value.timeRange).start_time);
 const timeFilterEnd = computed(() => calculateTimeRange(filterForm.value.timeRange).end_time);
 
-// ===== 关键修改：导出功能方法 =====
+// ===== 导出功能方法 =====
 
-// 点击导出运行数据按钮
-const handleExportClick = () => {
-  if (!isExportMode.value) {
-    // 第一次点击：进入选择模式
-    isExportMode.value = true;
-    selectedBuildings.value = [];
-    // 关键：调用子组件方法显示多选框
-    buildingTableRef.value?.enterExportMode?.();
-  } else {
-    // 已在选择模式，点击确认导出
-    if (selectedBuildings.value.length === 0) {
-      alert('请至少选择一项建筑数据');
-      return;
-    }
-    // 打开导出弹窗
-    showExportModal.value = true;
-  }
+// 进入导出模式（点击"导出运行数据"按钮）
+const enterExportMode = () => {
+  isExportMode.value = true;
+  selectedBuildings.value = [];
+  // 调用子组件方法显示多选框
+  buildingTableRef.value?.enterExportMode?.();
 };
 
-// 确认导出（点击确认导出按钮）
+// 确认导出（点击"确认导出"按钮）
 const handleConfirmExport = () => {
   if (selectedBuildings.value.length === 0) {
     alert('请至少选择一项建筑数据');
     return;
   }
+  // 打开导出弹窗
   showExportModal.value = true;
 };
 
-// 取消导出模式
+// 取消导出模式（点击"取消"按钮）
 const cancelExportMode = () => {
   isExportMode.value = false;
   selectedBuildings.value = [];
-  // 关键：调用子组件方法退出导出模式（隐藏多选框）
+  // 调用子组件方法退出导出模式（隐藏多选框）
   buildingTableRef.value?.exitExportMode?.();
 };
 
@@ -337,10 +325,8 @@ const handleExportConfirm = (exportConfig: { format: string; fileName?: string }
   
   alert(`已将 ${selectedBuildings.value.length} 条建筑数据导出为 ${exportConfig.format} 格式`);
   
-  // 重置导出状态
-  isExportMode.value = false;
-  selectedBuildings.value = [];
-  buildingTableRef.value?.exitExportMode?.();
+  // 导出完成后退出导出模式
+  cancelExportMode();
 };
 
 // ===== 其他方法 =====
@@ -348,7 +334,7 @@ const handleExportConfirm = (exportConfig: { format: string; fileName?: string }
 const fetchHighlights = async () => {
   try {
     isHighlightsError.value = false;
-    const response = await axios.get('http://127.0.0.1:4523/m1/8021021-7775608-default/dashboard/highlights', {
+    const response = await axios.get('/api/dashboard/highlights', {
       timeout: 5000
     });
     if (response.data) {
@@ -366,10 +352,12 @@ const fetchHighlights = async () => {
 
 const handleStatusChange = () => {
   // 状态变化自动触发子组件重新加载
+  console.log('状态筛选变化:', filterForm.value.status);
 };
 
 const handleTimeRangeChange = () => {
   // 时间范围变化自动触发子组件重新加载
+  console.log('时间范围变化:', filterForm.value.timeRange);
 };
 
 const handleReset = () => {
@@ -378,6 +366,7 @@ const handleReset = () => {
   advancedFilters.value = {};
   sortConfig.value.field = 'eui';
   sortConfig.value.order = 'asc';
+  // 重置时确保退出导出模式
   cancelExportMode();
 };
 
@@ -735,6 +724,7 @@ h1 {
   background: #9CA3AF;
 }
 
+/* 取消按钮样式 */
 .btn-cancel-select {
   height: 40px;
   padding: 0 20px;
@@ -752,31 +742,32 @@ h1 {
   color: #FF4D4F;
 }
 
-.btn-confirm-export-green {
+/* 确认导出按钮基础样式（未选择时灰色） */
+.btn-confirm-export {
   height: 40px;
   padding: 0 24px;
-  background: #52C41A;
+  background: #9CA3AF;
   color: white;
   border: none;
   border-radius: 20px;
-  cursor: pointer;
+  cursor: not-allowed;
   font-size: 14px;
   font-weight: 500;
   display: flex;
   align-items: center;
   transition: all 0.2s;
+}
+
+/* 确认导出按钮绿色样式（选择后） */
+.btn-confirm-export-green {
+  background: #52C41A;
+  cursor: pointer;
   box-shadow: 0 2px 8px rgba(82, 196, 26, 0.2);
 }
 
-.btn-confirm-export-green:hover:not(:disabled) {
+.btn-confirm-export-green:hover {
   background: #389E0D;
   transform: translateY(-1px);
-}
-
-.btn-confirm-export-green:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: #9CA3AF;
 }
 
 .selected-count {
