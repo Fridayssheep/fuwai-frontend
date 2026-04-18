@@ -49,7 +49,15 @@
             <strong>报表详情</strong>
             <div class="actions">
               <button class="secondary small" :disabled="!selectedReportId || reportDetailLoading" @click="reloadSelectedReport"><Icon :icon="reportDetailLoading ? 'lucide:loader-2' : 'lucide:refresh-cw'" :class="{ spin: reportDetailLoading }" />刷新</button>
-              <button class="secondary small" :disabled="!canViewReportFile" @click="viewReportFile"><Icon icon="lucide:external-link" />查看</button>
+              <button
+  class="secondary small"
+  :disabled="!canViewReportFile"
+  @click="viewReportDetail"
+>
+  <Icon icon="lucide:external-link" />
+  查看
+</button>
+
               <button class="primary small" :disabled="!selectedReportId" @click="downloadReportFile"><Icon icon="lucide:download" />下载</button>
               <button class="secondary small danger" :disabled="!selectedReportId || deletingReport" @click="removeSelectedReport"><Icon :icon="deletingReport ? 'lucide:loader-2' : 'lucide:trash-2'" :class="{ spin: deletingReport }" />{{ deletingReport ? '删除中' : '删除' }}</button>
             </div>
