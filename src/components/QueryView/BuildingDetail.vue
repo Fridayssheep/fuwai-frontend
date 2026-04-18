@@ -700,9 +700,9 @@ const fetchHourlyData = async () => {
     try {
       const weatherRes = await axios.get('/api/energy/weather', {
         params: {
-          buildingId: buildingId.value,
-          startTime: `${selectedDay.value}T00:00:00`,
-          endTime: `${selectedDay.value}T23:59:59`
+          building_id: buildingId.value,
+          start_time: `${selectedDay.value}T00:00:00`,
+          end_time: `${selectedDay.value}T23:59:59`
         },
         timeout: 10000
       });
@@ -741,6 +741,7 @@ const fetchHourlyData = async () => {
   } finally {
     hourlyLoading.value = false;
   }
+  
 };
 
 
@@ -1060,11 +1061,13 @@ const fetchCategoryEnergy = async () => {
   try {
     const { start_time, end_time } = calculateTimeRange(timeRange.value);
     
-    const response = await axios.post('/api/energy/query', {
-      buildingId: buildingId.value,
-      energyType: energyCategory.value,  // 当前选中的类别：电力/热水/冷冻水等
-      startTime: start_time,
-      endTime: end_time
+    const response = await axios.get('/api/energy/query', {
+      params: {
+        building_id: buildingId.value,
+        energy_type: energyCategory.value, // 或 type / category，根据后端实际字段调整
+        start_time: start_time,
+        end_time: end_time
+      }
     });
     
     rawData.value.categoryEnergy = response.data?.data || response.data;
