@@ -1,1645 +1,399 @@
 <template>
-  <div class="building-detail">
-    <!-- 顶部标题栏 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h1>建筑ID- {{ buildingId }}</h1>
-        <span :class="['status-badge', statusClass]">
-          <span class="status-dot"></span>
-          {{ statusText }}
-        </span>
-      </div>
-      <div class="header-right">
-        <button class="btn-back" @click="handleBack">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
+  <div v-if="visible" class="modal-overlay" @click.self="handleClose">
+    <div class="modal-content">
+      <!-- 头部 - 白色背景 -->
+      <div class="modal-header">
+        <h3>导出运行数据</h3>
+        <button class="close-btn" @click="handleClose">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
-          返回
-        </button>
-        <button class="btn-primary" @click="handleViewStats">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 20V10M12 20V4M6 20v-6"/>
-          </svg>
-          查看统计数据
         </button>
       </div>
-    </div>
-
-    <!-- 加载状态 -->
-    <div v-if="loading" class="loading-container">
-      <div class="loading-spinner"></div>
-      <p>正在加载建筑数据...</p>
-    </div>
-
-    <!-- 错误状态 -->
-    <div v-else-if="error" class="error-container">
-      <div class="error-icon">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="12" y1="8" x2="12" y2="12"></line>
-          <line x1="12" y1="16" x2="12.01" y2="16"></line>
-        </svg>
-      </div>
-      <h3>{{ errorTitle }}</h3>
-      <p>{{ errorMessage }}</p>
-      <button class="btn-retry" @click="fetchData">重新加载</button>
-    </div>
-
-    <!-- 数据内容 -->
-    <div v-else class="content-grid">
-      <!-- 左侧信息面板 -->
-      <div class="left-panel">
-        <!-- 标签页切换 -->
-        <div class="tab-header">
-          <button 
-            :class="['tab-btn', { active: activeTab === 'metadata' }]"
-            @click="activeTab = 'metadata'"
-          >
-            建筑元数据
-          </button>
-          <button 
-            :class="['tab-btn', { active: activeTab === 'derived' }]"
-            @click="activeTab = 'derived'"
-          >
-            建筑衍生数据
-          </button>
-        </div>
-
-        <!-- 建筑元数据面板 -->
-        <div v-show="activeTab === 'metadata'" class="info-card">
-          <div class="metadata-grid">
-            <div class="meta-item full-width">
-              <span class="meta-label">建筑标识ID</span>
-              <span class="meta-value">{{ buildingInfo.building_id || buildingId }}</span>
-            </div>
-            <div class="meta-item full-width">
-              <span class="meta-label">设备标识</span>
-              <span class="meta-value">{{ buildingInfo.site_id || '-' }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">主要用途</span>
-              <span class="meta-value">{{ buildingInfo.primaryspaceusage || '-' }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">建筑面积</span>
-              <span class="meta-value">
-                {{ formatArea(buildingInfo.sqm) }} m²
-                <span v-if="buildingInfo.area_ft" class="sub-value">
-                  ({{ formatArea(buildingInfo.area_ft) }} ft²)
-                </span>
-              </span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">细分用途</span>
-              <span class="meta-value">{{ buildingInfo.sub_primaryspaceusage || '-' }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">建造年份</span>
-              <span class="meta-value">{{ buildingInfo.build_year || '-' }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">楼层数</span>
-              <span class="meta-value">{{ buildingInfo.floors || '-' }} 层</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">时区</span>
-              <span class="meta-value">{{ buildingInfo.timezone || 'UTC+8 (北京)' }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">启用日期</span>
-              <span class="meta-value">{{ buildingInfo.start_date || '-' }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">入住/使用人数</span>
-              <span class="meta-value">{{ buildingInfo.occupancy || '-' }} 人</span>
-            </div>
-            <div class="meta-item full-width">
-              <span class="meta-label">地理坐标</span>
-              <span class="meta-value">{{ formatCoordinates(buildingInfo) }}</span>
-            </div>
+      
+      <!-- 内容区域 - 仅保留格式选择，删除预览 -->
+      <div class="modal-body">
+        <div class="format-option" :class="{ 'disabled': exporting }">
+          <div class="download-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="16"></line>
+              <polyline points="8 12 12 16 16 12"></polyline>
+            </svg>
           </div>
-
-          <!-- 认证标识 -->
-          <div class="certifications">
-            <div class="cert-item">
-              <span class="cert-label">LEED 认证</span>
-              <span :class="['cert-badge', getLeedClass(buildingInfo.leed_certification)]">
-                {{ buildingInfo.leed_certification || '无' }}
-              </span>
-            </div>
-            <div class="cert-item">
-              <span class="cert-label">ENERGY STAR</span>
-              <div class="energy-star" v-if="buildingInfo.energy_star">
-                <span class="star-value">{{ buildingInfo.energy_star }}</span>
-                <svg class="star-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
-                </svg>
-              </div>
-              <div class="energy-star" v-else>
-                <span class="star-value" style="color: #999; font-size: 14px;">无认证</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 建筑衍生数据面板 -->
-        <div v-show="activeTab === 'derived'" class="info-card derived-card">
-          <div class="derived-header">
-            <span class="derived-time-range">统计周期：{{ timeRangeText }}</span>
-          </div>
-          <div class="derived-grid">
-            <div class="derived-item">
-              <span class="derived-label">COP</span>
-              <span class="derived-value">{{ derivedData.cop }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">建筑年度总碳排放量(KgCO2e)</span>
-              <span class="derived-value">{{ derivedData.annualCarbon }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">单位面积碳排放量(KgCO2e/m²)</span>
-              <span class="derived-value">{{ derivedData.carbonPerArea }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">人均碳排放量(KgCO2e/人)</span>
-              <span class="derived-value">{{ derivedData.carbonPerPerson }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">碳减排量（相对于基准）</span>
-              <span class="derived-value">{{ derivedData.carbonReduction }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">碳减排率</span>
-              <span class="derived-value">{{ derivedData.carbonReductionRate }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">可再生能源替代率</span>
-              <span class="derived-value">{{ derivedData.renewableRate }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">能耗强度基准值EUI(kWh/m²/年)</span>
-              <span class="derived-value">{{ derivedData.euiBaseline }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">源头级EUI(kWh/m²/年)</span>
-              <span class="derived-value">{{ derivedData.euiSource }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">场地级EUI(kWh/m²/年)</span>
-              <span class="derived-value">{{ derivedData.euiSite }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">单位面积水耗(m³/m²)</span>
-              <span class="derived-value">{{ derivedData.waterPerArea }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">人均能耗强度(kWh/m²/年/人)</span>
-              <span class="derived-value">{{ derivedData.energyPerPerson }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">能耗类别</span>
-              <div class="derived-value">
-                <select v-model="energyCategory" class="energy-select" @change="handleEnergyCategoryChange">
-                  <option value="电力">电力</option>
-                  <option value="热水">热水</option>
-                  <option value="冷冻水">冷冻水</option>
-                  <option value="蒸汽">蒸汽</option>
-                  <option value="灌溉">灌溉</option>
-                  <option value="太阳能">太阳能</option>
-                  <option value="燃气">燃气</option>
-                  <option value="水">水</option>
-                </select>
-              </div>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">对应总能耗(kWh)</span>
-              <span class="derived-value">{{ derivedData.totalEnergy }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">分项能耗占比</span>
-              <span class="derived-value">{{ derivedData.energyRatio }}</span>
-            </div>
-            <div class="derived-item">
-              <span class="derived-label">总能耗(kWh)</span>
-              <span class="derived-value">{{ derivedData.totalEnergyAll }}</span>
-            </div>
-          </div>
-
-          <div class="certifications">
-            <div class="cert-item">
-              <span class="cert-label">LEED 认证</span>
-              <span :class="['cert-badge', getLeedClass(buildingInfo.leed_certification)]">
-                {{ buildingInfo.leed_certification || '无' }}
-              </span>
-            </div>
-            <div class="cert-item">
-              <span class="cert-label">ENERGY STAR</span>
-              <div class="energy-star" v-if="buildingInfo.energy_star">
-                <span class="star-value">{{ buildingInfo.energy_star }}</span>
-                <svg class="star-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
-                </svg>
-              </div>
-              <div class="energy-star" v-else>
-                <span style="color: #999; font-size: 14px;">无认证</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 运行关键指标 -->
-        <div class="metrics-card">
-          <h3>运行关键指标</h3>
-          <div class="metrics-grid">
-            <div class="metric-item">
-              <span class="metric-label">故障次数</span>
-              <span class="metric-value abnormal">{{ metrics.abnormalRate }}</span>
-            </div>
-
-            <div class="metric-item">
-              <span class="metric-label">EUI 达标率</span>
-              <span class="metric-value eui">{{ metrics.euiRate }}%</span>
-            </div>
+          <div class="format-info">
+            <span class="format-text">Markdown (.md)</span>
+            <span class="format-desc">导出为Markdown表格格式，包含基础信息、小时级监测数据及表计状态</span>
           </div>
         </div>
       </div>
 
-      <!-- 右侧监控数据 -->
-      <div class="right-panel">
-        <div class="monitor-card">
-          <div class="monitor-header">
-            <div class="header-title">
-              <svg class="monitor-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 6v6l4 2"/>
-              </svg>
-              <h3>小时级多维监控数据</h3>
-            </div>
-            <div class="header-actions">
-              <input 
-                type="date" 
-                v-model="selectedDay" 
-                class="single-date-picker" 
-                @change="fetchHourlyData"
-              />
-              <button class="btn-icon btn-download" @click="showExportModal = true" title="导出数据">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <div class="monitor-table-wrapper">
-            <table class="monitor-table">
-              <thead>
-                <tr>
-                  <th class="col-time">时间</th>
-                  <th class="col-energy">动态详耗数据</th>
-                  <th class="col-env">环境数据</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(item, idx) in displayData" :key="idx" :class="{ 'empty-row': !item.hasEnergy && !item.hasEnv }">
-                  <td class="col-time">{{ item.displayTime }}</td>
-                  <td class="col-energy">
-                    <button 
-                      class="btn-view" 
-                      :class="{ 'disabled': !item.hasEnergy }"
-                      @click="item.hasEnergy && handleViewEnergy(item)"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
-                      </svg>
-                      {{ item.hasEnergy ? '查看' : '无数据' }}
-                    </button>
-                  </td>
-                  <td class="col-env">
-                    <button 
-                      class="btn-view green"
-                      :class="{ 'disabled': !item.hasEnv }"
-                      @click="item.hasEnv && handleViewEnv(item)"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
-                      </svg>
-                      {{ item.hasEnv ? '查看' : '无数据' }}
-                    </button>
-                  </td>
-                </tr>
-                <tr v-for="n in emptyRows" :key="`empty-${n}`" class="empty-row">
-                  <td colspan="3">&nbsp;</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- 分页区域 -->
-          <div class="pagination-wrapper">
-            <div class="pagination-info">
-              {{ paginationInfo }}
-            </div>
-            <div class="pagination-controls">
-              <button 
-                class="page-btn" 
-                :disabled="currentPage === 1"
-                @click="handlePrevPage"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="15 18 9 12 15 6"/>
-                </svg>
-              </button>
-              <button 
-                v-for="page in visiblePages" 
-                :key="String(page)"
-                :class="['page-btn', { active: page === currentPage, ellipsis: page === '...' }]"
-                @click="page !== '...' && handlePageChange(page as number)"
-              >
-                {{ page }}
-              </button>
-              <button 
-                class="page-btn" 
-                :disabled="currentPage === totalPages"
-                @click="handleNextPage"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
+      <!-- 底部 -->
+      <div class="modal-footer">
+        <button class="btn btn-cancel" @click="handleClose" :disabled="exporting">取消</button>
+        <button 
+          class="btn btn-export" 
+          @click="handleExport" 
+          :disabled="exporting"
+        >
+          <svg v-if="exporting" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;" class="spin">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="10"></circle>
+          </svg>
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          {{ exporting ? '导出中...' : '开始导出' }}
+        </button>
       </div>
     </div>
-
-    <div class="page-bottom-spacer"></div>
-
-    <!-- 弹窗组件 -->
-    <teleport to="body">
-      <div v-if="showEnergyModal" class="modal-overlay" @click.self="closeEnergyModal">
-        <div class="modal-card energy-modal">
-          <div class="modal-header">
-            <div class="modal-title">
-              <svg class="modal-icon energy" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
-              </svg>
-              <h3>能源消耗详情 - {{ currentEnergyItem?.displayTime }}</h3>
-            </div>
-            <button class="btn-close" @click="closeEnergyModal">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-          <div class="modal-body">
-            <div class="energy-grid">
-              <div 
-                v-for="(value, key) in currentEnergyDetail" 
-                :key="key" 
-                class="energy-item"
-                v-show="value !== null && value !== undefined && value !== 0"
-              >
-                <div :class="['item-icon', getEnergyIconClass(key)]">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>
-                  </svg>
-                </div>
-                <span class="item-name">{{ formatEnergyLabel(key) }}</span>
-                <span class="item-value">
-                  {{ formatNumber(value) }}
-                  <span class="unit">{{ getEnergyUnit(key) }}</span>
-                </span>
-              </div>
-              <div v-if="!hasEnergyData" class="energy-empty">
-                <div class="empty-icon">⚡</div>
-                <p>该时段暂无能耗数据</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </teleport>
-
-    <teleport to="body">
-      <div v-if="showEnvModal" class="modal-overlay" @click.self="closeEnvModal">
-        <div class="modal-card env-modal">
-          <div class="modal-header">
-            <div class="modal-title">
-              <svg class="modal-icon env" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
-              </svg>
-              <h3>环境监控详情 - {{ currentEnvItem?.displayTime }}</h3>
-            </div>
-            <button class="btn-close" @click="closeEnvModal">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-          <div class="modal-body">
-            <div v-if="envLoading" class="loading-container" style="padding: 40px 0;">
-              <div class="loading-spinner"></div>
-              <p>正在加载环境数据...</p>
-            </div>
-            <div v-else-if="!hasEnvData" class="energy-empty">
-              <div class="empty-icon">🌤️</div>
-              <p>暂无环境数据</p>
-            </div>
-            <div v-else class="env-grid">
-              <div class="env-item" v-if="currentEnvDetail.temperature !== undefined">
-                <div class="item-icon temp">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
-                    <circle cx="11.5" cy="16.5" r="1.5" fill="currentColor"/>
-                  </svg>
-                </div>
-                <span class="item-name">气温</span>
-                <span class="item-value">{{ currentEnvDetail.temperature }}<span class="unit">°C</span></span>
-              </div>
-              <div class="env-item" v-if="currentEnvDetail.cloudCover !== undefined || currentEnvDetail.cloud_cover !== undefined">
-                <div class="item-icon cloud">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17.5 19c0-3.037-2.463-5.5-5.5-5.5S6.5 15.963 6.5 19"/>
-                    <circle cx="17.5" cy="6.5" r="2.5"/>
-                    <circle cx="14" cy="12" r="1"/>
-                    <circle cx="8" cy="9" r="1"/>
-                  </svg>
-                </div>
-                <span class="item-name">云量</span>
-                <span class="item-value">{{ currentEnvDetail.cloudCover ?? currentEnvDetail.cloud_cover }}<span class="unit">%</span></span>
-              </div>
-              <div class="env-item" v-if="currentEnvDetail.precipitation !== undefined || currentEnvDetail.rain !== undefined">
-                <div class="item-icon rain">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M16 13v8M8 13v8M12 15v8M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/>
-                  </svg>
-                </div>
-                <span class="item-name">降水量</span>
-                <span class="item-value">{{ currentEnvDetail.precipitation ?? currentEnvDetail.rain }}<span class="unit">mm</span></span>
-              </div>
-              <div class="env-item" v-if="currentEnvDetail.windSpeed !== undefined || currentEnvDetail.wind_speed !== undefined">
-                <div class="item-icon wind">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/>
-                  </svg>
-                </div>
-                <span class="item-name">风速</span>
-                <span class="item-value">{{ currentEnvDetail.windSpeed ?? currentEnvDetail.wind_speed }}<span class="unit">m/s</span></span>
-              </div>
-              <div class="env-item" v-if="currentEnvDetail.dewPoint !== undefined || currentEnvDetail.dew_point !== undefined">
-                <div class="item-icon dew">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 22c4.97 0 9-4.03 9-9V7c0-4.97-4.03-9-9-9S3 2.03 3 7v6c0 4.97 4.03 9 9 9z"/>
-                  </svg>
-                </div>
-                <span class="item-name">露点温度</span>
-                <span class="item-value">{{ currentEnvDetail.dewPoint ?? currentEnvDetail.dew_point }}<span class="unit">°C</span></span>
-              </div>
-              <div class="env-item" v-if="currentEnvDetail.pressure !== undefined || currentEnvDetail.seaLevelPressure !== undefined">
-                <div class="item-icon pressure">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2v20M12 2l-4 4M12 2l4 4"/>
-                  </svg>
-                </div>
-                <span class="item-name">海平面气压</span>
-                <span class="item-value">{{ currentEnvDetail.pressure ?? currentEnvDetail.seaLevelPressure }}<span class="unit">hPa</span></span>
-              </div>
-              <div class="env-item" v-if="currentEnvDetail.windDirection !== undefined || currentEnvDetail.wind_direction !== undefined">
-                <div class="item-icon direction">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                  </svg>
-                </div>
-                <span class="item-name">风向</span>
-                <span class="item-value">{{ formatWindDirection(currentEnvDetail.windDirection ?? currentEnvDetail.wind_direction) }}<span class="unit">°</span></span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </teleport>
-
-    <ExportModal v-model:visible="showExportModal" @export="handleExport" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import axios from 'axios';
-import { usePageAIContext } from '../../composables/useAIContext';
-import { getCurrentTimeString } from '@/utils/timeManager';
-import TimeFilterModal from './TimeFilterModal.vue';
-import ExportModal from './ExportModal.vue';
-import { 
-  getBuildingById, 
-  type BuildingDetailResponse as ApiBuildingDetailResponse, 
-  getBuildingEnergySummary
-} from '../../api/statistics';
-const rawData = ref({
-  buildingDetail: null as any,
-  energySummary: null as any,
-  categoryEnergy: null as any,  // 当前选中的分类能耗
-  copEui: null as any,          // COP接口数据 (avg_cop, min_cop, max_cop)
-  carbonData: null as any,      // 年度总碳排放数据 (b.carbon)
-  solarData: null as any,       // 太阳能发电量
-  electricityData: null as any, // 建筑总用电量 (electricity)
-  waterData: null as any,       // 水耗总量 (water)
-});
+import { ref } from 'vue'
 
-// ===== 扩展接口定义以解决类型问题 =====
-interface BuildingInfo {
-  building_id?: string;
-  site_id?: string;
-  primaryspaceusage?: string;
-  sub_primaryspaceusage?: string;
-  sqm?: number;
-  area_ft?: number;
-  floors?: number | string;
-  build_year?: number | string;
-  timezone?: string;
-  time_zone?: string;
-  start_date?: string;
-  occupancy?: number | string;
-  lat?: number;
-  lng?: number;
-  latitude?: number;
-  longitude?: number;
-  coordinates?: string;
-  leed_certification?: string;
-  leed?: string;
-  energy_star?: number | string;
-  [key: string]: any; // 允许其他字段
+// 完全复用第一个组件的数据结构
+interface MetricItem {
+  key: string
+  label: string
+  value: number
+  unit?: string
 }
 
-interface HourlyDataItem {
-  hour: string;
-  displayTime: string;
-  time: string;
-  energyData: Record<string, number>;
-  envData: Record<string, any>;
-  hasEnergy: boolean;
-  hasEnv: boolean;
+interface MeterItem {
+  meter: string
+  available: boolean
 }
 
-interface WeatherData {
-  temperature?: number;
-  cloudCover?: number;
-  cloud_cover?: number;
-  precipitation?: number;
-  rain?: number;
-  windSpeed?: number;
-  wind_speed?: number;
-  dewPoint?: number;
-  dew_point?: number;
-  pressure?: number;
-  seaLevelPressure?: number;
-  windDirection?: number;
-  wind_direction?: number;
-  [key: string]: any;
+const props = defineProps<{
+  visible: boolean
+  buildingId: string           // 建筑ID（必填）
+  exportData?: any[]            // 小时级数据（可选，不传则导出空表）
+  metrics?: MetricItem[]        // 基础指标（可选）
+  meters?: MeterItem[]          // 表计状态（可选）
+  selectedDay?: string          // 选中的日期，用于文件名
+}>()
+
+const emit = defineEmits(['update:visible', 'export'])
+
+const exporting = ref(false)
+
+const handleClose = () => {
+  if (exporting.value) return
+  emit('update:visible', false)
 }
 
-// ===== 常量定义 =====
-// 添加中文到英文的映射（根据图2枚举值）
-const meterTypeMap: Record<string, string> = {
-  '电力': 'electricity',
-  '热水': 'hotwater',
-  '冷冻水': 'chilledwater',
-  '蒸汽': 'steam',
-  '灌溉': 'irrigation',
-  '太阳能': 'solar',
-  '燃气': 'gas',
-  '水': 'water'
-};
-
-// ===== 组件状态 =====
-const route = useRoute();
-const router = useRouter();
-
-const buildingId = ref<string>(route.params.id as string || 'BLDG-HQ-A01');
-usePageAIContext('building-detail', computed(() => ({
-  building_id: buildingId.value
-})));
-
-const loading = ref(false);
-const detailData = ref<ApiBuildingDetailResponse | null>(null);
-const error = ref(false);
-const errorTitle = ref('加载失败');
-const errorMessage = ref('无法获取建筑详情数据');
-
-const hourlyData = ref<HourlyDataItem[]>([]);
-const hourlyLoading = ref(false);
-const selectedDay = ref<string>('');
-const currentPage = ref<number>(1);
-const pageSize = 8;
-
-const activeTab = ref<'metadata' | 'derived'>('metadata');
-
-const showEnergyModal = ref(false);
-const showEnvModal = ref(false);
-const showExportModal = ref(false);
-const currentEnergyItem = ref<HourlyDataItem | null>(null);
-const currentEnvItem = ref<HourlyDataItem | null>(null);
-const envLoading = ref(false);
-
-const energyCategory = ref('电力');
-const timeRange = ref<'today' | 'week' | 'month' | 'quarter' | 'year'>('month');
-
-// ===== 计算属性：建筑信息（带类型安全）=====
-const buildingInfo = computed<BuildingInfo>(() => {
-  const building = (detailData.value as any)?.building || {};
-  return building as BuildingInfo;
-});
-
-// ===== 辅助函数 =====
-const formatCoordinates = (building: BuildingInfo): string => {
-  if (!building) return '-';
-  if (building.coordinates) return building.coordinates;
-  if (building.lat !== undefined && building.lng !== undefined) {
-    return `${building.lat}, ${building.lng}`;
-  }
-  if (building.latitude !== undefined && building.longitude !== undefined) {
-    return `${building.latitude}, ${building.longitude}`;
-  }
-  return '-';
-};
-
-const formatArea = (area: number | string | undefined): string => {
-  if (area === null || area === undefined || area === '') return '-';
-  const num = typeof area === 'string' ? parseFloat(area) : area;
-  return isNaN(num) ? '-' : num.toLocaleString();
-};
-
-const getLeedClass = (level: string | undefined): string => {
-  if (!level) return '';
-  const upper = level.toString().toUpperCase();
-  if (upper.includes('PLATINUM')) return 'platinum';
-  if (upper.includes('GOLD')) return 'gold';
-  if (upper.includes('SILVER')) return 'silver';
-  if (upper.includes('CERTIFIED')) return 'certified';
-  return '';
-};
-
-// ===== 核心：获取小时级数据（修复：查询所有表计类型）=====
-const fetchHourlyData = async () => {
-  if (!buildingId.value || !selectedDay.value) return;
-  hourlyLoading.value = true;
-  hourlyData.value = [];
-
-  try {
-    // 所有表计类型（根据你的 meterTypeMap）
-    const meterTypes = ['electricity', 'hotwater', 'chilledwater', 'steam', 'irrigation', 'solar', 'gas', 'water'];
-    
-    // 每小时并发查询所有表计类型
-    const hourlyPromises = Array.from({ length: 24 }, (_, i) => {
-      const hh = String(i).padStart(2, '0');
-      const startStr = `${selectedDay.value}T${hh}:00:00`;
-      const endStr = `${selectedDay.value}T${hh}:59:59`;
-      
-      // 并发查询该小时的所有表计类型
-      return Promise.all(
-        meterTypes.map(type => 
-          getBuildingEnergySummary(buildingId.value, {
-            meter: type as any,
-            granularity: 'hour',
-            start_time: startStr,
-            end_time: endStr
-          })
-            .then(raw => {
-              const data = (raw as any)?.data ?? raw;
-              return {
-                type,
-                total: data?.summary?.total ?? 0
-              };
-            })
-            .catch(() => ({ type, total: 0 }))
-        )
-      ).then(results => {
-        // 汇总该小时所有表计数据
-        const summary: Record<string, number> = {};
-        let hasAnyEnergy = false;
-        
-        results.forEach(({ type, total }) => {
-          if (total > 0) {
-            summary[type] = total;
-            hasAnyEnergy = true;
-          }
-        });
-        
-        return {
-          hour: i,
-          hasEnergy: hasAnyEnergy,
-          summary // 包含该小时所有表计类型的数据
-        };
-      });
-    });
-
-    // 【修复】环境数据：查全天，再按小时匹配
-    let weatherMap: Record<number, any> = {};
-    try {
-      const weatherRes = await axios.get('/api/energy/weather', {
-        params: {
-          building_ids: buildingId.value,
-          start_time: `${selectedDay.value}T00:00:00`,
-          end_time: `${selectedDay.value}T23:59:59`,
-          granularity: 'hour'
-        },
-        timeout: 10000
-      });
-      
-      const weatherData = weatherRes.data?.data ?? weatherRes.data;
-      
-      // 解析返回的环境数据（确保包含所有字段：temperature, cloudCover, precipitation, windSpeed, dewPoint, pressure, windDirection）
-      if (weatherData?.series && Array.isArray(weatherData.series)) {
-        const series = weatherData.series.find((s: any) => s.building_id === buildingId.value);
-        if (series?.points && Array.isArray(series.points)) {
-          series.points.forEach((point: any) => {
-            const h = new Date(point.timestamp || point.time).getHours();
-            if (!isNaN(h)) {
-              // 确保存储完整的点数据，包含所有环境字段
-              weatherMap[h] = {
-                temperature: point.temperature,
-                cloudCover: point.cloudCover,
-                cloud_cover: point.cloud_cover,
-                precipitation: point.precipitation,
-                rain: point.rain,
-                windSpeed: point.windSpeed,
-                wind_speed: point.wind_speed,
-                dewPoint: point.dewPoint,
-                dew_point: point.dew_point,
-                pressure: point.pressure,
-                seaLevelPressure: point.seaLevelPressure,
-                windDirection: point.windDirection,
-                wind_direction: point.wind_direction,
-                ...point // 保留原始所有字段
-              };
-            }
-          });
-        }
-      }
-    } catch (e) {
-      console.error('环境数据获取失败:', e);
-    }
-
-    const energyResults = await Promise.all(hourlyPromises);
-
-    // 组装24小时数据
-    hourlyData.value = energyResults.map((er: any, i: number) => {
-      const hh = String(i).padStart(2, '0');
-      return {
-        hour: `${hh}:00`,
-        displayTime: `${selectedDay.value} ${hh}:00`,
-        time: `${selectedDay.value}T${hh}:00:00`,
-        energyData: er.summary, // 现在包含所有表计类型数据
-        envData: weatherMap[i] || {},
-        hasEnergy: er.hasEnergy, // 任意类型有数据即为true
-        hasEnv: !!weatherMap[i] && Object.keys(weatherMap[i]).length > 0
-      };
-    });
-  } catch (err) {
-    console.error('Failed to fetch hourly data', err);
-  } finally {
-    hourlyLoading.value = false;
-  }
-};
-
-// ===== 分页计算 =====
-const totalCount = computed(() => hourlyData.value.length);
-const totalPages = computed(() => Math.ceil(totalCount.value / pageSize) || 1);
-
-const displayData = computed<HourlyDataItem[]>(() => {
-  const start = (currentPage.value - 1) * pageSize;
-  const end = start + pageSize;
-  return hourlyData.value.slice(start, end);
-});
-
-const emptyRows = computed(() => {
-  const currentRows = displayData.value.length;
-  return Math.max(0, pageSize - currentRows);
-});
-
-const paginationInfo = computed(() => {
-  if (totalCount.value === 0) return '暂无数据';
-  const start = (currentPage.value - 1) * pageSize + 1;
-  const end = Math.min(currentPage.value * pageSize, totalCount.value);
-  return `显示 ${start} 到 ${end} 条，共 ${totalCount.value} 条记录`;
-});
-
-const visiblePages = computed<(number | string)[]>(() => {
-  const pages: (number | string)[] = [];
-  const total = totalPages.value;
-  const current = currentPage.value;
-  
-  if (total <= 7) {
-    for (let i = 1; i <= total; i++) pages.push(i);
-  } else {
-    if (current <= 4) {
-      pages.push(1, 2, 3, 4, 5);
-      pages.push('...', total);
-    } else if (current >= total - 3) {
-      pages.push(1, '...');
-      for (let i = total - 4; i <= total; i++) pages.push(i);
-    } else {
-      pages.push(1, '...');
-      pages.push(current - 1, current, current + 1);
-      pages.push('...', total);
-    }
-  }
-  return pages;
-});
-
-const handlePrevPage = () => {
-  if (currentPage.value > 1) currentPage.value--;
-};
-
-const handleNextPage = () => {
-  if (currentPage.value < totalPages.value) currentPage.value++;
-};
-
-const handlePageChange = (page: number | string) => {
-  if (typeof page === 'number') {
-    currentPage.value = page;
-  }
-};
-
-// ===== 详情弹窗 =====
-const currentEnergyDetail = computed<Record<string, number>>(() => {
-  return currentEnergyItem.value?.energyData || {};
-});
-
-const hasEnergyData = computed(() => Object.keys(currentEnergyDetail.value).length > 0);
-
-const currentEnvDetail = computed<WeatherData>(() => {
-  return currentEnvItem.value?.envData || {};
-});
-
-const hasEnvData = computed(() => Object.keys(currentEnvDetail.value).length > 0);
-
-const handleViewEnergy = async (item: HourlyDataItem) => {
-  currentEnergyItem.value = item;
-  showEnergyModal.value = true;
-  
-  // 弹窗内并发加载该小时所有8种表计类型
-  const meterTypes = ['electricity', 'hotwater', 'chilledwater', 'irrigation', 'solar', 'gas', 'steam', 'water'];
-  const hour = item.hour.split(':')[0];
-  const startStr = `${selectedDay.value}T${hour}:00:00`;
-  const endStr = `${selectedDay.value}T${hour}:59:59`;
-  
-  const results: Record<string, number> = {};
-  await Promise.all(
-    meterTypes.map(type => 
-      getBuildingEnergySummary(buildingId.value, {
-        meter: type as any,
-        granularity: 'hour',
-        start_time: startStr,
-        end_time: endStr
-      })
-        .then(raw => {
-          const data = (raw as any)?.data ?? raw;
-          const total = data?.summary?.total ?? 0;
-          if (total > 0) results[type] = total;
-        })
-        .catch(() => {})
-    )
-  );
-  
-  currentEnergyItem.value = { ...item, energyData: results };
-};
-
-
-const handleViewEnv = async (item: HourlyDataItem) => {
-  currentEnvItem.value = item;
-  showEnvModal.value = true;
-};
-
-const closeEnergyModal = () => {
-  showEnergyModal.value = false;
-  currentEnergyItem.value = null;
-};
-
-const closeEnvModal = () => {
-  showEnvModal.value = false;
-  currentEnvItem.value = null;
-};
-
-// ===== 建筑详情数据获取 =====
-const fetchData = async () => {
-  // 从路由参数获取时间范围（如果父组件通过 query 传递）
-  const routeTimeRange = route.query.timeRange as any;
-  if (routeTimeRange && ['today', 'week', 'month', 'quarter', 'year'].includes(routeTimeRange)) {
-    timeRange.value = routeTimeRange;
-  }
-  if (!buildingId.value) return;
-  loading.value = true;
-  error.value = false;
-  
-  try {
-    const raw = await getBuildingById(buildingId.value);
-    detailData.value = (raw as any)?.data ?? raw;
-    
-    const now = new Date(getCurrentTimeString());
-    selectedDay.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    
-    await fetchHourlyData();
-    await fetchMetricsData(); // 新增：获取EUI和故障次数
-    await fetchCategoryEnergy();
-
-  } catch (err: any) {
-    console.error('Failed to fetch building details', err);
-    error.value = true;
-    if (err.response?.status === 404) {
-      errorTitle.value = '建筑不存在';
-      errorMessage.value = `未找到ID为 ${buildingId.value} 的建筑信息`;
-    } else if (err.request) {
-      errorTitle.value = '网络连接失败';
-      errorMessage.value = '无法连接到后端服务';
-    } else {
-      errorTitle.value = '请求错误';
-      errorMessage.value = err.message || '未知错误';
-    }
-  } finally {
-    loading.value = false;
-  }
-};
-
-// ===== 工具函数 =====
+// 格式化数字（复用第一个组件逻辑）
 const formatNumber = (val: number | null | undefined): string => {
-  if (val == null || isNaN(val)) return '0.0';
-  return val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-};
+  if (val == null || Number.isNaN(val)) return '0.0'
+  return val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
 
-const formatEnergyLabel = (key: string): string => {
-  const labelMap: Record<string, string> = {
-    'electricity': '电力',
-    'hotwater': '热水',
-    'chilledwater': '冷冻水',
-    'steam': '蒸汽',
-    'irrigation': '灌溉',
-    'solar': '太阳能',
-    'gas': '燃气',
-    'water': '用水量'
-  };
-  return labelMap[key] || key;
-};
+// 格式化表计名称（复用第一个组件逻辑）
+const formatMeterName = (meter: string): string => meter || '-'
 
-const getEnergyUnit = (key: string): string => {
-  const unitMap: Record<string, string> = {
-    'electricity': 'kWh',
-    'hotwater': 'm³',
-    'chilledwater': 'GJ',
-    'steam': 't',
-    'irrigation': 'm³',
-    'solar': 'kWh',
-    'gas': 'm³',
-    'water': 'm³'
-  };
-  return unitMap[key] || 'kWh';
-};
-
-const getEnergyIconClass = (key: string): string => {
-  const classMap: Record<string, string> = {
-    'electricity': 'blue',
-    'hotwater': 'red',
-    'chilledwater': 'cyan',
-    'steam': 'gray',
-    'gas': 'orange',
-    'irrigation': 'green',
-    'water': 'blue-light',
-    'solar': 'yellow'
-  };
-  return classMap[key] || 'blue';
-};
-
-const formatWindDirection = (degree: number | string | undefined): string => {
-  if (degree === undefined || degree === null) return '-';
-  let num = typeof degree === 'string' ? parseFloat(degree) : degree;
-  if (isNaN(num)) return '-';
-  const directions = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
-  num = num % 360;
-  const index = Math.round((num < 0 ? num + 360 : num) / 45) % 8;
-  return directions[index] ?? '-';
-};
-// 根据《民用建筑能耗标准》GB/T 51161-2016 大型公共建筑能耗约束值
-const getBaselineEUI = (buildingType: string): number => {
-  const type = (buildingType || '').toLowerCase();
-  if (type.includes('office')) return 85;
-  if (type.includes('hotel') || type.includes('hospitality')) return 100;
-  if (type.includes('retail') || type.includes('market') || type.includes('shop')) return 130;
-  if (type.includes('entertainment') || type.includes('assembly') || type.includes('public')) return 110;
-  if (type.includes('hospital')) return 140;
-  if (type.includes('education') || type.includes('school')) return 70;
-  return 100; // 默认公共建筑基准 EUI (kWh/m²/年)
-};
-
-
-// ===== 业务逻辑 =====
-const timeRangeText = computed(() => {
-  const map: Record<string, string> = { 
-    'today': '今日', 
-    'week': '本周', 
-    'month': '本月', 
-    'quarter': '本季', 
-    'year': '本年' 
-  };
-  return map[timeRange.value] || '本月';
-});
-
-// ===== 指标数据状态（替换原来的 ref）=====
-const euiResponse = ref<any>(null);
-const alarmResponse = ref<any>(null);
-
-// 获取EUI、故障、碳排放、可再生能源、水耗等所有数据
-const fetchMetricsData = async () => {
+const handleExport = async () => {
+  exporting.value = true
+  
   try {
-    // 【关键修改】使用 calculateTimeRange 根据当前 timeRange 计算时间
-    const { start_time, end_time } = calculateTimeRange(timeRange.value);
+    const lines: string[] = []
+    const now = new Date()
     
-    // 根据时间范围选择合适的粒度
-    let granularity: 'hour' | 'day' | 'week' | 'month' = 'month';
-    switch (timeRange.value) {
-      case 'today': granularity = 'hour'; break;
-      case 'week': granularity = 'day'; break;
-      case 'month': granularity = 'day'; break;
-      case 'quarter': granularity = 'month'; break;
-      case 'year': granularity = 'month'; break;
-    }
+    // 文件名日期：优先使用selectedDay，否则使用当前时间
+    const fileDate = props.selectedDay || 
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     
-    console.log(`获取指标数据: ${timeRange.value} (${start_time} ~ ${end_time}), 粒度: ${granularity}`);
+    // ========== 1. 标题与元信息（完全复用第一个组件） ==========
+    lines.push(`# 建筑详情报表 - ${props.buildingId}`)
+    lines.push('')
+    lines.push(`> 导出时间: ${now.toLocaleString('zh-CN')}`)
+    lines.push(`> 数据日期: ${fileDate}`)
+    lines.push('')
 
-    // 并行请求所有需要的接口
-    const [euiRes, alarmRes, carbonRes, solarRes, elecRes, waterRes] = await Promise.all([
-      // 1. COP/EUI计算结果接口
-      axios.get('/energy/cop', {
-        params: { 
-          building_id: buildingId.value,
-          start_time,
-          end_time,
-          granularity
-        }
-      }).catch(err => {
-        console.error('COP接口请求失败:', err);
-        return null;
-      }),
+    // ========== 2. 基础信息（完全复用第一个组件逻辑） ==========
+    if (props.metrics && props.metrics.length > 0) {
+      lines.push('## 基础信息')
+      lines.push('')
+      lines.push('| 指标 | 值 |')
+      lines.push('|------|-----|')
       
-      // 2. 设备告警记录（故障次数）- 告警接口通常不需要时间范围，或根据需求调整
-      axios.get('/meters/1/alarms', {
-        params: { page: 1, page_size: 999 }
-      }).catch(err => {
-        console.error('告警接口请求失败:', err);
-        return null;
-      }),
-      
-      // 3. 建筑总碳排放（使用通用查询接口）
-      axios.get('/energy/query', {
-        params: {
-          building_id: buildingId.value,
-          meter: 'carbon', // 或 electricity 然后转换
-          aggregation: 'sum',
-          start_time,
-          end_time
-        }
-      }).catch(err => {
-        console.error('碳排放接口请求失败:', err);
-        return null;
-      }),
-      
-      // 4. 太阳能发电量（可再生能源）
-      getBuildingEnergySummary(buildingId.value, {
-        meter: 'solar' as any,
-        granularity,
-        start_time,
-        end_time
-      }).catch(err => {
-        console.error('太阳能接口请求失败:', err);
-        return null;
-      }),
-      
-      // 5. 建筑总用电量（用于计算可再生能源替代率）
-      getBuildingEnergySummary(buildingId.value, {
-        meter: 'electricity' as any,
-        granularity,
-        start_time,
-        end_time
-      }).catch(err => {
-        console.error('总用电接口请求失败:', err);
-        return null;
-      }),
-      
-      // 6. 水耗总量（用于计算单位面积水耗）
-      axios.get('/energy/query', {
-        params: {
-          building_id: buildingId.value,
-          meter: 'water',
-          aggregation: 'sum',
-          start_time,
-          end_time
-        }
-      }).catch(err => {
-        console.error('水耗接口请求失败:', err);
-        return null;
-      })
-    ]);
-    
-    // 存储所有数据
-    euiResponse.value = euiRes?.data?.data ?? euiRes?.data;
-    alarmResponse.value = alarmRes?.data?.data ?? alarmRes?.data;
-    rawData.value.carbonData = carbonRes?.data?.data ?? carbonRes?.data;
-    rawData.value.solarData = solarRes?.data ?? solarRes;
-    rawData.value.electricityData = elecRes?.data ?? elecRes;
-    rawData.value.waterData = waterRes?.data?.data ?? waterRes?.data;
-    
-    console.log('✅ 指标数据加载完成，时间范围:', timeRange.value);
-  } catch (e) {
-    console.error('获取运行指标失败:', e);
-  }
-};
-
-const derivedData = computed(() => {
-  // ===== 基础数据提取 =====
-  const area = Number(buildingInfo.value.sqm) || 0;
-  const occupancy = Number(buildingInfo.value.occupancy) || 0;
-  
-  // ===== 1. COP数据 (来自 /energy/cop 接口) =====
-  const copSummary = euiResponse.value?.summary || {};
-  const avgCOP = copSummary.avg_cop ?? 0;
-  const minCOP = copSummary.min_cop ?? 0;
-  const maxCOP = copSummary.max_cop ?? 0;
-  
-  // ===== 2. 碳排放数据计算 =====
-  const totalCarbon = Number(
-    rawData.value.carbonData?.total ?? 
-    rawData.value.carbonData?.annual_carbon ?? 
-    0
-  );
-  
-  // 基准碳排放量计算
-  const baselineEUI = 110;
-  const carbonFactor = 0.5703;
-  const baselineCarbon = baselineEUI * area * carbonFactor;
-  
-  // 碳减排量和减排率
-  const carbonReduction = Math.max(0, baselineCarbon - totalCarbon);
-  const carbonReductionRate = baselineCarbon > 0 ? 
-    ((carbonReduction / baselineCarbon) * 100).toFixed(1) : '0.0';
-  
-  // ===== 3. 单位面积和人均碳排放 =====
-  const carbonPerArea = area > 0 ? (totalCarbon / area).toFixed(1) : '-';
-  const carbonPerPerson = occupancy > 0 ? (totalCarbon / occupancy).toFixed(1) : '-';
-  
-  // ===== 4. 能耗数据 =====
-  const totalElectricity = Number(
-    rawData.value.electricityData?.summary?.total ?? 
-    rawData.value.electricityData?.total ?? 
-    0
-  );
-  
-  const solarGeneration = Number(
-    rawData.value.solarData?.summary?.total ?? 
-    rawData.value.solarData?.total ?? 
-    0
-  );
-  
-  const energyPerPerson = occupancy > 0 ? 
-    (totalElectricity / occupancy).toFixed(1) : '-';
-  
-  const renewableRate = totalElectricity > 0 ? 
-    ((solarGeneration / totalElectricity) * 100).toFixed(1) : '0.0';
-  
-  // ===== 5. 水耗数据 =====
-  const waterConsumption = Number(
-    rawData.value.waterData?.summary?.total ?? 
-    rawData.value.waterData?.total ?? 
-    0
-  );
-  
-  const waterPerArea = area > 0 ? 
-    (waterConsumption / area).toFixed(3) : '-';
-  
-  // ===== 6. 分类能耗数据 =====
-  const catData = rawData.value.categoryEnergy;
-  const categoryEnergyTotal = Number(catData?.summary?.total ?? 0);
-  
-  const energyRatio = totalElectricity > 0 ? 
-    ((categoryEnergyTotal / totalElectricity) * 100).toFixed(1) + '%' : '0%';
-  
-  return { 
-    cop: avgCOP.toFixed(1),
-    annualCarbon: totalCarbon.toFixed(2),
-    carbonPerArea: carbonPerArea,
-    carbonPerPerson: carbonPerPerson,
-    carbonReduction: carbonReduction.toFixed(1),
-    carbonReductionRate: carbonReductionRate + '%',
-    renewableRate: renewableRate + '%',
-    euiBaseline: avgCOP.toFixed(1),
-    euiSource: maxCOP.toFixed(1),
-    euiSite: minCOP.toFixed(1),
-    waterPerArea: waterPerArea,
-    energyPerPerson: energyPerPerson,
-    energyType: energyCategory.value,
-    totalEnergy: categoryEnergyTotal.toFixed(1),
-    energyRatio: energyRatio,
-    totalEnergyAll: totalElectricity.toFixed(1)
-  };
-});
-
-
-// 动态计算指标（从死数据改为接口驱动）
-const metrics = computed(() => {
-  // 1. 获取基准EUI（基于建筑用途和中国标准）
-  const buildingType = buildingInfo.value.primaryspaceusage || '';
-  const baselineEUI = getBaselineEUI(buildingType);
-  
-  // 2. 获取实际EUI（优先接口数据，fallback到衍生数据）
-  const actualEUI = euiResponse.value?.site_eui ?? 
-                   euiResponse.value?.eui_site ?? 
-                   euiResponse.value?.eui ?? 
-                   derivedData.value.euiSite ?? 
-                   0;  // 删除 88.5，改为 0
-  
-  // 3. EUI达标率 = (基准EUI - 实际EUI) ÷ 基准EUI × 100%
-  let euiRate = 0;
-  if (baselineEUI > 0) {
-    euiRate = ((baselineEUI - actualEUI) / baselineEUI) * 100;
-  }
-  
-  // 4. 故障次数 = 告警记录条数（根据图3返回结构）
-  const alarmItems = alarmResponse.value?.items || [];
-  const alarmCount = alarmResponse.value?.pagination?.total ?? alarmItems.length;
-  
-  return {
-    abnormalRate: alarmCount,              // 故障次数（整数，不带%）
-    euiRate: euiRate.toFixed(1)           // EUI达标率（保留1位小数）
-  };
-});
-
-// 计算时间范围（用于衍生数据统计周期）
-const calculateTimeRange = (range: string) => {
-  const now = new Date(currentSystemTime.value);
-  const formatDateTime = (d: Date) => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  
-  let start = new Date(now);
-  let end = new Date(now);
-  
-  switch(range) {
-    case 'today':
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'week':
-      const day = start.getDay() || 7;
-      start.setDate(start.getDate() - day + 1);
-      start.setHours(0, 0, 0, 0);
-      end.setDate(start.getDate() + 6);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'month':
-      start.setDate(1);
-      start.setHours(0, 0, 0, 0);
-      end.setMonth(end.getMonth() + 1, 0);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'quarter':
-      const quarter = Math.floor(start.getMonth() / 3);
-      start.setMonth(quarter * 3, 1);
-      start.setHours(0, 0, 0, 0);
-      end.setMonth(quarter * 3 + 3, 0);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'year':
-      start.setMonth(0, 1);
-      start.setHours(0, 0, 0, 0);
-      end.setMonth(11, 31);
-      end.setHours(23, 59, 59, 999);
-      break;
-    default:
-      start.setDate(1);
-      start.setHours(0, 0, 0, 0);
-      end.setMonth(end.getMonth() + 1, 0);
-      end.setHours(23, 59, 59, 999);
-  }
-  
-  return {
-    start_time: formatDateTime(start) + ' 00:00:00',
-    end_time: formatDateTime(end) + ' 23:59:59'
-  };
-};
-
-const getSettingPageTime = () => {
-  const virtualTime = localStorage.getItem('virtualSystemTime');
-  if (virtualTime) return new Date(virtualTime).toISOString();
-  return new Date().toISOString();
-};
-
-// 确保 currentSystemTime 也存在
-const currentSystemTime = ref(getSettingPageTime());
-
-/// 获取特定类别的能耗数据
-const fetchCategoryEnergy = async () => {
-  try {
-    const { start_time, end_time } = calculateTimeRange(timeRange.value);
-    
-    // ✅ 使用图2的正确接口地址和参数
-    const response = await axios.get(`/api/energy/summary`, {  // 注意：这里假设是基础路径，实际可能是 /buildings/${buildingId.value}/energy/summary
-      params: {
-        building_id: buildingId.value,
-        meter: meterTypeMap[energyCategory.value], // 转换为英文枚举值：'electricity', 'hotwater' 等
-        start_time: start_time,
-        end_time: end_time,
-        granularity: 'hour'
+      for (const metric of props.metrics) {
+        const valueStr = metric.unit 
+          ? `${metric.value.toLocaleString()} ${metric.unit}` 
+          : metric.value.toLocaleString()
+        lines.push(`| ${metric.label} | ${valueStr} |`)
       }
-    });
+      lines.push('')
+    }
+
+    // ========== 3. 小时级监测数据（完全复用第一个组件逻辑） ==========
+    lines.push('## 小时级监测数据')
+    lines.push('')
+    lines.push('| 时间 | 总能耗(KWH) | 峰值(KW) | 平均(KWH) |')
+    lines.push('|------|-------------|-----------|-----------|')
     
-    rawData.value.categoryEnergy = response.data?.data || response.data;
-    console.log('分类能耗获取成功:', energyCategory.value, rawData.value.categoryEnergy);
-  } catch (err) {
-    console.error('获取分类能耗失败:', err);
-    rawData.value.categoryEnergy = null;
+    if (props.exportData && props.exportData.length > 0) {
+      for (const item of props.exportData) {
+        lines.push(`| ${item.hour || '-'} | ${formatNumber(item.total)} | ${formatNumber(item.peak)} | ${formatNumber(item.average)} |`)
+      }
+    }
+    lines.push('')
+
+    // ========== 4. 表计可用性（完全复用第一个组件逻辑） ==========
+    if (props.meters && props.meters.length > 0) {
+      const hasMeters = props.meters.some(item => item.available)
+      if (hasMeters) {
+        lines.push('## 表计可用性')
+        lines.push('')
+        lines.push('| 表计类型 | 可用 |')
+        lines.push('|---------|------|')
+        
+        for (const meter of props.meters) {
+          lines.push(`| ${formatMeterName(meter.meter)} | ${meter.available ? '是' : '否'} |`)
+        }
+        lines.push('')
+      }
+    }
+
+    // ========== 5. 生成并下载文件（完全复用第一个组件） ==========
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `building_${props.buildingId}_${fileDate}.md`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    
+    // 通知父组件
+    emit('export', { 
+      format: 'md', 
+      fileName: `building_${props.buildingId}_${fileDate}.md`,
+      count: props.exportData?.length || 0
+    })
+    
+    // 延迟关闭
+    setTimeout(() => {
+      handleClose()
+    }, 500)
+    
+  } catch (err: any) {
+    console.error('导出失败:', err)
+    alert('导出失败: ' + (err.message || '未知错误'))
+  } finally {
+    exporting.value = false
   }
-};
-
-
-const handleEnergyCategoryChange = async () => {
-  // 调用上面定义的函数获取新类别的数据
-  await fetchCategoryEnergy();
-  
-  // 注意：不需要手动更新 derivedData，因为它是计算属性，会自动重新计算
-  console.log('切换能耗类别为:', energyCategory.value);
-};
-
-
-const handleExport = (exportConfig: { format: string }) => {
-  console.log('导出配置：', exportConfig);
-};
-
-const handleBack = () => router.back();
-const handleViewStats = () => console.log('查看统计数据');
-
-const status = ref<'normal' | 'warning' | 'error'>('normal');
-const statusText = computed(() => ({ 
-  normal: '运行正常', 
-  warning: '告警状态', 
-  error: '异常状态' 
-}[status.value]));
-const statusClass = computed(() => status.value);
-
-onMounted(async () => {
-  await fetchData();
-});
+}
 </script>
 
 <style scoped>
-/* 样式部分保持不变... */
-.single-date-picker {
-  font-size: 13px;
-  background: #f1f5f9;
-  padding: 6px 12px;
-  border-radius: 6px;
-  color: #0b4582;
-  font-weight: 600;
-  border: 1px solid #cbd5e1;
-  outline: none;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.2s;
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
 }
 
-.single-date-picker:hover, .single-date-picker:focus {
-  border-color: #0b4582;
-  box-shadow: 0 0 0 2px rgba(11,69,130,0.1);
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: modalShow 0.3s ease;
 }
 
-.pagination-wrapper {
+@keyframes modalShow {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 头部样式 - 白色背景 */
+.modal-header {
+  padding: 24px 24px 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
-  margin-top: 8px;
 }
 
-.pagination-info {
-  font-size: 13px;
-  color: #666;
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #002B54;
 }
 
-.pagination-controls {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.page-btn {
-  min-width: 32px;
+.close-btn {
+  width: 32px;
   height: 32px;
-  padding: 0 8px;
-  border: 1px solid #d9d9d9;
-  background: white;
-  border-radius: 6px;
-  color: #666;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.page-btn:hover:not(:disabled):not(.active):not(.ellipsis) {
-  border-color: #1890ff;
-  color: #1890ff;
-}
-
-.page-btn.active {
-  background: #0056b3;
-  border-color: #0056b3;
-  color: white;
-}
-
-.page-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.page-btn.ellipsis {
   border: none;
-  cursor: default;
   background: transparent;
-}
-
-.btn-view {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 1px solid #d9d9d9;
-  background: white;
-  border-radius: 4px;
-  color: #1890ff;
-  font-size: 13px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.3s;
-  min-width: 80px;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  color: #666;
+  transition: all 0.2s;
 }
 
-.btn-view:hover:not(.disabled) {
-  border-color: #1890ff;
-  background: #e6f7ff;
+.close-btn:hover {
+  background: #F3F4F6;
+  color: #6B7280;
 }
 
-.btn-view.green {
-  border-color: #b7eb8f;
-  color: #52c41a;
-  background: #f6ffed;
+/* 内容区域 */
+.modal-body {
+  padding: 20px 24px;
 }
 
-.btn-view.green:hover:not(.disabled) {
-  background: #d9f7be;
-  border-color: #52c41a;
+.format-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: #EFF6FF;
+  border-radius: 8px;
+  border: 1px solid #BFDBFE;
+  transition: all 0.2s;
+  cursor: pointer;
 }
 
-.btn-view.disabled {
+.format-option:hover:not(.disabled) {
+  background: #DBEAFE;
+  border-color: #93C5FD;
+}
+
+.format-option.disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  color: #999;
-  background: #f5f5f5;
-  border-color: #d9d9d9;
 }
 
-.col-time {
-  width: 160px;
-  color: #333;
+.download-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #005BAC;
+  flex-shrink: 0;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.format-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.format-text {
+  font-size: 15px;
+  color: #1F2937;
   font-weight: 500;
 }
 
-.col-energy, .col-env {
-  width: 140px;
-  text-align: center;
+.format-desc {
+  font-size: 13px;
+  color: #6B7280;
 }
 
-.cert-badge.platinum { background: #f0f5ff; color: #2f54eb; }
-.cert-badge.gold { background: #fffbe6; color: #d48806; }
-.cert-badge.silver { background: #f6ffed; color: #389e0d; }
-.cert-badge.certified { background: #f6ffed; color: #52c41a; }
+/* 底部样式 */
+.modal-footer {
+  padding: 16px 24px 24px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid #EEEEEE;
+}
 
-.building-detail { min-height: 100%; background: #f5f7fa; padding: 24px; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; background: white; padding: 20px 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-.header-left { display: flex; align-items: center; gap: 12px; }
-.header-left h1 { font-size: 24px; font-weight: 700; color: #002b54; margin: 0; }
-.status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 500; }
-.status-badge.normal { background: #e6f7e6; color: #52c41a; }
-.status-badge.warning { background: #fff7e6; color: #fa8c16; }
-.status-badge.error { background: #fff1f0; color: #ff4d4f; }
-.status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.header-right { display: flex; gap: 12px; }
-.btn-back { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: 1px solid #d9d9d9; background: white; border-radius: 6px; color: #666; font-size: 14px; cursor: pointer; transition: all 0.3s; }
-.btn-back:hover { border-color: #1890ff; color: #1890ff; }
-.btn-primary { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #0056b3; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; transition: all 0.3s; }
-.btn-primary:hover { background: #004494; }
-.content-grid { display: grid; grid-template-columns: 380px 1fr; gap: 24px; align-items: start; }
-.left-panel { display: flex; flex-direction: column; gap: 24px; }
-.tab-header { display: flex; background: white; border-radius: 12px 12px 0 0; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-.tab-btn { flex: 1; padding: 16px; border: none; background: #f5f7fa; color: #666; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s; position: relative; }
-.tab-btn:hover { background: #e8ecf1; }
-.tab-btn.active { background: white; color: #0056b3; font-weight: 600; }
-.tab-btn.active::after { content: ''; position: absolute; bottom: 0; left: 20%; width: 60%; height: 2px; background: #0056b3; border-radius: 2px; }
-.info-card { background: white; border-radius: 0 0 12px 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-.metadata-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
-.meta-item { display: flex; flex-direction: column; gap: 4px; }
-.meta-item.full-width { grid-column: span 2; }
-.meta-label { font-size: 12px; color: #999; font-weight: 400; }
-.meta-value { font-size: 14px; color: #333; font-weight: 600; }
-.sub-value { color: #999; font-weight: 400; margin-left: 4px; }
-.certifications { display: flex; gap: 40px; padding-top: 20px; border-top: 1px solid #f0f0f0; }
-.cert-item { display: flex; flex-direction: column; gap: 8px; }
-.cert-label { font-size: 12px; color: #999; }
-.cert-badge { display: inline-flex; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-.energy-star { display: flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 700; color: #333; }
-.star-icon { color: #faad14; }
-.derived-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
-.derived-item { display: flex; flex-direction: column; gap: 4px; }
-.derived-label { font-size: 12px; color: #999; font-weight: 400; }
-.derived-value { font-size: 14px; color: #333; font-weight: 600; }
-.energy-select { width: 100%; height: 32px; border: 1px solid #d9d9d9; border-radius: 4px; padding: 0 8px; font-size: 14px; color: #333; background: white; cursor: pointer; outline: none; }
-.energy-select:focus { border-color: #0056b3; }
-.derived-header { display: flex; justify-content: flex-end; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
-.derived-time-range { font-size: 12px; color: #666; background: #f5f5f5; padding: 4px 12px; border-radius: 12px; }
-.metrics-card { background: white; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-.metrics-card h3 { font-size: 14px; color: #333; font-weight: 600; margin: 0 0 16px 0; }
-.metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.metric-item { display: flex; flex-direction: column; gap: 4px; padding: 12px; background: #f8f9fa; border-radius: 8px; }
-.metric-label { font-size: 12px; color: #666; }
-.metric-value { font-size: 20px; font-weight: 700; }
-.metric-value.abnormal { color: #52c41a; }
-.metric-value.eui { color: #0056b3; }
-.right-panel { min-width: 0; }
-.monitor-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-.monitor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.header-title { display: flex; align-items: center; gap: 8px; }
-.monitor-icon { color: #0056b3; }
-.header-title h3 { font-size: 16px; color: #333; font-weight: 600; margin: 0; }
-.header-actions { display: flex; gap: 8px; align-items: center; }
-.btn-icon { width: 36px; height: 36px; padding: 0; border: 1px solid #d9d9d9; background: white; border-radius: 6px; color: #666; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; }
-.btn-icon:hover { border-color: #1890ff; color: #1890ff; background: #e6f7ff; }
-.btn-filter:hover { border-color: #52c41a; color: #52c41a; background: #f6ffed; }
-.monitor-table-wrapper { margin-bottom: 20px; min-height: 480px; }
-.monitor-table { width: 100%; border-collapse: collapse; }
-.monitor-table th { text-align: left; padding: 12px 16px; font-size: 13px; color: #666; font-weight: 500; border-bottom: 1px solid #f0f0f0; }
-.monitor-table td { padding: 16px; border-bottom: 1px solid #f5f5f5; vertical-align: middle; height: 60px; }
-.empty-row td { border-bottom: 1px solid #f5f5f5; height: 60px; }
-.page-bottom-spacer { height: 60px; width: 100%; background: #f5f7fa; margin-top: 24px; border-radius: 12px; }
-.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
-.modal-card { background: white; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); width: 100%; max-width: 420px; overflow: hidden; animation: modalSlideIn 0.3s ease-out; }
-@keyframes modalSlideIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
-.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid #f0f0f0; }
-.modal-title { display: flex; align-items: center; gap: 10px; }
-.modal-title h3 { font-size: 16px; font-weight: 600; color: #002b54; margin: 0; }
-.modal-icon { width: 24px; height: 24px; }
-.modal-icon.energy { color: #0056b3; }
-.modal-icon.env { color: #52c41a; }
-.btn-close { padding: 6px; border: none; background: #f5f5f5; border-radius: 50%; color: #666; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s; }
-.btn-close:hover { background: #e0e0e0; color: #333; }
-.modal-body { padding: 24px; }
-.energy-grid { display: grid; gap: 16px; }
-.energy-item, .env-item { display: flex; align-items: center; gap: 12px; padding: 16px; background: #f8f9fa; border-radius: 12px; transition: all 0.3s; }
-.energy-item:hover, .env-item:hover { background: #f0f2f5; transform: translateX(4px); }
-.item-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.item-icon.blue { background: #e6f7ff; color: #1890ff; }
-.item-icon.red { background: #fff2e8; color: #fa541c; }
-.item-icon.cyan { background: #e6fffb; color: #13c2c2; }
-.item-icon.gray { background: #f5f5f5; color: #666; }
-.item-icon.orange { background: #fff7e6; color: #fa8c16; }
-.item-icon.green { background: #f6ffed; color: #52c41a; }
-.item-icon.blue-light { background: #f0f5ff; color: #2f54eb; }
-.item-icon.yellow { background: #fffbe6; color: #fadb14; }
-.item-icon.temp { background: #fff2f0; color: #ff4d4f; }
-.item-icon.cloud { background: #f0f2f5; color: #8c8c8c; }
-.item-icon.rain { background: #e6f7ff; color: #1890ff; }
-.item-icon.wind { background: #f6ffed; color: #52c41a; }
-.item-icon.dew { background: #e6fffb; color: #13c2c2; }
-.item-icon.pressure { background: #f9f0ff; color: #722ed1; }
-.item-icon.direction { background: #fff2e8; color: #fa541c; }
-.item-name { flex: 1; font-size: 14px; color: #333; font-weight: 500; }
-.item-value { font-size: 20px; font-weight: 700; color: #002b54; display: flex; align-items: baseline; gap: 4px; }
-.unit { font-size: 12px; font-weight: 400; color: #666; }
-.env-grid { display: grid; gap: 16px; }
-.loading-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 100px 20px; background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 24px; color: #666; }
-.loading-spinner { width: 40px; height: 40px; border: 3px solid #E5E7EB; border-top-color: #0056b3; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.error-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 100px 20px; background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 24px; text-align: center; }
-.error-icon { color: #DC2626; margin-bottom: 16px; }
-.error-container h3 { font-size: 18px; color: #1F2937; margin: 0 0 8px 0; }
-.error-container p { color: #6B7280; margin-bottom: 24px; }
-.btn-retry { padding: 10px 24px; background: #0056b3; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; }
-.btn-retry:hover { background: #004494; }
-.energy-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; color: #999; grid-column: span 2; }
-.empty-icon { font-size: 32px; margin-bottom: 8px; opacity: 0.5; }
-.energy-empty p { font-size: 14px; margin: 0; }
+/* 按钮基础样式 - 圆角阴影 */
+.btn {
+  height: 40px;
+  padding: 0 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  border: none;
+  outline: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* 取消按钮样式 */
+.btn-cancel {
+  background: white;
+  color: #4B5563;
+  border: 1px solid #E5E7EB;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn-cancel:hover:not(:disabled) {
+  background: #F9FAFB;
+  border-color: #D1D5DB;
+  color: #374151;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+/* 开始导出按钮样式 - 深蓝渐变 */
+.btn-export {
+  background: linear-gradient(135deg, #005BAC 0%, #004a8d 100%);
+  color: white;
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 91, 172, 0.3),
+    0 2px 4px -1px rgba(0, 91, 172, 0.2);
+}
+
+.btn-export:hover:not(:disabled) {
+  background: linear-gradient(135deg, #004a8d 0%, #003d75 100%);
+  box-shadow: 
+    0 10px 15px -3px rgba(0, 91, 172, 0.4),
+    0 4px 6px -2px rgba(0, 91, 172, 0.3);
+  transform: translateY(-2px);
+}
+
+/* 加载动画 */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 </style>
