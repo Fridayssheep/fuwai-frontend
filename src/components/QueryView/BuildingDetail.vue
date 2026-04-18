@@ -281,13 +281,6 @@
                 class="single-date-picker" 
                 @change="fetchHourlyData"
               />
-              <button class="btn-icon btn-filter" @click="showTimeFilter = true" title="时间筛选">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="3" y1="6" x2="21" y2="6"></line>
-                  <line x1="3" y1="12" x2="21" y2="12"></line>
-                  <line x1="3" y1="18" x2="21" y2="18"></line>
-                </svg>
-              </button>
               <button class="btn-icon btn-download" @click="showExportModal = true" title="导出数据">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
@@ -527,7 +520,6 @@
       </div>
     </teleport>
 
-    <TimeFilterModal v-model:visible="showTimeFilter" @query="handleTimeQuery" />
     <ExportModal v-model:visible="showExportModal" @export="handleExport" />
   </div>
 </template>
@@ -545,6 +537,13 @@ import {
   type BuildingDetailResponse as ApiBuildingDetailResponse, 
   getBuildingEnergySummary
 } from '../../api/statistics';
+const rawData = ref({
+  buildingDetail: null as any,
+  energySummary: null as any,
+  categoryEnergy: null as any,  // 这个字段存储分类能耗数据
+  copEui: null as any
+});
+
 
 // ===== 扩展接口定义以解决类型问题 =====
 interface BuildingInfo {
@@ -623,7 +622,6 @@ const activeTab = ref<'metadata' | 'derived'>('metadata');
 
 const showEnergyModal = ref(false);
 const showEnvModal = ref(false);
-const showTimeFilter = ref(false);
 const showExportModal = ref(false);
 const currentEnergyItem = ref<HourlyDataItem | null>(null);
 const currentEnvItem = ref<HourlyDataItem | null>(null);
@@ -671,105 +669,80 @@ const getLeedClass = (level: string | undefined): string => {
 const fetchHourlyData = async () => {
   if (!buildingId.value || !selectedDay.value) return;
   hourlyLoading.value = true;
-  
-  // 定义表计类型为联合类型
-  const meterTypes: Array<'electricity' | 'hotwater' | 'chilledwater' | 'irrigation' | 'solar' | 'gas' | 'steam' | 'water'> = [
-    'electricity', 'hotwater', 'chilledwater', 'irrigation', 'solar', 'gas', 'steam', 'water'
-  ];
-  
-  const startTime = `${selectedDay.value}T00:00:00`;
-  const endTime = `${selectedDay.value}T23:59:59`;
-  
+  hourlyData.value = [];
+
   try {
-    // 1. 获取所有表计类型的全天小时级数据
-    const meterPromises = meterTypes.map((type) => 
-      getBuildingEnergySummary(buildingId.value, {
-        meter: type,
-        granularity: 'hour',
-        start_time: startTime,
-        end_time: endTime
-      }).then(res => ({ type, data: (res as any)?.data ?? res }))
-      .catch(() => ({ type, data: null }))
-    );
-    
-    // 2. 获取环境数据
-    const envPromise = axios.get('/api/energy/weather', {
-      params: {
-        buildingId: buildingId.value,
-        startTime: startTime,
-        endTime: endTime
-      }
-    }).then(res => res.data as any).catch(() => null);
-    
-    const [meterResults, envData] = await Promise.all([
-      Promise.all(meterPromises),
-      envPromise
-    ]);
-    
-    // 3. 组装24小时数据结构
-    const fullDayData: HourlyDataItem[] = [];
-    for (let i = 0; i < 24; i++) {
+    // 【修复】复用原代码逻辑：24个并发请求，每小时单独查 electricity 作为代表
+    const energyPromises = Array.from({ length: 24 }, (_, i) => {
       const hh = String(i).padStart(2, '0');
-      const timeStr = `${selectedDay.value} ${hh}:00`;
-      
-      const energyData: Record<string, number> = {};
-      let hasEnergy = false;
-      
-      meterResults.forEach(({ type, data }: { type: string, data: any }) => {
-        if (data && data.hourly && Array.isArray(data.hourly)) {
-          const hourData = data.hourly.find((h: any) => 
-            h.hour === `${hh}:00` || h.time === `${hh}:00` || h.hour === i
-          );
-          if (hourData && (hourData.total > 0 || hourData.value > 0)) {
-            energyData[type] = hourData.total || hourData.value || 0;
-            hasEnergy = true;
-          }
-        } else if (data && data.summary && data.start_time) {
-          const dataTime = new Date(data.start_time || data.time).getHours();
-          if (dataTime === i && data.summary?.total > 0) {
-            energyData[type] = data.summary.total;
-            hasEnergy = true;
-          }
-        }
+      const startStr = `${selectedDay.value}T${hh}:00:00`;
+      const endStr = `${selectedDay.value}T${hh}:59:59`;
+      return getBuildingEnergySummary(buildingId.value, {
+        meter: 'electricity' as any, // 用电力类型判断该小时是否有能耗数据
+        granularity: 'hour',
+        start_time: startStr,
+        end_time: endStr
+      })
+        .then(raw => {
+          const data = (raw as any)?.data ?? raw;
+          const total = data?.summary?.total ?? 0;
+          return { 
+            hour: i, 
+            hasEnergy: total > 0, 
+            summary: data?.summary || {} 
+          };
+        })
+        .catch(() => ({ hour: i, hasEnergy: false, summary: {} }));
+    });
+
+    // 【修复】环境数据：查全天，再按小时匹配
+    let weatherMap: Record<number, any> = {};
+    try {
+      const weatherRes = await axios.get('/api/energy/weather', {
+        params: {
+          buildingId: buildingId.value,
+          startTime: `${selectedDay.value}T00:00:00`,
+          endTime: `${selectedDay.value}T23:59:59`
+        },
+        timeout: 10000
       });
+      const weatherData = weatherRes.data?.data ?? weatherRes.data;
       
-      let envItem: WeatherData = {};
-      let hasEnv = false;
-      if (envData) {
-        const weatherList = envData.data || envData;
-        if (Array.isArray(weatherList)) {
-          envItem = weatherList.find((w: WeatherData) => {
-            const wHour = new Date(w.time || w.timestamp || w.date || '').getHours();
-            return wHour === i;
-          }) || {};
-          hasEnv = Object.keys(envItem).length > 0 && (
-            envItem.temperature !== undefined || 
-            envItem.cloudCover !== undefined || 
-            envItem.precipitation !== undefined
-          );
-        }
+      if (Array.isArray(weatherData)) {
+        weatherData.forEach((w: any) => {
+          const h = new Date(w.time || w.timestamp || w.date || '').getHours();
+          if (!isNaN(h)) weatherMap[h] = w;
+        });
+      } else if (weatherData && typeof weatherData === 'object') {
+        // 如果返回单条对象，先给每个小时都赋值（弹窗里显示同一条）
+        for (let i = 0; i < 24; i++) weatherMap[i] = weatherData;
       }
-      
-      fullDayData.push({
-        hour: `${hh}:00`,
-        displayTime: timeStr,
-        time: `${selectedDay.value}T${hh}:00:00`,
-        energyData,
-        envData: envItem,
-        hasEnergy,
-        hasEnv
-      });
+    } catch (e) {
+      console.error('环境数据获取失败:', e);
     }
-    
-    hourlyData.value = fullDayData;
-    currentPage.value = 1;
+
+    const energyResults = await Promise.all(energyPromises);
+
+    // 组装24小时数据
+    hourlyData.value = energyResults.map((er, i) => {
+      const hh = String(i).padStart(2, '0');
+      return {
+        hour: `${hh}:00`,
+        displayTime: `${selectedDay.value} ${hh}:00`,
+        time: `${selectedDay.value}T${hh}:00:00`,
+        energyData: er.summary,
+        envData: weatherMap[i] || {},
+        hasEnergy: er.hasEnergy,
+        hasEnv: !!weatherMap[i] && Object.keys(weatherMap[i]).length > 0
+      };
+    });
   } catch (err) {
     console.error('Failed to fetch hourly data', err);
-    hourlyData.value = [];
   } finally {
     hourlyLoading.value = false;
   }
 };
+
 
 // ===== 分页计算 =====
 const totalCount = computed(() => hourlyData.value.length);
@@ -843,10 +816,37 @@ const currentEnvDetail = computed<WeatherData>(() => {
 
 const hasEnvData = computed(() => Object.keys(currentEnvDetail.value).length > 0);
 
-const handleViewEnergy = (item: HourlyDataItem) => {
+const handleViewEnergy = async (item: HourlyDataItem) => {
   currentEnergyItem.value = item;
   showEnergyModal.value = true;
+  
+  // 弹窗内并发加载该小时所有8种表计类型
+  const meterTypes = ['electricity', 'hotwater', 'chilledwater', 'irrigation', 'solar', 'gas', 'steam', 'water'];
+  const hour = item.hour.split(':')[0];
+  const startStr = `${selectedDay.value}T${hour}:00:00`;
+  const endStr = `${selectedDay.value}T${hour}:59:59`;
+  
+  const results: Record<string, number> = {};
+  await Promise.all(
+    meterTypes.map(type => 
+      getBuildingEnergySummary(buildingId.value, {
+        meter: type as any,
+        granularity: 'hour',
+        start_time: startStr,
+        end_time: endStr
+      })
+        .then(raw => {
+          const data = (raw as any)?.data ?? raw;
+          const total = data?.summary?.total ?? 0;
+          if (total > 0) results[type] = total;
+        })
+        .catch(() => {})
+    )
+  );
+  
+  currentEnergyItem.value = { ...item, energyData: results };
 };
+
 
 const handleViewEnv = async (item: HourlyDataItem) => {
   currentEnvItem.value = item;
@@ -989,13 +989,99 @@ const derivedData = computed(() => {
   };
 });
 
-const handleEnergyCategoryChange = async () => {
-  // 原有逻辑
+const getSettingPageTime = () => {
+  const virtualTime = localStorage.getItem('virtualSystemTime');
+  if (virtualTime) return new Date(virtualTime).toISOString();
+  return new Date().toISOString();
 };
 
-const handleTimeQuery = async (timeConfig: any) => {
-  // 原有逻辑
+// 计算时间范围（用于衍生数据统计周期）
+const calculateTimeRange = (range: string) => {
+  const now = new Date(currentSystemTime.value);
+  const formatDateTime = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  let start = new Date(now);
+  let end = new Date(now);
+  
+  switch(range) {
+    case 'today':
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      break;
+    case 'week':
+      const day = start.getDay() || 7;
+      start.setDate(start.getDate() - day + 1);
+      start.setHours(0, 0, 0, 0);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      break;
+    case 'month':
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+      end.setMonth(end.getMonth() + 1, 0);
+      end.setHours(23, 59, 59, 999);
+      break;
+    case 'quarter':
+      const quarter = Math.floor(start.getMonth() / 3);
+      start.setMonth(quarter * 3, 1);
+      start.setHours(0, 0, 0, 0);
+      end.setMonth(quarter * 3 + 3, 0);
+      end.setHours(23, 59, 59, 999);
+      break;
+    case 'year':
+      start.setMonth(0, 1);
+      start.setHours(0, 0, 0, 0);
+      end.setMonth(11, 31);
+      end.setHours(23, 59, 59, 999);
+      break;
+    default:
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+      end.setMonth(end.getMonth() + 1, 0);
+      end.setHours(23, 59, 59, 999);
+  }
+  
+  return {
+    start_time: formatDateTime(start) + ' 00:00:00',
+    end_time: formatDateTime(end) + ' 23:59:59'
+  };
 };
+
+// 确保 currentSystemTime 也存在
+const currentSystemTime = ref(getSettingPageTime());
+
+// 获取特定类别的能耗数据
+const fetchCategoryEnergy = async () => {
+  try {
+    const { start_time, end_time } = calculateTimeRange(timeRange.value);
+    
+    const response = await axios.post('/api/energy/query', {
+      buildingId: buildingId.value,
+      energyType: energyCategory.value,  // 当前选中的类别：电力/热水/冷冻水等
+      startTime: start_time,
+      endTime: end_time
+    });
+    
+    rawData.value.categoryEnergy = response.data?.data || response.data;
+  } catch (err) {
+    console.error('获取分类能耗失败:', err);
+    rawData.value.categoryEnergy = null;
+  }
+};
+
+const handleEnergyCategoryChange = async () => {
+  // 调用上面定义的函数获取新类别的数据
+  await fetchCategoryEnergy();
+  
+  // derivedData 是计算属性，会自动根据 energyCategory 重新计算
+  // 不需要手动更新
+};
+
 
 const handleExport = (exportConfig: { format: string }) => {
   console.log('导出配置：', exportConfig);
