@@ -17,7 +17,7 @@
       </div>
 
       <div class="modal-tabs">
-        <button 
+        <button
           v-for="tab in tabs" :key="tab.key"
           @click="activeTab = tab.key"
           :class="['tab-btn', { active: activeTab === tab.key }]"
@@ -183,8 +183,10 @@ const handleSave = () => {
 .range-wrap { display: flex; align-items: center; gap: 8px; }
 .range-wrap input { flex: 1; height: 38px; border: 1px solid #D1D5DB; border-radius: 8px; padding: 0 10px; text-align: center; }
 .energy-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-.modal-footer { padding: 16px 24px; border-top: 1px solid #F3F4F6; display: flex; justify-content: flex-end; }
+.modal-footer { padding: 18px 24px; border-top: 1px solid #F3F4F6; display: flex; justify-content: flex-end; }
+.footer-buttons { display: flex; align-items: center; gap: 14px; }
 .btn { height: 40px; padding: 0 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; }
+.btn-default { background: #F8FAFC; color: #475569; border: 1px solid #D8E0EA; }
 .btn-primary { background: #002B54; color: white; }
 .close-btn { border: none; background: transparent; font-size: 20px; cursor: pointer; }
 </style>

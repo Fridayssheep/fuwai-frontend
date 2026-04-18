@@ -1,7 +1,7 @@
 <template>
   <div class="query-page">
     <h1>建筑查询引擎</h1>
-    
+
     <!-- 筛选面板 -->
     <div class="filter-panel">
       <div class="panel-header">
@@ -12,12 +12,8 @@
             </svg>
           </div>
           <h2>查询筛选面板</h2>
-          
-          <div v-if="isHighlightsError" class="alert-badge" style="background: #FEF3F2; border-color: #FECACA; color: #DC2626;">
-            <span class="dot" style="background: #DC2626;"></span>
-            <span>系统运行状态：数据获取失败</span>
-          </div>
-          <div v-else-if="highlightsData.abnormalBuildings > 0" class="alert-badge">
+
+          <div v-if="highlightsData.abnormalBuildings > 0" class="alert-badge">
             <span class="dot red"></span>
             <span>系统运行监测：检测到 {{ highlightsData.abnormalBuildings }} 处异常待处理</span>
           </div>
@@ -27,7 +23,7 @@
           </div>
         </div>
       </div>
-      
+
       <div class="filter-row">
         <div class="filter-item">
           <label>建筑状态</label>
@@ -53,13 +49,18 @@
 
         <div class="button-group">
           <button class="btn btn-primary-dark" @click="showAdvanced = true">
-            高级筛选 / 自定义时间
+            <svg class="btn-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none">
+              <path d="M3 5h18"></path>
+              <path d="M7 12h10"></path>
+              <path d="M10 19h4"></path>
+            </svg>
+            高级筛选
           </button>
           <button class="btn btn-outline" @click="handleReset">重置</button>
         </div>
       </div>
     </div>
-    
+
     <div class="data-card">
       <div class="card-header">
         <div class="sort-section">
@@ -74,7 +75,7 @@
             {{ sortConfig.order === 'asc' ? '↑ 升序' : '↓ 降序' }}
           </span>
         </div>
-        
+
         <div class="export-section">
           <button class="btn-refresh" @click="handleRefresh" :disabled="loading">
             <span :class="{ 'spin': loading }">↻</span> 刷新数据
@@ -82,10 +83,10 @@
 
           <template v-if="isExportMode">
             <button class="btn-cancel-select" @click="cancelExportMode">取消</button>
-            <button 
-              class="btn-confirm-export" 
+            <button
+              class="btn-confirm-export"
               :class="{ 'btn-confirm-export-green': selectedBuildings.length > 0 }"
-              @click="handleConfirmExport" 
+              @click="handleConfirmExport"
               :disabled="selectedBuildings.length === 0"
             >
               确认导出 ({{ selectedBuildings.length }})
@@ -115,12 +116,12 @@
 
     <!-- 弹窗组件 -->
     <FilterModal v-model:visible="showAdvanced" @save="handleAdvancedSave" />
-    <ExportModal 
-      v-model:visible="showExportModal" 
+    <ExportModal
+      v-model:visible="showExportModal"
       :selected-count="selectedBuildings.length"
       :start-time="timeFilterStart"
       :end-time="timeFilterEnd"
-      @export="handleExportConfirm" 
+      @export="handleExportConfirm"
     />
     <BuildingDetailsModal
       v-if="showStatsModal"
@@ -157,9 +158,9 @@ import BuildingTable from './BuildingTable.vue';
 import ExportModal from './ExportModal.vue';
 import BuildingDetailsModal from '../../components/Statistics/BuildingDetailsModal.vue';
 import { useTimeManager } from '../../utils/timeManager';
-import { 
-  generateReport, 
-  type ReportType 
+import {
+  generateReport,
+  type ReportType
 } from '../../api/statistics';
 import { getHighlights } from '../../api/dashboard';
 
@@ -209,7 +210,7 @@ const calculateTimeRange = (range: string) => {
   const month = now.getMonth();
   const date = now.getDate();
   const day = now.getDay();
-  
+
   switch (range) {
     case 'today': start = new Date(year, month, date, 0, 0, 0); break;
     case 'week': start = new Date(year, month, date - (day === 0 ? 6 : day - 1), 0, 0, 0); break;
@@ -272,7 +273,7 @@ const handleExportConfirm = async (config: { format: string; includeAiSummary: b
   try {
     const { start_time, end_time } = calculateTimeRange(filterForm.value.timeRange);
     let reportType: ReportType = 'custom_summary';
-    
+
     if (config.reportCategory === 'anomaly') {
       reportType = 'anomaly_report';
     } else {
@@ -370,7 +371,8 @@ h1 { font-size: 20px; font-weight: 800; color: #002B54; margin-bottom: 20px; let
 .filter-item label { font-size: 14px; color: #4B5563; font-weight: 500; }
 .select-box { width: 180px; height: 36px; border: 1px solid #D1D5DB; border-radius: 8px; padding: 0 10px; font-size: 14px; background: white; }
 .button-group { margin-left: auto; display: flex; gap: 12px; }
-.btn { height: 36px; padding: 0 16px; border-radius: 8px; font-size: 14px; cursor: pointer; display: flex; align-items: center; border: none; }
+.btn { height: 36px; padding: 0 16px; border-radius: 8px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; border: none; }
+.btn-icon { flex: 0 0 auto; }
 .btn-primary-dark { background: #002B54; color: white; }
 .btn-outline { background: white; border: 1px solid #D1D5DB; }
 .data-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
