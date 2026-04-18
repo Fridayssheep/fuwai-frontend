@@ -137,6 +137,21 @@
       @generated="handleReportGenerated"
     />
 
+    <Transition name="report-task-pop">
+      <div v-if="reportTaskNotice" class="report-task-toast">
+        <div class="report-task-icon">
+          <Icon icon="lucide:file-clock" />
+        </div>
+        <div class="report-task-copy">
+          <strong>{{ reportTaskNotice.title }}</strong>
+          <span>{{ reportTaskNotice.text }}</span>
+        </div>
+        <button class="report-task-close" type="button" @click="reportTaskNotice = null">
+          <Icon icon="lucide:x" />
+        </button>
+      </div>
+    </Transition>
+
     <!-- 错误提示 -->
     <div v-if="error" class="error-bar">
       <Icon icon="lucide:alert-circle" class="error-icon" />
@@ -147,7 +162,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import TimeFilterModal from '../QueryView/TimeFilterModal.vue'
@@ -186,6 +201,8 @@ const pendingReportContext = ref<ReportSourceContext | null>(null)
 const activeReportId = ref('')
 const activeReportContext = ref<ReportSourceContext | null>(null)
 const reportSelectionVersion = ref(0)
+const reportTaskNotice = ref<{ title: string; text: string } | null>(null)
+let reportTaskNoticeTimer: ReturnType<typeof setTimeout> | null = null
 
 // ─── Computed ───────────────────────────────────────────────────
 const formattedTimeRange = computed(() => {
@@ -378,16 +395,34 @@ const openGenerateModal = (context: ReportSourceContext) => {
   reportModalVisible.value = true
 }
 
+const showReportTaskNotice = (context: ReportSourceContext) => {
+  if (reportTaskNoticeTimer) clearTimeout(reportTaskNoticeTimer)
+  const subject = context.sourceType === 'meter' ? `设备 ${context.sourceLabel}` : `建筑 ${context.sourceLabel}`
+  reportTaskNotice.value = {
+    title: '报表任务已创建',
+    text: `${subject} 的报表正在后台生成，可在下方报表工作台查看进度。`
+  }
+  reportTaskNoticeTimer = setTimeout(() => {
+    reportTaskNotice.value = null
+    reportTaskNoticeTimer = null
+  }, 5200)
+}
+
 const handleReportGenerated = (payload: { reportId: string; context: ReportSourceContext }) => {
   activeReportId.value = payload.reportId
   activeReportContext.value = payload.context
   reportSelectionVersion.value += 1
+  showReportTaskNotice(payload.context)
 }
 
 // ─── Lifecycle ──────────────────────────────────────────────────
 onMounted(() => {
   initTimeRange()
   fetchAll()
+})
+
+onUnmounted(() => {
+  if (reportTaskNoticeTimer) clearTimeout(reportTaskNoticeTimer)
 })
 </script>
 
@@ -893,5 +928,83 @@ onMounted(() => {
   cursor: pointer;
   text-decoration: underline;
   font-size: 13px;
+}
+
+.report-task-toast {
+  position: fixed;
+  top: 104px;
+  right: 34px;
+  z-index: 10020;
+  width: min(420px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px;
+  border: 1px solid rgba(11, 69, 130, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(238, 247, 255, 0.94)),
+    radial-gradient(circle at 0 0, rgba(11, 69, 130, 0.16), transparent 48%);
+  box-shadow: 0 20px 54px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(16px);
+}
+
+.report-task-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: #0b4582;
+  background: #e8f2ff;
+  font-size: 20px;
+}
+
+.report-task-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.report-task-copy strong {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.report-task-copy span {
+  color: #52637a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.report-task-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.report-task-close:hover {
+  background: rgba(11, 69, 130, 0.08);
+  color: #0b4582;
+}
+
+.report-task-pop-enter-active,
+.report-task-pop-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.report-task-pop-enter-from,
+.report-task-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.98);
 }
 </style>

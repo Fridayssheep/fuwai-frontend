@@ -16,7 +16,7 @@
           <div class="grid">
             <label>
               <span>报表类型</span>
-              <select v-model="form.report_type">
+              <select v-model="form.report_type" @change="handleReportTypeChange">
                 <option v-for="item in reportTypeOptions" :key="item.value" :value="item.value">
                   {{ item.label }}
                 </option>
@@ -35,12 +35,12 @@
 
             <label>
               <span>开始时间</span>
-              <input v-model="form.start" type="datetime-local" />
+              <input v-model="form.start" type="datetime-local" @input="handleManualTimeChange" />
             </label>
 
             <label>
               <span>结束时间</span>
-              <input v-model="form.end" type="datetime-local" />
+              <input v-model="form.end" type="datetime-local" @input="handleManualTimeChange" />
             </label>
           </div>
 
@@ -85,6 +85,7 @@ const reportTypeOptions: { value: ReportType; label: string }[] = [
   { value: 'daily_summary', label: '日报' },
   { value: 'weekly_summary', label: '周报' },
   { value: 'monthly_summary', label: '月报' },
+  { value: 'custom_summary', label: '自定义报表' },
   { value: 'anomaly_report', label: '异常分析报告' }
 ]
 
@@ -133,13 +134,58 @@ const normalizeToISOString = (value: string) => {
   return Number.isNaN(date.getTime()) ? '' : date.toISOString()
 }
 
+const getAnchorDate = () => {
+  const end = props.endTime ? new Date(props.endTime) : new Date()
+  if (!Number.isNaN(end.getTime())) return end
+  const start = props.startTime ? new Date(props.startTime) : new Date()
+  return Number.isNaN(start.getTime()) ? new Date() : start
+}
+
+const endOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59)
+
+const getPresetRange = (reportType: ReportType) => {
+  const anchor = getAnchorDate()
+  if (reportType === 'daily_summary') {
+    const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate(), 0, 0, 0)
+    return { start, end: endOfDay(anchor) }
+  }
+  if (reportType === 'weekly_summary') {
+    const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - 6, 0, 0, 0)
+    return { start, end: endOfDay(anchor) }
+  }
+  if (reportType === 'monthly_summary') {
+    const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1, 0, 0, 0)
+    return { start, end: endOfDay(anchor) }
+  }
+  return null
+}
+
+const applyPresetRange = (reportType: ReportType) => {
+  const range = getPresetRange(reportType)
+  if (!range) return
+  form.value.start = formatDateTimeLocal(range.start.toISOString())
+  form.value.end = formatDateTimeLocal(range.end.toISOString())
+}
+
+const handleReportTypeChange = () => {
+  if (form.value.report_type === 'anomaly_report' || form.value.report_type === 'custom_summary') return
+  applyPresetRange(form.value.report_type)
+}
+
+const handleManualTimeChange = () => {
+  if (form.value.report_type !== 'anomaly_report') {
+    form.value.report_type = 'custom_summary'
+  }
+}
+
 const resetForm = () => {
   form.value = {
     report_type: 'daily_summary',
-    start: formatDateTimeLocal(props.startTime),
-    end: formatDateTimeLocal(props.endTime),
+    start: '',
+    end: '',
     includeAI: true
   }
+  applyPresetRange('daily_summary')
   notice.value = null
 }
 
