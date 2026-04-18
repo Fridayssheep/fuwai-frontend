@@ -227,7 +227,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
+import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import FilterModal from './FilterModal.vue';
@@ -455,7 +455,7 @@ const fetchBuildingList = async () => {
 const handleRefresh = async () => {
   // 同时刷新建筑列表和高亮数据
   await Promise.all([
-    fetchBuildingList(),
+    buildingTableRef.value?.refresh?.(),
     fetchHighlights()
   ]);
 };
@@ -568,17 +568,15 @@ const fetchHighlights = async () => {
 // 状态筛选变化 - 自动刷新列表
 const handleStatusChange = () => {
   pagination.value.current = 1; // 重置到第一页
-  fetchBuildingList();
 };
 
 // 时间范围变化 - 自动刷新列表
 const handleTimeRangeChange = () => {
   pagination.value.current = 1;
-  fetchBuildingList();
 };
 
 // 重置所有筛选
-const handleReset = () => {
+const handleReset = async () => {
   filterForm.value.status = '';
   filterForm.value.timeRange = 'today';
   advancedFilters.value = {};
@@ -590,8 +588,9 @@ const handleReset = () => {
   if (isExportMode.value) {
     cancelExportMode();
   }
-  
-  fetchBuildingList();
+
+  await nextTick();
+  buildingTableRef.value?.refresh?.();
 };
 
 // 排序处理
@@ -603,18 +602,15 @@ const handleSort = (field: any) => {
     // 再次点击切换排序方向
     sortConfig.value.order = sortConfig.value.order === 'asc' ? 'desc' : 'asc';
   }
-  fetchBuildingList();
 };
 
 const toggleSortOrder = () => {
   sortConfig.value.order = sortConfig.value.order === 'asc' ? 'desc' : 'asc';
-  fetchBuildingList();
 };
 
 // 分页变化
 const handlePageChange = (page: number) => {
   pagination.value.current = page;
-  fetchBuildingList();
 };
 
 const handleAdvancedSave = (filters: any) => {

@@ -166,6 +166,8 @@ const props = defineProps<{
   isExportMode?: boolean
   startTime: string
   endTime: string
+  filterForm?: { status?: string }
+  sortConfig?: { field: 'eui' | 'totalEnergy' | 'status' | 'carbonEmission'; order: 'asc' | 'desc' }
 }>()
 
 const emit = defineEmits([
@@ -193,6 +195,7 @@ const currentPage = ref(1)
 const pageSize = ref(8)  // 修改为 8 条每页，匹配你的需求
 const paginationInfo = ref({ total: 0 })
 const CARBON_FACTOR_KG_PER_KWH = 0.554
+const STATUS_SORT_WEIGHT: Record<BuildingRow['status'], number> = { fault: 3, warning: 2, normal: 1 }
 
 const totalPages = computed(() => Math.max(1, Math.ceil(paginationInfo.value.total / pageSize.value)))
 const selectedIds = ref<Set<string>>(new Set())
@@ -220,6 +223,26 @@ const getSummaryTotal = (payload: any): number => {
   const value = payload?.summary?.total ?? payload?.total ?? payload?.value ?? 0
   return Number.isFinite(Number(value)) ? Number(value) : 0
 }
+const getSortValue = (row: BuildingRow) => {
+  const field = props.sortConfig?.field || 'eui'
+  if (field === 'totalEnergy') return row.energyTotal
+  if (field === 'carbonEmission') return row.carbon || 0
+  if (field === 'status') return STATUS_SORT_WEIGHT[row.status] || 0
+  return row.eui
+}
+const sortRows = (rows: BuildingRow[]) => {
+  const order = props.sortConfig?.order || 'asc'
+  return [...rows].sort((a, b) => {
+    const left = getSortValue(a)
+    const right = getSortValue(b)
+    if (typeof left === 'number' && typeof right === 'number') {
+      const diff = left - right
+      return order === 'asc' ? diff : -diff
+    }
+    const diff = String(left).localeCompare(String(right), 'zh-CN')
+    return order === 'asc' ? diff : -diff
+  })
+}
 
 // ===== 核心数据获取逻辑（已修复错误检查） =====
 const fetchData = async () => {
@@ -231,14 +254,12 @@ const fetchData = async () => {
   
   loading.value = true
   try {
-    // 获取主建筑列表
-    const buildRaw = await getBuildings({ 
-      page: currentPage.value, 
-      page_size: pageSize.value 
+    const buildRaw = await getBuildings({
+      page: currentPage.value,
+      page_size: pageSize.value
     })
     const buildData = unwrap(buildRaw)
     const items = buildData?.items || []
-    
     paginationInfo.value.total = buildData?.pagination?.total || 0
     
     // 并发组装每栋建筑的数据
@@ -281,29 +302,20 @@ const fetchData = async () => {
         console.error(`获取设备失败 ${bid}:`, e)
       }
       
-      // 请求能耗数据
+      // 查询页只展示电耗口径，碳排也基于同一个 electricity 汇总估算，避免每栋楼重复请求。
       let energyTotal = 0
       let carbon = 0
       try {
-        const [energyRaw, carbonRaw] = await Promise.all([
-          getEnergyQuery({
-            building_ids: [bid],
-            start_time: props.startTime,
-            end_time: props.endTime,
-            granularity: 'month'
-          }),
-          getEnergyQuery({
-            building_ids: [bid],
-            meter: 'electricity',
-            start_time: props.startTime,
-            end_time: props.endTime,
-            granularity: 'month'
-          })
-        ])
+        const energyRaw = await getEnergyQuery({
+          building_ids: [bid],
+          meter: 'electricity',
+          start_time: props.startTime,
+          end_time: props.endTime,
+          granularity: 'month'
+        })
         const queryData = unwrap(energyRaw)
-        const carbonData = unwrap(carbonRaw)
         energyTotal = getSummaryTotal(queryData)
-        carbon = getSummaryTotal(carbonData) * CARBON_FACTOR_KG_PER_KWH
+        carbon = energyTotal * CARBON_FACTOR_KG_PER_KWH
       } catch (e) {
         console.error(`获取能耗或碳排失败 ${bid}:`, e)
       }
@@ -323,9 +335,11 @@ const fetchData = async () => {
         carbon
       } as BuildingRow
     })
-    
+
     const results = await Promise.all(promises)
-    tableData.value = results.filter((item): item is BuildingRow => item !== null)
+    const currentRows = results.filter((item): item is BuildingRow => item !== null)
+    const statusFilter = props.filterForm?.status
+    tableData.value = sortRows(statusFilter ? currentRows.filter(row => row.status === statusFilter) : currentRows)
   } catch (err) {
     console.error('建筑列表获取失败:', err)
     tableData.value = []
@@ -390,6 +404,16 @@ watch(selectedIds, (newVal) => {
 }, { deep: true })
 
 watch(() => [props.startTime, props.endTime], () => {
+  currentPage.value = 1
+  fetchData()
+})
+
+watch(() => props.filterForm?.status, () => {
+  currentPage.value = 1
+  fetchData()
+})
+
+watch(() => [props.sortConfig?.field, props.sortConfig?.order], () => {
   currentPage.value = 1
   fetchData()
 })
