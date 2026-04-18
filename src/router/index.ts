@@ -37,6 +37,7 @@ const routes = [
     name: 'BuildingDetail',
     // 注意路径指向 components/QueryView
     component: () => import('../components/QueryView/BuildingDetail.vue'),
+    props: true,
     meta: { title: '建筑详情' }
   },
   {

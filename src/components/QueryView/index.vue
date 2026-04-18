@@ -634,7 +634,13 @@ const clearAllAdvancedFilters = () => {
 };
 
 const handleViewDetail = (item: any) => {
-  router.push(`/building/${item.buildingId || item.id}`);
+  const id = item.buildingId || item.id;
+  if (!id || id === 'undefined') {
+    console.error('建筑ID无效，无法跳转', item);
+    alert('建筑信息加载失败，请刷新后重试');
+    return;
+  }
+  router.push(`/building/${id}`);
 };
 
 const handleViewStats = (item: any) => {

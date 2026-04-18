@@ -78,7 +78,6 @@
             </td>
             <td class="text-right font-numeric">{{ item.carbon || 0 }}</td>
             <td class="text-center">
-              <!-- 复用原代码状态展示逻辑 -->
               <span class="status-badge" :class="item.status">
                 <span class="dot"></span>
                 {{ item.statusText }}
@@ -162,8 +161,8 @@ import { getBuildings, getMeters, getEnergyQuery } from '../../api/statistics'
 // ===== Props & Emits =====
 const props = defineProps<{
   isExportMode?: boolean
-  startTime: string      // 新增：查询开始时间
-  endTime: string        // 新增：查询结束时间
+  startTime: string
+  endTime: string
 }>()
 
 const emit = defineEmits([
@@ -171,15 +170,16 @@ const emit = defineEmits([
   'view-stats', 
   'fault-analysis', 
   'selection-change',
+  'page-change'
 ])
 
-// ===== 核心数据状态（复用原代码）=====
+// ===== 核心数据状态 =====
 interface BuildingRow {
   building_id: string
   meterCount: number
   energyTotal: number
   eui: number
-  carbon?: number      // 保持原有字段兼容
+  carbon?: number
   status: 'normal' | 'warning' | 'fault'
   statusText: string
 }
@@ -187,13 +187,10 @@ interface BuildingRow {
 const tableData = ref<BuildingRow[]>([])
 const loading = ref(false)
 const currentPage = ref(1)
-const pageSize = ref(7)
+const pageSize = ref(8)  // 修改为 8 条每页，匹配你的需求
 const paginationInfo = ref({ total: 0 })
 
-// 计算总页数（复用原代码逻辑）
-const totalPages = computed(() => Math.ceil(paginationInfo.value.total / pageSize.value))
-
-// 只保留选中状态（用于导出模式）
+const totalPages = computed(() => Math.max(1, Math.ceil(paginationInfo.value.total / pageSize.value)))
 const selectedIds = ref<Set<string>>(new Set())
 
 // ===== 计算属性 =====
@@ -204,10 +201,11 @@ const isAllSelected = computed(() => {
 
 const isIndeterminate = computed(() => {
   const list = tableData.value || []
-  return selectedIds.value.size > 0 && selectedIds.value.size < list.length
+  const selectedCount = selectedIds.value.size
+  return selectedCount > 0 && selectedCount < list.length
 })
 
-// ===== 工具函数（复用原代码）=====
+// ===== 工具函数 =====
 const unwrap = (res: any) => res?.data ?? res
 
 const formatNumber = (val: number | null | undefined): string => {
@@ -215,24 +213,34 @@ const formatNumber = (val: number | null | undefined): string => {
   return val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 
-// ===== 核心数据获取逻辑（完全复用原代码）=====
+// ===== 核心数据获取逻辑（已修复错误检查） =====
 const fetchData = async () => {
-  if (!props.startTime || !props.endTime) return
+  // 【修复】删除对 buildingId 的检查，这是列表页不是详情页
+  if (!props.startTime || !props.endTime) {
+    console.warn('时间参数缺失，跳过数据获取')
+    return
+  }
   
   loading.value = true
   try {
-    // 1. 获取主建筑列表，带上分页参数
-    const buildRaw = await getBuildings({ page: currentPage.value, page_size: pageSize.value })
+    // 获取主建筑列表
+    const buildRaw = await getBuildings({ 
+      page: currentPage.value, 
+      page_size: pageSize.value 
+    })
     const buildData = unwrap(buildRaw)
     const items = buildData?.items || []
     
     paginationInfo.value.total = buildData?.pagination?.total || 0
     
-    // 2. 并发组装每栋建筑的数据（复用原代码策略）
+    // 并发组装每栋建筑的数据
     const promises = items.map(async (b: any) => {
-      const bid = b.building_id
+      const bid = b.building_id || b.id
+      if (!bid) {
+        console.warn('建筑数据缺少ID:', b)
+        return null
+      }
       
-      // 请求设备数量和状态推导（复用原代码逻辑）
       let meterCount = 0
       let status: BuildingRow['status'] = 'normal'
       let statusText = '正常运行'
@@ -246,11 +254,10 @@ const fetchData = async () => {
         let hasOffline = false
         const mItems = meterData?.items || []
         
-        // 状态推导算法（复用原代码）
         for (const m of mItems) {
-          if (m.status === 'fault') { status = 'fault'; statusText = '故障停机'; break; }
-          if (m.status === 'warning') { hasWarning = true }
-          if (m.status === 'offline') { hasOffline = true }
+          if (m.status === 'fault') { status = 'fault'; statusText = '故障停机'; break }
+          if (m.status === 'warning') hasWarning = true
+          if (m.status === 'offline') hasOffline = true
         }
 
         if (status !== 'fault') {
@@ -263,10 +270,10 @@ const fetchData = async () => {
           }
         }
       } catch (e) {
-        console.error(`Failed to fetch meters for ${bid}`, e)
+        console.error(`获取设备失败 ${bid}:`, e)
       }
       
-      // 请求期间累计能耗（复用原代码）
+      // 请求能耗数据
       let energyTotal = 0
       try {
         const queryRaw = await getEnergyQuery({ 
@@ -278,11 +285,10 @@ const fetchData = async () => {
         const queryData = unwrap(queryRaw)
         energyTotal = queryData?.summary?.total || 0
       } catch (e) {
-        console.error(`Failed to fetch energy for ${bid}`, e)
+        console.error(`获取能耗失败 ${bid}:`, e)
       }
       
-      // 算 eui（复用原代码）
-      const sqm = b.sqm || 0
+      const sqm = b.sqm || 1
       const eui = sqm > 0 ? (energyTotal / sqm) : 0
       
       return {
@@ -292,22 +298,25 @@ const fetchData = async () => {
         eui,
         status,
         statusText,
-        carbon: b.carbon || 0  // 保持兼容
+        carbon: b.carbon || 0
       } as BuildingRow
     })
     
-    tableData.value = await Promise.all(promises)
+    const results = await Promise.all(promises)
+    tableData.value = results.filter((item): item is BuildingRow => item !== null)
   } catch (err) {
     console.error('建筑列表获取失败:', err)
+    tableData.value = []
   } finally {
     loading.value = false
   }
 }
 
-// ===== 分页控制（复用原代码逻辑）=====
+// ===== 分页控制 =====
 const changePage = (p: number) => {
   if (p < 1 || p > totalPages.value) return
   currentPage.value = p
+  emit('page-change', p)
   fetchData()
 }
 
@@ -331,41 +340,39 @@ const toggleSelectAll = () => {
   selectedIds.value = new Set(selectedIds.value)
 }
 
+// ===== 事件处理（移到了 defineExpose 之前）=====
 const handleView = (item: BuildingRow) => {
-  emit('view-detail', item)
+  emit('view-detail', { buildingId: item.building_id, ...item })
 }
 
 const handleStats = (item: BuildingRow) => {
-  emit('view-stats', item)
+  emit('view-stats', { buildingId: item.building_id, ...item })
 }
 
 const handleFault = (item: BuildingRow) => {
-  emit('fault-analysis', item)
+  emit('fault-analysis', { buildingId: item.building_id, ...item })
 }
 
+// 【修复】移除了未使用的 handleRowClick，或者如果你需要可以在这里定义
+// const handleRowClick = (row: any) => {
+//   emit('view-detail', row)
+// }
+
 // ===== 监听 =====
-// 监听导出模式变化，退出时清空选择
 watch(() => props.isExportMode, (newVal) => {
-  if (!newVal) {
-    selectedIds.value.clear()
-  }
+  if (!newVal) selectedIds.value.clear()
 }, { immediate: true })
 
-// 监听选择变化，通知父组件
 watch(selectedIds, (newVal) => {
   emit('selection-change', Array.from(newVal))
 }, { deep: true })
 
-// 监听时间变化（复用原代码逻辑）
-watch(
-  () => [props.startTime, props.endTime],
-  () => {
-    currentPage.value = 1
-    fetchData()
-  }
-)
+watch(() => [props.startTime, props.endTime], () => {
+  currentPage.value = 1
+  fetchData()
+})
 
-// ===== 生命周期（复用原代码）=====
+// ===== 生命周期 =====
 onMounted(() => {
   fetchData()
 })
@@ -378,30 +385,26 @@ defineExpose({
   exitExportMode: () => {
     selectedIds.value.clear()
   },
-  refresh: fetchData  // 新增：暴露刷新方法供父组件调用
+  refresh: fetchData
 })
 </script>
 
 <style scoped>
-/* ===== 卡片容器 ===== */
+/* 样式保持不变... */
 .table-card {
   background: #ffffff;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
-
-/* ===== 表格区域 ===== */
 .table-wrapper {
   overflow-x: auto;
 }
-
 .data-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
 }
-
 th {
   background: #F9FAFB;
   padding: 12px 16px;
@@ -414,81 +417,63 @@ th {
   border-bottom: 1px solid #E5E7EB;
   white-space: nowrap;
 }
-
 td {
   padding: 16px;
   border-bottom: 1px solid #F3F4F6;
   color: #374151;
   vertical-align: middle;
 }
-
 tr:hover {
   background: #F9FAFB;
 }
-
-/* 选中行样式 */
 .selected-row {
   background: #EFF6FF !important;
 }
-
-/* 复选框列样式 */
 .checkbox-column {
   width: 40px;
   text-align: center;
   padding: 12px 8px;
 }
-
 .custom-checkbox {
   width: 16px;
   height: 16px;
   cursor: pointer;
   accent-color: #005BAC;
 }
-
 .text-right {
   text-align: right;
 }
-
 .text-center {
   text-align: center;
 }
-
-/* ===== 数据单元格样式（复用原代码设计） ===== */
 .building-id {
   font-family: 'Courier New', monospace;
   font-weight: 600;
   color: #111827;
   font-size: 13px;
 }
-
 .site {
   font-family: monospace;
   color: #6B7280;
   font-size: 13px;
 }
-
 .font-numeric {
   font-variant-numeric: tabular-nums;
 }
-
 .energy {
   font-weight: 600;
   color: #005BAC;
   font-size: 15px;
 }
-
 .eui-val {
   font-weight: 700;
   color: #d97706;
 }
-
 .unit {
   font-size: 11px;
   color: #9CA3AF;
   margin-left: 4px;
 }
-
-/* ===== 状态标签样式（复用原代码三色系统） ===== */
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -500,37 +485,30 @@ tr:hover {
   background: #f1f5f9;
   color: #64748b;
 }
-
 .status-badge .dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: currentColor;
 }
-
 .status-badge.normal {
   background: #ecfdf5;
   color: #059669;
 }
-
 .status-badge.warning {
   background: #fffbeb;
   color: #d97706;
 }
-
 .status-badge.fault {
   background: #fef2f2;
   color: #dc2626;
 }
-
-/* ===== 操作按钮 ===== */
 .actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
   align-items: center;
 }
-
 .action-btn {
   width: 32px;
   height: 32px;
@@ -543,48 +521,38 @@ tr:hover {
   cursor: pointer;
   transition: all 0.2s ease;
 }
-
 .action-btn.blue {
   color: #005BAC;
   border-color: #BFDBFE;
 }
-
 .action-btn.blue:hover {
   background: #EFF6FF;
   transform: scale(1.05);
 }
-
 .action-btn.green {
   color: #27AE60;
   border-color: #BBF7D0;
 }
-
 .action-btn.green:hover {
   background: #F0FDF4;
   transform: scale(1.05);
 }
-
 .action-btn.orange {
   color: #F39C12;
   border-color: #FDE68A;
 }
-
 .action-btn.orange:hover {
   background: #FFFBEB;
   transform: scale(1.05);
 }
-
-/* ===== Loading & Empty 状态 ===== */
 .loading-row, .empty-row {
   background: transparent !important;
 }
-
 .loading-cell, .empty-cell {
   text-align: center;
   padding: 60px 20px;
   border-bottom: none;
 }
-
 .loading-content {
   display: flex;
   align-items: center;
@@ -592,7 +560,6 @@ tr:hover {
   gap: 12px;
   color: #6B7280;
 }
-
 .loading-spinner {
   width: 24px;
   height: 24px;
@@ -601,11 +568,9 @@ tr:hover {
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
-
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-
 .empty-content {
   display: flex;
   flex-direction: column;
@@ -613,13 +578,10 @@ tr:hover {
   gap: 12px;
   color: #9CA3AF;
 }
-
 .empty-content p {
   margin: 0;
   font-size: 14px;
 }
-
-/* ===== 分页栏（复用原代码分页信息展示） ===== */
 .pagination-bar {
   display: flex;
   justify-content: space-between;
@@ -628,7 +590,6 @@ tr:hover {
   border-top: 1px solid #F3F4F6;
   background: white;
 }
-
 .pagination-info {
   font-size: 13px;
   color: #64748b;
@@ -637,24 +598,19 @@ tr:hover {
   align-items: center;
   gap: 12px;
 }
-
 .pagination-info strong {
   color: #005BAC;
   font-weight: 600;
 }
-
 .pagination-right {
   display: flex;
   align-items: center;
 }
-
-/* 分页控制 */
 .pagination-controls {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-
 .page-btn {
   min-width: 32px;
   height: 32px;
@@ -673,24 +629,20 @@ tr:hover {
   font-weight: 500;
   gap: 4px;
 }
-
 .page-btn:hover:not(:disabled) {
   border-color: #005BAC;
   color: #005BAC;
   background: #F5F7FA;
 }
-
 .nav-btn {
   color: #374151;
 }
-
 .nav-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
   border-color: #E5E7EB;
   color: #D1D5DB;
 }
-
 .page-indicator {
   font-size: 13px;
   color: #334155;
