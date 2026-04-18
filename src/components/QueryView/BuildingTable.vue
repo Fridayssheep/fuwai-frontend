@@ -76,7 +76,10 @@
               <span class="eui-val">{{ formatNumber(item.eui) }}</span>
               <span class="unit">KWH/㎡</span>
             </td>
-            <td class="text-right font-numeric">{{ item.carbon || 0 }}</td>
+            <td class="text-right">
+              <div class="carbon font-numeric">{{ formatNumber(item.carbon) }}</div>
+              <div class="unit">kgCO₂e</div>
+            </td>
             <td class="text-center">
               <span class="status-badge" :class="item.status">
                 <span class="dot"></span>
@@ -189,6 +192,7 @@ const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(8)  // 修改为 8 条每页，匹配你的需求
 const paginationInfo = ref({ total: 0 })
+const CARBON_FACTOR_KG_PER_KWH = 0.554
 
 const totalPages = computed(() => Math.max(1, Math.ceil(paginationInfo.value.total / pageSize.value)))
 const selectedIds = ref<Set<string>>(new Set())
@@ -211,6 +215,10 @@ const unwrap = (res: any) => res?.data ?? res
 const formatNumber = (val: number | null | undefined): string => {
   if (val == null || isNaN(val)) return '—'
   return val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
+const getSummaryTotal = (payload: any): number => {
+  const value = payload?.summary?.total ?? payload?.total ?? payload?.value ?? 0
+  return Number.isFinite(Number(value)) ? Number(value) : 0
 }
 
 // ===== 核心数据获取逻辑（已修复错误检查） =====
@@ -246,7 +254,7 @@ const fetchData = async () => {
       let statusText = '正常运行'
       
       try {
-        const meterRaw = await getMeters({ building_id: bid })
+        const meterRaw = await getMeters({ building_id: bid, start_time: props.startTime, end_time: props.endTime, page_size: 100 })
         const meterData = unwrap(meterRaw)
         meterCount = meterData?.pagination?.total || 0
         
@@ -275,18 +283,32 @@ const fetchData = async () => {
       
       // 请求能耗数据
       let energyTotal = 0
+      let carbon = 0
       try {
-        const queryRaw = await getEnergyQuery({ 
-          building_ids: [bid], 
-          start_time: props.startTime, 
-          end_time: props.endTime,
-          granularity: 'month'
-        })
-        const queryData = unwrap(queryRaw)
-        energyTotal = queryData?.summary?.total || 0
+        const [energyRaw, carbonRaw] = await Promise.all([
+          getEnergyQuery({
+            building_ids: [bid],
+            start_time: props.startTime,
+            end_time: props.endTime,
+            granularity: 'month'
+          }),
+          getEnergyQuery({
+            building_ids: [bid],
+            meter: 'electricity',
+            start_time: props.startTime,
+            end_time: props.endTime,
+            granularity: 'month'
+          })
+        ])
+        const queryData = unwrap(energyRaw)
+        const carbonData = unwrap(carbonRaw)
+        energyTotal = getSummaryTotal(queryData)
+        carbon = getSummaryTotal(carbonData) * CARBON_FACTOR_KG_PER_KWH
       } catch (e) {
-        console.error(`获取能耗失败 ${bid}:`, e)
+        console.error(`获取能耗或碳排失败 ${bid}:`, e)
       }
+
+      carbon = Math.round(carbon * 10) / 10
       
       const sqm = b.sqm || 1
       const eui = sqm > 0 ? (energyTotal / sqm) : 0
@@ -298,7 +320,7 @@ const fetchData = async () => {
         eui,
         status,
         statusText,
-        carbon: b.carbon || 0
+        carbon
       } as BuildingRow
     })
     

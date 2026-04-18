@@ -257,6 +257,7 @@ const isHighlightsError = ref(false);
 // 导出相关状态
 const isExportMode = ref(false);
 const selectedBuildings = ref<string[]>([]);
+const CARBON_FACTOR_KG_PER_KWH = 0.554;
 
 // [修改8] 建筑列表数据（替换死数据）
 const buildingList = ref<any[]>([]);
@@ -319,6 +320,10 @@ const calculateTimeRange = (range: string) => {
 
 const timeFilterStart = computed(() => calculateTimeRange(filterForm.value.timeRange).start_time);
 const timeFilterEnd = computed(() => calculateTimeRange(filterForm.value.timeRange).end_time);
+const getSummaryTotal = (payload: any): number => {
+  const value = payload?.summary?.total ?? payload?.total ?? payload?.value ?? 0;
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
+};
 
 // ===== [修改10] 核心API方法：获取建筑列表（替换死数据）=====
 const fetchBuildingList = async () => {
@@ -380,13 +385,13 @@ const fetchBuildingList = async () => {
               timeout: 8000
             }).catch(() => null),
             
-            // 碳排放（gas 类型）
+            // 碳排放：与首页一致，用 electricity 总量估算 kgCO2e
             axios.get('/api/energy/query', {
-              params: { 
-                meter_type: 'gas', 
-                building_id: buildingId, 
-                start_time, 
-                end_time 
+              params: {
+                meter: 'electricity',
+                building_ids: buildingId,
+                start_time,
+                end_time
               },
               timeout: 8000
             }).catch(() => null)
@@ -396,11 +401,7 @@ const fetchBuildingList = async () => {
           let totalEnergy = 0;
           if (energyRes.status === 'fulfilled' && energyRes.value) {
             const data = energyRes.value.data?.data || energyRes.value.data || {};
-            // 汇总所有能耗类型（根据后端实际字段调整）
-            const types = ['electricity', 'water', 'gas', 'steam', 'chilledwater', 'hotwater', 'irrigation', 'solar'];
-            totalEnergy = types.reduce((sum, type) => {
-              return sum + (data[type] || data[`${type}_energy`] || 0);
-            }, 0);
+            totalEnergy = getSummaryTotal(data);
           }
 
           // 处理 EUI
@@ -414,7 +415,7 @@ const fetchBuildingList = async () => {
           let carbon = 0;
           if (carbonRes.status === 'fulfilled' && carbonRes.value) {
             const data = carbonRes.value.data?.data || carbonRes.value.data || {};
-            carbon = data.total || data.value || data.carbon || 0;
+            carbon = Math.round(getSummaryTotal(data) * CARBON_FACTOR_KG_PER_KWH * 10) / 10;
           }
 
           return {
