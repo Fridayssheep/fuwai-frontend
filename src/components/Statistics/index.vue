@@ -120,8 +120,22 @@
     <EnergyTrendChart :start-time="activeStart" :end-time="activeEnd" />
 
     <!-- 设备监测与分建筑效绩表 -->
-    <MeterPerformanceTable :start-time="activeStart" :end-time="activeEnd" />
-    <BuildingPerformanceTable :start-time="activeStart" :end-time="activeEnd" />
+    <MeterPerformanceTable :start-time="activeStart" :end-time="activeEnd" @generate-report="openGenerateModal" />
+    <BuildingPerformanceTable :start-time="activeStart" :end-time="activeEnd" @generate-report="openGenerateModal" />
+
+    <ReportWorkbench
+      :selected-report-id="activeReportId"
+      :selection-version="reportSelectionVersion"
+      :source-context="activeReportContext"
+    />
+
+    <ReportGenerateModal
+      v-model:visible="reportModalVisible"
+      :context="pendingReportContext"
+      :start-time="activeStart"
+      :end-time="activeEnd"
+      @generated="handleReportGenerated"
+    />
 
     <!-- 错误提示 -->
     <div v-if="error" class="error-bar">
@@ -140,6 +154,8 @@ import TimeFilterModal from '../QueryView/TimeFilterModal.vue'
 import EnergyTrendChart from './EnergyTrendChart.vue'
 import MeterPerformanceTable from './MeterPerformanceTable.vue'
 import BuildingPerformanceTable from './BuildingPerformanceTable.vue'
+import ReportWorkbench from './ReportWorkbench.vue'
+import ReportGenerateModal from './ReportGenerateModal.vue'
 import { usePageAIContext } from '../../composables/useAIContext'
 import {
   getEnergyQuery,
@@ -147,6 +163,7 @@ import {
   type EnergySummary,
   type CopSummary
 } from '../../api/statistics'
+import type { ReportSourceContext } from './reportWorkbenchTypes'
 
 // ─── State ──────────────────────────────────────────────────────
 const loading = ref(false)
@@ -160,6 +177,11 @@ const copSummary = ref<CopSummary | null>(null)
 const showTimeModal = ref(false)
 const activeStart = ref('')
 const activeEnd = ref('')
+const reportModalVisible = ref(false)
+const pendingReportContext = ref<ReportSourceContext | null>(null)
+const activeReportId = ref('')
+const activeReportContext = ref<ReportSourceContext | null>(null)
+const reportSelectionVersion = ref(0)
 
 // ─── Computed ───────────────────────────────────────────────────
 const formattedTimeRange = computed(() => {
@@ -309,6 +331,17 @@ const fetchAll = () => {
   error.value = ''
   fetchEnergy()
   fetchCop()
+}
+
+const openGenerateModal = (context: ReportSourceContext) => {
+  pendingReportContext.value = context
+  reportModalVisible.value = true
+}
+
+const handleReportGenerated = (payload: { reportId: string; context: ReportSourceContext }) => {
+  activeReportId.value = payload.reportId
+  activeReportContext.value = payload.context
+  reportSelectionVersion.value += 1
 }
 
 // ─── Lifecycle ──────────────────────────────────────────────────
