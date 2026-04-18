@@ -44,7 +44,7 @@
       </section>
 
       <div class="right">
-        <section class="card">
+        <section ref="detailSectionRef" class="card">
           <div class="subhead">
             <strong>报表详情</strong>
             <div class="actions">
@@ -112,6 +112,14 @@
         </section>
       </div>
     </div>
+
+    <ReportPreviewModal
+      v-model:visible="previewVisible"
+      :loading="previewLoading"
+      :error="previewError"
+      :content="previewContent"
+      :title="previewTitle"
+    />
   </section>
 </template>
 
@@ -121,6 +129,7 @@ import { Icon } from '@iconify/vue'
 import { connectOpsGuideStream, type OpsGuideResponse, type OpsGuideSSEEvent } from '../../api/anomaly'
 import { deleteReport, downloadReport, getReportDetail, listReports, summarizeReport, type GenerateReportRequest, type ReportDetailResponse, type ReportListItem, type ReportStatus, type ReportSummaryResponse } from '../../api/statistics'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
+import ReportPreviewModal from './ReportPreviewModal.vue'
 
 type ReportType = GenerateReportRequest['report_type']
 const reportTypeOptions = [{ value: 'daily_summary', label: '日报' }, { value: 'weekly_summary', label: '周报' }, { value: 'monthly_summary', label: '月报' }, { value: 'anomaly_report', label: '异常分析报告' }] as { value: ReportType; label: string }[]
@@ -148,6 +157,12 @@ const opsResult = ref<OpsGuideResponse | null>(null)
 const opsProgressMsg = ref('')
 const opsAbortController = ref<AbortController | null>(null)
 const reportContextMap = ref<Record<string, ReportSourceContext>>({})
+const detailSectionRef = ref<HTMLElement | null>(null)
+const previewVisible = ref(false)
+const previewLoading = ref(false)
+const previewError = ref('')
+const previewContent = ref('')
+const previewTitle = ref('')
 
 const unwrap = <T>(payload: T | { data?: T }) => ((payload as { data?: T })?.data ?? payload) as T
 const formatNumber = (val: number | null | undefined) => val == null || Number.isNaN(val) ? '0.0' : val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
@@ -209,8 +224,26 @@ const refreshReports = async () => { await loadReportList(); if (selectedReportI
 const reloadSelectedReport = async () => { if (selectedReportId.value) await fetchReportDetail(selectedReportId.value) }
 const viewReportDetail = async () => {
   if (!selectedReportId.value) return
-  await fetchReportDetail(selectedReportId.value)
-  reportNotice.value = { type: 'ok', text: '报表详情已刷新，请在右侧查看。' }
+  previewVisible.value = true
+  previewLoading.value = true
+  previewError.value = ''
+  previewContent.value = ''
+  previewTitle.value = selectedReportListItem.value
+    ? `${getReportTypeLabel(selectedReportListItem.value.report_type)} · ${selectedReportId.value}`
+    : `报表 ${selectedReportId.value}`
+
+  try {
+    const blob = await downloadReport(selectedReportId.value, 'md') as unknown as Blob
+    const markdown = await blob.text()
+    previewContent.value = markdown
+    reportNotice.value = { type: 'ok', text: '已打开报表预览。' }
+    await fetchReportDetail(selectedReportId.value)
+  } catch (error: any) {
+    previewError.value = error?.message || '报表预览加载失败。'
+    reportNotice.value = { type: 'err', text: previewError.value }
+  } finally {
+    previewLoading.value = false
+  }
 }
 const downloadReportFile = async () => {
   const reportId = selectedReportId.value || reportDetail.value?.report_id
