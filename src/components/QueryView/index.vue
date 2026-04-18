@@ -13,17 +13,15 @@
           </div>
           <h2>查询筛选面板</h2>
           
-          <!-- 接口获取失败时显示错误状态 -->
+          <!-- [修改1] 优化状态显示逻辑，增加数据获取状态 -->
           <div v-if="isHighlightsError" class="alert-badge" style="background: #FEF3F2; border-color: #FECACA; color: #DC2626;">
             <span class="dot" style="background: #DC2626;"></span>
             <span>系统运行状态：数据获取失败</span>
           </div>
-          <!-- 有异常数据时显示异常状态 -->
           <div v-else-if="highlights.abnormalBuildings > 0 || highlights.alertCount > 0" class="alert-badge">
             <span class="dot red"></span>
             <span>系统运行监测：检测到{{ highlights.abnormalBuildings }}处异常，{{ highlights.alertCount }}个告警待处理</span>
           </div>
-          <!-- 正常状态 -->
           <div v-else class="alert-badge" style="background: #F0FDF4; border-color: #86EFAC; color: #16A34A;">
             <span class="dot" style="background: #16A34A;"></span>
             <span>系统运行状态：运行正常</span>
@@ -32,19 +30,19 @@
       </div>
       
       <div class="filter-row">
-        <!-- 建筑选择：直接使用英文值 -->
+        <!-- [修改2] 建筑选择：绑定后端真实状态值 -->
         <div class="filter-item">
           <label>建筑选择</label>
           <select v-model="filterForm.status" class="select-box" @change="handleStatusChange">
             <option value="">全部建筑</option>
-            <option value="online">正常</option>      <!-- 修改：normal → online -->
-            <option value="fault">异常</option>       <!-- 修改：error → fault -->
-            <option value="warning">告警</option>     <!-- 保持不变 -->
-            <option value="offline">离线</option> 
+            <option value="normal">正常</option>
+            <option value="fault">异常</option>
+            <option value="warning">告警</option>
+            <option value="offline">离线</option>
           </select>
         </div>
 
-        <!-- 时间范围筛选 -->
+        <!-- [修改3] 时间范围筛选：优化与后端交互 -->
         <div class="filter-item">
           <label>时间范围</label>
           <select v-model="filterForm.timeRange" class="select-box" @change="handleTimeRangeChange">
@@ -76,7 +74,7 @@
       </div>
     </div>
     
-    <!-- 已激活的高级筛选标签 -->
+    <!-- [修改4] 已激活的高级筛选标签 -->
     <div v-if="hasActiveAdvancedFilters" class="active-filters-bar">
       <span class="filter-label">已应用高级筛选：</span>
       <span v-if="advancedFilters.buildingId" class="filter-tag">
@@ -132,7 +130,7 @@
           </span>
         </div>
         
-        <!-- 导出按钮组：优化导出模式切换逻辑 -->
+        <!-- [修改5] 导出按钮组：完善导出模式切换逻辑 -->
         <div class="export-section">
           <template v-if="isExportMode">
             <!-- 取消按钮：点击返回初始状态 -->
@@ -163,21 +161,21 @@
         </div>
       </div>
 
-      <!-- 表格区域：传递正确的筛选参数 -->
+      <!-- [修改6] 表格区域：传递完整的筛选参数和数据获取方法 -->
       <BuildingTable
         ref="buildingTableRef"
-        :filter-form="{
-          status: filterForm.status,
-          timeRange: filterForm.timeRange as any
-        }"
+        :building-list="buildingList"
+        :loading="loading"
+        :filter-form="filterForm"
         :advanced-filters="advancedFilters"
         :sort-config="sortConfig"
-        :time-range="filterForm.timeRange as 'today' | 'week' | 'month' | 'quarter' | 'year'"
+        :time-range="filterForm.timeRange"
         :is-export-mode="isExportMode"
         @view-detail="handleViewDetail"
         @view-stats="handleViewStats"
         @fault-analysis="handleFaultAnalysis"
         @selection-change="handleSelectionChange"
+        @page-change="handlePageChange"
       />
     </div>
 
@@ -188,6 +186,8 @@
     <ExportModal 
       v-model:visible="showExportModal" 
       :selected-count="selectedBuildings.length"
+      :selected-ids="selectedBuildings"
+      :time-range="filterForm.timeRange"
       @export="handleExportConfirm" 
     />
     
@@ -202,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import FilterModal from './FilterModal.vue';
@@ -214,7 +214,7 @@ import { useTimeManager } from '../../utils/timeManager';
 const router = useRouter();
 const { getCurrentTimeString } = useTimeManager();
 
-// ===== 响应式数据 =====
+// ===== [修改7] 响应式数据扩展 =====
 const showAdvanced = ref(false);
 const showExportModal = ref(false);
 const showStatsModal = ref(false);
@@ -233,16 +233,21 @@ const isHighlightsError = ref(false);
 const isExportMode = ref(false);
 const selectedBuildings = ref<string[]>([]);
 
-// 关键修改：添加ref引用BuildingTable组件
-const buildingTableRef = ref<InstanceType<typeof BuildingTable> & { 
-  enterExportMode?: () => void;
-  exitExportMode?: () => void;
-} | null>(null);
+// [修改8] 建筑列表数据（替换死数据）
+const buildingList = ref<any[]>([]);
+const pagination = ref({
+  current: 1,
+  pageSize: 20,
+  total: 0
+});
 
-// 筛选表单
+// 关键修改：添加ref引用BuildingTable组件
+const buildingTableRef = ref<InstanceType<typeof BuildingTable> | null>(null);
+
+// 筛选表单（与后端字段对齐）
 const filterForm = ref({
-  status: '',
-  timeRange: 'today'
+  status: '' as '' | 'normal' | 'fault' | 'warning' | 'offline',
+  timeRange: 'today' as 'today' | 'week' | 'month' | 'quarter' | 'year'
 });
 
 const advancedFilters = ref<Record<string, any>>({});
@@ -263,7 +268,7 @@ const sortConfig = ref({
   order: 'asc' as 'asc' | 'desc'
 });
 
-// ===== 时间范围计算 =====
+// ===== [修改9] 时间范围计算优化 =====
 const getCurrentTime = () => new Date(getCurrentTimeString());
 
 const calculateTimeRange = (range: string) => {
@@ -281,19 +286,60 @@ const calculateTimeRange = (range: string) => {
     case 'quarter': start = new Date(year, Math.floor(month / 3) * 3, 1, 0, 0, 0); break;
     case 'year': start = new Date(year, 0, 1, 0, 0, 0); break;
   }
-  return { start_time: start.toISOString(), end_time: now.toISOString() };
+  return { 
+    start_time: start.toISOString(), 
+    end_time: now.toISOString() 
+  };
 };
 
 const timeFilterStart = computed(() => calculateTimeRange(filterForm.value.timeRange).start_time);
 const timeFilterEnd = computed(() => calculateTimeRange(filterForm.value.timeRange).end_time);
 
-// ===== 导出功能方法 =====
+// ===== [修改10] 核心API方法：获取建筑列表（替换死数据）=====
+const fetchBuildingList = async () => {
+  loading.value = true;
+  try {
+    const { start_time, end_time } = calculateTimeRange(filterForm.value.timeRange);
+    
+    // 构建查询参数
+    const params: any = {
+      page: pagination.value.current,
+      pageSize: pagination.value.pageSize,
+      startTime: start_time,
+      endTime: end_time,
+      sortField: sortConfig.value.field,
+      sortOrder: sortConfig.value.order,
+      ...advancedFilters.value
+    };
+    
+    // 只有选择具体状态时才传递status参数
+    if (filterForm.value.status) {
+      params.status = filterForm.value.status;
+    }
+    
+    const response = await axios.get('/api/buildings/list', { params });
+    
+    if (response.data && response.data.code === 200) {
+      buildingList.value = response.data.data || [];
+      pagination.value.total = response.data.total || 0;
+    } else {
+      console.error('获取建筑列表失败:', response.data?.message);
+    }
+  } catch (error) {
+    console.error('获取建筑列表接口错误:', error);
+    // 这里可以添加错误提示toast
+  } finally {
+    loading.value = false;
+  }
+};
+
+// ===== [修改11] 导出功能方法完善 =====
 
 // 进入导出模式（点击"导出运行数据"按钮）
 const enterExportMode = () => {
   isExportMode.value = true;
   selectedBuildings.value = [];
-  // 调用子组件方法显示多选框
+  // 调用子组件方法显示多选框（需要BuildingTable实现此方法）
   buildingTableRef.value?.enterExportMode?.();
 };
 
@@ -320,30 +366,60 @@ const handleSelectionChange = (selectedIds: string[]) => {
   selectedBuildings.value = selectedIds;
 };
 
-// 导出弹窗确认
-const handleExportConfirm = (exportConfig: { format: string; fileName?: string }) => {
-  console.log('导出配置:', exportConfig, '选中建筑IDs:', selectedBuildings.value);
-  
-  alert(`已将 ${selectedBuildings.value.length} 条建筑数据导出为 ${exportConfig.format} 格式`);
-  
-  // 导出完成后退出导出模式
-  cancelExportMode();
+// 导出弹窗确认（对接真实导出接口）
+const handleExportConfirm = async (exportConfig: { format: string; fileName?: string }) => {
+  try {
+    const { start_time, end_time } = calculateTimeRange(filterForm.value.timeRange);
+    
+    const response = await axios.post('/api/buildings/export', {
+      buildingIds: selectedBuildings.value,
+      format: exportConfig.format,
+      fileName: exportConfig.fileName,
+      timeRange: {
+        start: start_time,
+        end: end_time
+      }
+    }, {
+      responseType: 'blob' // 重要：处理文件下载
+    });
+    
+    // 创建下载链接
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = exportConfig.fileName || `建筑运行数据_${new Date().toISOString().slice(0,10)}.${exportConfig.format}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    // 导出完成后退出导出模式
+    cancelExportMode();
+  } catch (error) {
+    console.error('导出失败:', error);
+    alert('导出失败，请重试');
+  }
 };
 
-// ===== 其他方法 =====
+// ===== [修改12] 其他方法完善 =====
 
+// 获取系统 highlights（异常/告警统计）
 const fetchHighlights = async () => {
   try {
     isHighlightsError.value = false;
     const response = await axios.get('/api/dashboard/highlights', {
       timeout: 5000
     });
-    if (response.data) {
+    if (response.data && response.data.code === 200) {
+      const data = response.data.data || {};
       highlights.value = {
-        abnormalBuildings: response.data.abnormalBuildings || response.data.abnormal_count || 0,
-        alertCount: response.data.alertCount || response.data.warning_count || 0,
-        warningCount: response.data.warningCount || 0
+        abnormalBuildings: data.abnormalBuildings || data.abnormal_count || 0,
+        alertCount: data.alertCount || data.warning_count || 0,
+        warningCount: data.warningCount || 0
       };
+    } else {
+      throw new Error(response.data?.message || '数据格式错误');
     }
   } catch (error) {
     console.error('获取系统 highlights 失败:', error);
@@ -351,72 +427,116 @@ const fetchHighlights = async () => {
   }
 };
 
+// 状态筛选变化 - 自动刷新列表
 const handleStatusChange = () => {
-  // 状态变化自动触发子组件重新加载
-  console.log('状态筛选变化:', filterForm.value.status);
+  pagination.value.current = 1; // 重置到第一页
+  fetchBuildingList();
 };
 
+// 时间范围变化 - 自动刷新列表
 const handleTimeRangeChange = () => {
-  // 时间范围变化自动触发子组件重新加载
-  console.log('时间范围变化:', filterForm.value.timeRange);
+  pagination.value.current = 1;
+  fetchBuildingList();
 };
 
+// 重置所有筛选
 const handleReset = () => {
   filterForm.value.status = '';
   filterForm.value.timeRange = 'today';
   advancedFilters.value = {};
   sortConfig.value.field = 'eui';
   sortConfig.value.order = 'asc';
-  // 重置时确保退出导出模式
-  cancelExportMode();
+  pagination.value.current = 1;
+  
+  // 如果处于导出模式，先退出
+  if (isExportMode.value) {
+    cancelExportMode();
+  }
+  
+  fetchBuildingList();
 };
 
+// 排序处理
 const handleSort = (field: any) => {
   if (sortConfig.value.field !== field) {
     sortConfig.value.field = field;
     sortConfig.value.order = 'asc';
+  } else {
+    // 再次点击切换排序方向
+    sortConfig.value.order = sortConfig.value.order === 'asc' ? 'desc' : 'asc';
   }
+  fetchBuildingList();
 };
 
 const toggleSortOrder = () => {
   sortConfig.value.order = sortConfig.value.order === 'asc' ? 'desc' : 'asc';
+  fetchBuildingList();
+};
+
+// 分页变化
+const handlePageChange = (page: number) => {
+  pagination.value.current = page;
+  fetchBuildingList();
 };
 
 const handleAdvancedSave = (filters: any) => {
   advancedFilters.value = { ...filters };
+  pagination.value.current = 1;
+  fetchBuildingList();
 };
 
 const clearAdvancedFilter = (key: string) => {
   delete advancedFilters.value[key];
   advancedFilters.value = { ...advancedFilters.value };
+  fetchBuildingList();
 };
 
 const clearAllAdvancedFilters = () => {
   advancedFilters.value = {};
+  fetchBuildingList();
 };
 
 const handleViewDetail = (item: any) => {
-  router.push(`/building/${item.buildingId}`);
+  router.push(`/building/${item.buildingId || item.id}`);
 };
 
 const handleViewStats = (item: any) => {
-  selectedBuildingId.value = item.buildingId;
+  selectedBuildingId.value = item.buildingId || item.id;
   showStatsModal.value = true;
 };
 
 const handleFaultAnalysis = (item: any) => {
   router.push({
     path: '/fault-analysis',
-    query: { building_id: item.buildingId }
+    query: { building_id: item.buildingId || item.id }
   });
 };
 
-// ===== 生命周期 =====
+// ===== [修改13] 生命周期优化 =====
 onMounted(() => {
   fetchHighlights();
+  fetchBuildingList(); // 初始化加载列表
+  
   // 每30秒刷新一次高亮数据
-  setInterval(fetchHighlights, 30000);
+  const highlightTimer = setInterval(fetchHighlights, 30000);
+  
+  // 组件卸载时清理定时器
+  onUnmounted(() => {
+    clearInterval(highlightTimer);
+  });
 });
+
+// [修改14] 监听筛选条件变化，自动刷新（可选：实现实时筛选）
+watch(
+  () => [filterForm.value.status, filterForm.value.timeRange],
+  () => {
+    // 防抖处理，避免频繁请求
+    // 这里简单处理，实际可使用lodash.debounce
+  }
+);
+
+// 导入onUnmounted
+import { onUnmounted } from 'vue';
 </script>
 
 <style scoped>

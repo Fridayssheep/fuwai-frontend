@@ -201,7 +201,7 @@ const getStatusText = (status: string): string => {
     'warning': '告警状态',
     'offline': '离线状态'
   }
-  return map[status] || status
+  return map[status] || `未知(${status})`
 }
 
 // 状态样式映射
@@ -334,7 +334,7 @@ const fetchBuildings = async () => {
         
         try {
           // 【关键修复】直接使用后端返回的建筑状态，不再查询设备覆盖
-          let topStatus: string = building.status || building.building_status || building.state || 'offline'
+          let topStatus: string = building.status || building.state || building.building_status || 'offline'
           
           // 映射状态到 CSS 类
           const mappedStatus = mapStatusToClass(topStatus) as TableItem['status']
