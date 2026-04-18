@@ -194,16 +194,6 @@ const getMeterTypeLabel = (type: string): string => {
   return labels[type] || type
 }
 
-const getStatusText = (status: string): string => {
-  const texts: Record<string, string> = {
-    online: '在线',
-    warning: '告警',
-    fault: '故障',
-    offline: '离线',
-  }
-  return texts[status] || status
-}
-
 const formatLastSeen = (iso: string | null | undefined): string => {
   if (!iso) return '—'
   const d = new Date(iso)

@@ -70,12 +70,14 @@
             <td class="text-right">{{ item.eui }}</td>
             <td class="text-right">{{ item.carbon }}</td>
             <td class="text-center">
-              <!-- 参照参考代码的状态标签 -->
-              <span class="status-badge" :class="item.status">
-                <span class="dot"></span>
-                {{ getStatusText(item.status) }}
-              </span>
+              <!-- 使用复用的状态组件 -->
+              <StatusBadge 
+                :status="item.status" 
+                :custom-text="item.statusText"
+                 size="md"
+              />
             </td>
+
             <td class="text-right">
               <div class="actions">
                 <button class="action-btn blue" @click="handleView(item)" title="查看详情">
@@ -142,6 +144,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
 import axios from 'axios'
+import StatusBadge from './StatusBadge.vue'
 
 // ===== 类型定义 =====
 interface TableItem {
@@ -151,7 +154,8 @@ interface TableItem {
   energy: number
   eui: number
   carbon: number
-  status: 'online' | 'warning' | 'fault' | 'offline'
+  // 扩展为联合类型，兼容两种命名方式
+  status: 'online' | 'warning' | 'fault' | 'offline' | 'normal'
   statusText: string
 }
 
@@ -193,30 +197,11 @@ const { getCurrentTimeString } = useTimeManager()
 
 const getCurrentTime = () => new Date(getCurrentTimeString())
 
-// 状态文本映射
-const getStatusText = (status: string): string => {
-  const map: Record<string, string> = {
-    'online': '运行正常',
-    'fault': '异常状态',
-    'warning': '告警状态',
-    'offline': '离线状态'
-  }
-  return map[status] || `未知(${status})`
-}
+// 删除 getStatusText 函数 - 不再需要，由 StatusBadge 组件处理
+// 删除 mapStatusToClass 函数 - 不再需要，由 StatusBadge 组件处理
 
-// 状态样式映射
-const mapStatusToClass = (status: string): string => {
-  const map: Record<string, string> = {
-    'online': 'online',
-    'fault': 'fault',       // 对应 fault
-    'warning': 'warning',
-    'offline': 'offline',
-    // 兼容之前的值（如果有历史数据）
-    'normal': 'online',
-    'error': 'fault'
-  }
-  return map[status] || status
-}
+// 只需确保数据转换时设置正确的状态文本
+// 注意：item.statusText 已经在 TableItem 接口中定义
 
 const safeGetArray = (data: any): any[] => {
   if (Array.isArray(data)) return data
@@ -333,12 +318,9 @@ const fetchBuildings = async () => {
         if (!buildingId) return null
         
         try {
-          // 【关键修复】直接使用后端返回的建筑状态，不再查询设备覆盖
-          let topStatus: string = building.status || building.state || building.building_status || 'offline'
+          // 【修改】直接获取原始状态，不再调用 mapStatusToClass
+          const rawStatus = building.status || building.state || building.building_status || 'offline'
           
-          // 映射状态到 CSS 类
-          const mappedStatus = mapStatusToClass(topStatus) as TableItem['status']
-
           // 获取能耗数据（保持原有逻辑）
           const timeRange = calculateTimeRange(props.timeRange || 'today')
           const [totalEnergy, eui, carbon] = await Promise.all([
@@ -362,9 +344,10 @@ const fetchBuildings = async () => {
             energy: totalEnergy,
             eui: eui,
             carbon: carbon,
-            status: mappedStatus,
-            statusText: getStatusText(mappedStatus)
+            status: rawStatus as TableItem['status'],  // 【修改】直接传原始值
+            statusText: ''  // 【修改】留空，让 StatusBadge 组件自动根据状态显示文本
           }
+
         } catch (err) {
           console.error(`处理建筑 ${buildingId} 数据时出错:`, err)
           return null
@@ -599,49 +582,7 @@ tr:hover {
   margin-top: 2px;
 }
 
-/* ===== 状态标签 ===== */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 20px;
-  background: #f1f5f9;
-  color: #64748b;
-}
-
-.status-badge .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-/* 运行正常 - 绿色 */
-.status-badge.online {
-  background: #ecfdf5;
-  color: #059669;
-}
-
-/* 异常状态 - 红色 */
-.status-badge.fault {
-  background: #fef2f2;
-  color: #dc2626;
-}
-
-/* 告警状态 - 黄色 */
-.status-badge.warning {
-  background: #fffbeb;
-  color: #d97706;
-}
-
-/* 离线 - 灰色 */
-.status-badge.offline {
-  background: #f1f5f9;
-  color: #94a3b8;
-}
+/* 删除所有 status-badge 相关的样式，因为 StatusBadge 组件已经包含这些样式 */
 
 /* ===== 操作按钮 ===== */
 .actions {
