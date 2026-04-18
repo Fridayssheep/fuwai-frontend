@@ -218,10 +218,12 @@
     
     <!-- 统计详情弹窗 -->
     <BuildingDetailsModal
+      v-if="showStatsModal"
       v-model:visible="showStatsModal"
       :building-id="selectedBuildingId"
       :start-time="timeFilterStart"
       :end-time="timeFilterEnd"
+      
     />
   </div>
 </template>
