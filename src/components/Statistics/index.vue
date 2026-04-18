@@ -249,6 +249,17 @@ const formatPeakTime = (iso: string | null | undefined): string => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
 }
 
+type SummaryGranularity = 'day' | 'week' | 'month'
+const resolveSummaryGranularity = (): SummaryGranularity => {
+  const start = new Date(activeStart.value).getTime()
+  const end = new Date(activeEnd.value).getTime()
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 'day'
+  const days = Math.ceil((end - start) / 86_400_000)
+  if (days > 120) return 'month'
+  if (days > 31) return 'week'
+  return 'day'
+}
+
 // ─── Init time range: default to current month ──────────────────
 const initTimeRange = () => {
   const now = new Date(getCurrentTimeString())
@@ -293,7 +304,7 @@ const fetchEnergy = async () => {
       meter: 'electricity',
       start_time: activeStart.value,
       end_time: activeEnd.value,
-      granularity: 'day',
+      granularity: resolveSummaryGranularity(),
       aggregation: 'sum'
     })
     const data = unwrap(raw)
@@ -312,7 +323,7 @@ const fetchCop = async () => {
     const raw = await getCopAnalysis({
       start_time: activeStart.value,
       end_time: activeEnd.value,
-      granularity: 'day'
+      granularity: resolveSummaryGranularity()
     })
     const data = unwrap(raw)
     copSummary.value = data?.summary ?? null

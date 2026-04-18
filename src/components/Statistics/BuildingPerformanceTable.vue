@@ -60,7 +60,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
-import { getBuildings, getEnergyQuery, getMeters } from '../../api/statistics'
+import { getBuildings, getBuildingEnergySummary, getMeters } from '../../api/statistics'
 import BuildingDetailsModal from './BuildingDetailsModal.vue'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
 
@@ -90,6 +90,21 @@ const formatNumber = (val: number | null | undefined) => val == null || Number.i
 const formatTime = (iso?: string | null) => !iso ? '-' : (Number.isNaN(new Date(iso).getTime()) ? iso : new Date(iso).toLocaleString('zh-CN'))
 const statisticsEndText = computed(() => formatTime(props.endTime))
 
+const mapWithConcurrency = async <T, R>(items: T[], limit: number, mapper: (item: T) => Promise<R>): Promise<R[]> => {
+  const results: R[] = new Array(items.length)
+  let nextIndex = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex
+      nextIndex += 1
+      const currentItem = items[currentIndex] as T
+      results[currentIndex] = await mapper(currentItem)
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
 const changePage = (page: number) => {
   if (page < 1 || page > totalPages.value) return
   currentPage.value = page
@@ -104,7 +119,7 @@ const fetchData = async () => {
     const items = buildData?.items || []
     paginationInfo.value.total = buildData?.pagination?.total || 0
 
-    tableData.value = await Promise.all(items.map(async (building: any) => {
+    tableData.value = await mapWithConcurrency(items, 2, async (building: any) => {
       const bid = building.building_id
       let meterCount = 0
       let status: BuildingRow['status'] = 'normal'
@@ -130,7 +145,7 @@ const fetchData = async () => {
 
       let energyTotal = 0
       try {
-        const queryData = unwrap(await getEnergyQuery({ building_ids: [bid], start_time: props.startTime, end_time: props.endTime, granularity: 'month' }))
+        const queryData = unwrap(await getBuildingEnergySummary(bid, { meter: 'electricity', start_time: props.startTime, end_time: props.endTime, granularity: 'month' }))
         energyTotal = queryData?.summary?.total || 0
       } catch (error) {
         console.error(`Failed to fetch energy for ${bid}`, error)
@@ -138,7 +153,7 @@ const fetchData = async () => {
 
       const sqm = building.sqm || 0
       return { building_id: bid, meterCount, energyTotal, eui: sqm > 0 ? energyTotal / sqm : 0, status, statusText }
-    }))
+    })
   } finally {
     loading.value = false
   }
