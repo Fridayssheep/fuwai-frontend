@@ -61,6 +61,15 @@
       </div>
     </div>
 
+    <QueryAIAssistant
+      :current-filters="assistantCurrentFilters"
+      :current-time="assistantCurrentTime"
+      timezone="Asia/Shanghai"
+      :can-undo="Boolean(lastAssistantSnapshot)"
+      @apply="handleAssistantApply"
+      @undo="handleAssistantUndo"
+    />
+
     <div class="data-card">
       <div class="card-header">
         <div class="sort-section">
@@ -156,6 +165,7 @@ import { useRouter } from 'vue-router';
 import FilterModal from './FilterModal.vue';
 import BuildingTable from './BuildingTable.vue';
 import ExportModal from './ExportModal.vue';
+import QueryAIAssistant from './QueryAIAssistant.vue';
 import BuildingDetailsModal from '../../components/Statistics/BuildingDetailsModal.vue';
 import { useTimeManager } from '../../utils/timeManager';
 import {
@@ -163,6 +173,10 @@ import {
   type ReportType
 } from '../../api/statistics';
 import { getHighlights } from '../../api/dashboard';
+import {
+  type AIQueryAssistantFilters,
+  type AIQueryAssistantResponse
+} from '../../api/ai';
 
 const router = useRouter();
 const { getCurrentTimeString } = useTimeManager();
@@ -185,12 +199,20 @@ const filterForm = ref({
   status: '' as any,
   timeRange: 'week' as 'today' | 'week' | 'month' | 'year' | 'custom'
 });
+type QueryFilterFormState = typeof filterForm.value;
+type QuerySortState = { field: 'eui' | 'totalEnergy' | 'status' | 'carbonEmission'; order: 'asc' | 'desc' };
 
 // 高级筛选结果
 const advancedFilters = ref<Record<string, any>>({});
 const customTimeRange = ref<{ start: string; end: string } | null>(null);
+const lastAssistantSnapshot = ref<null | {
+  filterForm: QueryFilterFormState
+  advancedFilters: Record<string, any>
+  customTimeRange: { start: string; end: string } | null
+  sortConfig: QuerySortState
+}>(null);
 
-const sortConfig = ref({
+const sortConfig = ref<QuerySortState>({
   field: 'eui' as 'eui' | 'totalEnergy' | 'status' | 'carbonEmission',
   order: 'desc' as 'asc' | 'desc'
 });
@@ -223,6 +245,25 @@ const calculateTimeRange = (range: string) => {
 
 const timeFilterStart = computed(() => calculateTimeRange(filterForm.value.timeRange).start_time);
 const timeFilterEnd = computed(() => calculateTimeRange(filterForm.value.timeRange).end_time);
+const assistantCurrentTime = computed(() => getCurrentTimeString());
+const assistantCurrentFilters = computed<AIQueryAssistantFilters>(() => ({
+  keyword: advancedFilters.value.keyword || null,
+  site_id: advancedFilters.value.site_id || null,
+  primaryspaceusage: advancedFilters.value.primaryspaceusage || null,
+  status: filterForm.value.status || null,
+  time_range: {
+    start: timeFilterStart.value,
+    end: timeFilterEnd.value
+  },
+  min_energy: advancedFilters.value.min_energy ?? null,
+  max_energy: advancedFilters.value.max_energy ?? null,
+  min_eui: advancedFilters.value.min_eui ?? null,
+  max_eui: advancedFilters.value.max_eui ?? null,
+  min_carbon: advancedFilters.value.min_carbon ?? null,
+  max_carbon: advancedFilters.value.max_carbon ?? null,
+  sort_by: sortConfig.value.field,
+  sort_order: sortConfig.value.order
+}));
 
 // ===== 业务方法 =====
 const fetchHighlightsData = async () => {
@@ -312,11 +353,96 @@ const handleTimeRangeChange = () => {
   fetchHighlightsData();
 };
 
+const cloneJson = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
+
+const inferPresetFromTimeRange = (start: string, end: string) => {
+  const targetStart = new Date(start).getTime();
+  const targetEnd = new Date(end).getTime();
+  const threshold = 61_000;
+  const presets: Array<'today' | 'week' | 'month' | 'year'> = ['today', 'week', 'month', 'year'];
+
+  for (const preset of presets) {
+    const range = calculateTimeRange(preset);
+    const presetStart = new Date(range.start_time).getTime();
+    const presetEnd = new Date(range.end_time).getTime();
+    if (Math.abs(presetStart - targetStart) <= threshold && Math.abs(presetEnd - targetEnd) <= threshold) {
+      return preset;
+    }
+  }
+
+  return 'custom' as const;
+};
+
+const normalizeRangeValue = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const applyAssistantFilters = (filters: AIQueryAssistantFilters) => {
+  filterForm.value.status = (filters.status as any) || '';
+
+  if (filters.time_range?.start && filters.time_range?.end) {
+    const nextPreset = inferPresetFromTimeRange(filters.time_range.start, filters.time_range.end);
+    if (nextPreset === 'custom') {
+      filterForm.value.timeRange = 'custom';
+      customTimeRange.value = {
+        start: filters.time_range.start,
+        end: filters.time_range.end
+      };
+    } else {
+      filterForm.value.timeRange = nextPreset;
+      customTimeRange.value = null;
+    }
+  }
+
+  advancedFilters.value = {
+    keyword: filters.keyword || '',
+    site_id: filters.site_id || '',
+    primaryspaceusage: filters.primaryspaceusage || '',
+    min_energy: normalizeRangeValue(filters.min_energy),
+    max_energy: normalizeRangeValue(filters.max_energy),
+    min_eui: normalizeRangeValue(filters.min_eui),
+    max_eui: normalizeRangeValue(filters.max_eui),
+    min_carbon: normalizeRangeValue(filters.min_carbon),
+    max_carbon: normalizeRangeValue(filters.max_carbon)
+  };
+
+  if (filters.sort_by && ['eui', 'totalEnergy', 'status', 'carbonEmission'].includes(filters.sort_by)) {
+    sortConfig.value.field = filters.sort_by as typeof sortConfig.value.field;
+  }
+  if (filters.sort_order === 'asc' || filters.sort_order === 'desc') {
+    sortConfig.value.order = filters.sort_order;
+  }
+};
+
+const handleAssistantApply = (response: AIQueryAssistantResponse) => {
+  lastAssistantSnapshot.value = {
+    filterForm: cloneJson(filterForm.value),
+    advancedFilters: cloneJson(advancedFilters.value),
+    customTimeRange: customTimeRange.value ? cloneJson(customTimeRange.value) : null,
+    sortConfig: cloneJson(sortConfig.value)
+  };
+  applyAssistantFilters(response.applied_filters);
+  fetchHighlightsData();
+};
+
+const handleAssistantUndo = () => {
+  if (!lastAssistantSnapshot.value) return;
+  filterForm.value = cloneJson(lastAssistantSnapshot.value.filterForm);
+  advancedFilters.value = cloneJson(lastAssistantSnapshot.value.advancedFilters);
+  customTimeRange.value = lastAssistantSnapshot.value.customTimeRange ? cloneJson(lastAssistantSnapshot.value.customTimeRange) : null;
+  sortConfig.value = cloneJson(lastAssistantSnapshot.value.sortConfig);
+  lastAssistantSnapshot.value = null;
+  fetchHighlightsData();
+};
+
 const handleReset = () => {
   filterForm.value.status = '';
   filterForm.value.timeRange = 'week';
   advancedFilters.value = {};
   customTimeRange.value = null;
+  lastAssistantSnapshot.value = null;
   handleRefresh();
 };
 

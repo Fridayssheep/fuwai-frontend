@@ -18,6 +18,72 @@ export interface AIQAContext {
   time_range?: TimeRange | null
 }
 
+export interface AIQueryAssistantFilters {
+  building_ids?: string[]
+  building_id?: string | null
+  keyword?: string | null
+  site_id?: string | null
+  primaryspaceusage?: string | null
+  status?: string | null
+  meter?: string | null
+  time_range?: TimeRange | null
+  min_energy?: number | null
+  max_energy?: number | null
+  min_eui?: number | null
+  max_eui?: number | null
+  min_carbon?: number | null
+  max_carbon?: number | null
+  granularity?: string | null
+  aggregation?: string | null
+  metric?: string | null
+  order?: string | null
+  sort_by?: string | null
+  sort_order?: string | null
+  limit?: number | null
+  page?: number | null
+  page_size?: number | null
+  analysis_mode?: string | null
+  include_weather_context?: boolean | null
+}
+
+export interface AIQueryAssistantPlan {
+  endpoint: string
+  method: string
+  params: Record<string, any>
+}
+
+export interface AIQueryAssistantUIPatch {
+  primary_view: string
+  chart_type?: string | null
+  highlighted_filters: string[]
+  suggested_interaction?: string | null
+}
+
+export interface AIQueryAssistantMeta {
+  generated_at: string
+  model: string
+  used_fallback: boolean
+}
+
+export interface AIQueryAssistantRequest {
+  use_current_time?: boolean
+  current_time?: string | null
+  timezone?: string | null
+  question: string
+  target_scope?: 'energy' | 'building_query'
+  current_endpoint?: string | null
+  current_filters?: AIQueryAssistantFilters | null
+}
+
+export interface AIQueryAssistantResponse {
+  summary: string
+  query_plan: AIQueryAssistantPlan
+  applied_filters: AIQueryAssistantFilters
+  ui_patch: AIQueryAssistantUIPatch
+  warnings: string[]
+  meta: AIQueryAssistantMeta
+}
+
 export interface AIReferenceItem {
   source_type: string
   document_id?: string | null
@@ -121,6 +187,12 @@ export interface AIStatusEvent {
 export const askAIQuestion = (payload: AIQARequest) => {
   return request.post<AIQAResponse, AIQAResponse>('/ai/qa', payload, {
     timeout: 120000
+  })
+}
+
+export const parseAIQueryAssistant = (payload: AIQueryAssistantRequest) => {
+  return request.post<AIQueryAssistantResponse, AIQueryAssistantResponse>('/ai/query-assistant', payload, {
+    timeout: 45000
   })
 }
 

@@ -60,11 +60,18 @@ import { usePageAIContext } from '../../composables/useAIContext';
 import { getCurrentTimeString } from '@/utils/timeManager';
 import TimeFilterModal from './TimeFilterModal.vue';
 import ExportModal from './ExportModal.vue';
-import { 
-  getBuildingById, 
-  type BuildingDetailResponse as ApiBuildingDetailResponse, 
+import {
+  getBuildingById,
+  type BuildingDetailResponse as ApiBuildingDetailResponse,
   getBuildingEnergySummary
 } from '../../api/statistics';
+
+withDefaults(defineProps<{
+  visible?: boolean
+}>(), {
+  visible: true
+});
+
 const rawData = ref({
   buildingDetail: null as any,
   energySummary: null as any,
@@ -167,6 +174,7 @@ const activeTab = ref<'metadata' | 'derived'>('metadata');
 const showEnergyModal = ref(false);
 const showEnvModal = ref(false);
 const showExportModal = ref(false);
+const exporting = ref(false);
 const currentEnergyItem = ref<HourlyDataItem | null>(null);
 const currentEnvItem = ref<HourlyDataItem | null>(null);
 const envLoading = ref(false);
@@ -901,8 +909,14 @@ const handleEnergyCategoryChange = async () => {
 };
 
 
-const handleExport = (exportConfig: { format: string }) => {
-  console.log('导出配置：', exportConfig);
+const handleClose = () => router.back();
+const handleExport = async () => {
+  exporting.value = true;
+  try {
+    console.log('开始导出当前建筑运行数据');
+  } finally {
+    exporting.value = false;
+  }
 };
 
 const handleBack = () => router.back();
