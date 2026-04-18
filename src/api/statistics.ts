@@ -140,6 +140,12 @@ export interface Building {
     timezone?: string
     yearbuilt?: number | null
     leed_level?: string | null
+    energy?: number | null
+    eui?: number | null
+    carbon?: number | null
+    meter_count?: number | null
+    status?: 'normal' | 'warning' | 'fault' | 'offline' | string | null
+    status_text?: string | null
 }
 
 export interface BuildingListResponse {
@@ -151,6 +157,15 @@ export interface BuildingListParams {
     keyword?: string
     site_id?: string
     primaryspaceusage?: string
+    min_energy?: number
+    max_energy?: number
+    min_eui?: number
+    max_eui?: number
+    min_carbon?: number
+    max_carbon?: number
+    status?: 'normal' | 'warning' | 'fault' | 'offline'
+    start_time?: string
+    end_time?: string
     page?: number
     page_size?: number
 }

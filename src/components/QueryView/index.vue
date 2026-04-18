@@ -150,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import FilterModal from './FilterModal.vue';
 import BuildingTable from './BuildingTable.vue';
@@ -196,11 +196,10 @@ const sortConfig = ref({
 
 // ===== 时间逻辑 =====
 const calculateTimeRange = (range: string) => {
-    const items = res.data?.items || [];
-    highlightsData.value.abnormalBuildings = items.filter(i => i.type === 'anomaly').length;
-    return { 
-      start_time: customTimeRange.value.start, 
-      end_time: customTimeRange.value.end 
+  if (range === 'custom' && customTimeRange.value) {
+    return {
+      start_time: customTimeRange.value.start,
+      end_time: customTimeRange.value.end
     };
   }
 
@@ -272,7 +271,7 @@ const handleExportConfirm = async (config: { format: string; includeAiSummary: b
   loading.value = true;
   try {
     const { start_time, end_time } = calculateTimeRange(filterForm.value.timeRange);
-    let reportType: ReportType = 'custom_report';
+    let reportType: ReportType = 'custom_summary';
     
     if (config.reportCategory === 'anomaly') {
       reportType = 'anomaly_report';
@@ -306,10 +305,9 @@ const goToReportWorkbench = () => {
   router.push('/statistics'); // 修正跳转路径
 };
 
-const handleStatusChange = () => { buildingTableRef.value?.refresh(); };
-const handleTimeRangeChange = () => { 
+const handleStatusChange = () => {};
+const handleTimeRangeChange = () => {
   if (filterForm.value.timeRange !== 'custom') customTimeRange.value = null;
-  buildingTableRef.value?.refresh(); 
   fetchHighlightsData();
 };
 
@@ -328,12 +326,10 @@ const handleSort = (field: any) => {
     sortConfig.value.field = field;
     sortConfig.value.order = 'desc';
   }
-  nextTick(() => buildingTableRef.value?.refresh());
 };
 
 const toggleSortOrder = () => {
   sortConfig.value.order = sortConfig.value.order === 'asc' ? 'desc' : 'asc';
-  nextTick(() => buildingTableRef.value?.refresh());
 };
 
 const handleAdvancedSave = (f: any) => {
@@ -342,7 +338,6 @@ const handleAdvancedSave = (f: any) => {
     customTimeRange.value = { start: f.startTime, end: f.endTime };
     filterForm.value.timeRange = 'custom';
   }
-  buildingTableRef.value?.refresh();
   fetchHighlightsData();
 };
 
