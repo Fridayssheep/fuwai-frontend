@@ -250,6 +250,8 @@ const pageAIContext = computed(() => {
   if (!activeStart.value || !activeEnd.value) return null
 
   return {
+    site_id: 'site_1', // 默认站点，支持全园区视角下的异常分析
+    meter: 'electricity',
     time_range: {
       start: activeStart.value,
       end: activeEnd.value
