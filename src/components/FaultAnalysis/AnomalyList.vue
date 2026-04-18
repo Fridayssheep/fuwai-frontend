@@ -125,6 +125,8 @@ const formatTime = (iso: string) => {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .panel-header {
@@ -188,7 +190,8 @@ const formatTime = (iso: string) => {
 .list-scroll {
   overflow-y: auto;
   padding: 8px 12px 12px;
-  max-height: 520px;
+  flex: 1;
+  min-height: 0;
 }
 
 .anomaly-item {

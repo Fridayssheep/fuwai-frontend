@@ -38,6 +38,29 @@
       <div class="modal-body">
         <!-- ========== 建筑属性筛选 Tab ========== -->
         <div v-show="activeTab === 'property'" class="tab-content">
+          <!-- 系统状态筛选（新增） -->
+          <div class="section">
+            <div class="section-title">
+              <span class="title-dot"></span>
+              <span>系统状态</span>
+            </div>
+            <div class="form-row">
+              <div class="form-item status-select-item">
+                <label>状态筛选：</label>
+                <select class="input-box status-select" v-model="form.status">
+                  <option value="">全部状态</option>
+                  <option value="normal">运行正常</option>
+                  <option value="error">异常状态</option>
+                  <option value="warning">告警状态</option>
+                  <option value="offline">离线</option>
+                </select>
+                <span class="status-hint" v-if="form.status">
+                  已选择：{{ statusTextMap[form.status] }}
+                </span>
+              </div>
+            </div>
+          </div>
+
           <div class="section">
             <div class="section-title">
               <span class="title-dot"></span>
@@ -46,11 +69,11 @@
             <div class="form-row">
               <div class="form-item">
                 <label>建筑ID：</label>
-                <input type="text" placeholder="请输入文字" class="input-box" v-model="form.buildingId" />
+                <input type="text" placeholder="请输入建筑ID，如 BLDG-001" class="input-box" v-model="form.buildingId" />
               </div>
               <div class="form-item">
                 <label>站点：</label>
-                <input type="text" placeholder="请输入文字" class="input-box" v-model="form.site" />
+                <input type="text" placeholder="请输入站点名称或编号" class="input-box" v-model="form.site" />
               </div>
             </div>
           </div>
@@ -63,11 +86,11 @@
             <div class="form-row">
               <div class="form-item">
                 <label>建筑类型：</label>
-                <input type="text" placeholder="请选择" class="input-box" v-model="form.buildingType" />
+                <input type="text" placeholder="如：办公楼、商场、医院" class="input-box" v-model="form.buildingType" />
               </div>
               <div class="form-item">
                 <label>细分用途：</label>
-                <input type="text" placeholder="请选择" class="input-box" v-model="form.subUsage" />
+                <input type="text" placeholder="如：总部大楼、分店、仓库" class="input-box" v-model="form.subUsage" />
               </div>
             </div>
             <div class="form-row">
@@ -103,11 +126,11 @@
             <div class="form-row">
               <div class="form-item">
                 <label>LEED等级：</label>
-                <input type="text" placeholder="请选择" class="input-box" v-model="form.leedLevel" />
+                <input type="text" placeholder="如：PLATINUM、GOLD、SILVER" class="input-box" v-model="form.leedLevel" />
               </div>
               <div class="form-item">
                 <label>EnergyStar：</label>
-                <input type="text" placeholder="请输入评分数字" class="input-box" v-model="form.energyStar" />
+                <input type="text" placeholder="请输入EnergyStar评分" class="input-box" v-model="form.energyStar" />
               </div>
             </div>
             <div class="form-row">
@@ -233,7 +256,7 @@
               <span class="title-dot"></span>
               <span>设备健康度</span>
             </div>
-            <div class="energy-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="health-grid">
               <div class="energy-item">
                 <label>COP范围</label>
                 <div class="range-inputs">
@@ -261,7 +284,7 @@
                     <option value="=">=</option>
                   </select>
                   <input type="text" placeholder="请输入" v-model="form.carbonTotal.value" />
-                  <span class="unit">kgCå₂/m²</span>
+                  <span class="unit">kgCO₂/m²</span>
                 </div>
               </div>
               <div class="carbon-item">
@@ -273,7 +296,7 @@
                     <option value="=">=</option>
                   </select>
                   <input type="text" placeholder="请输入" v-model="form.carbonPerArea.value" />
-                  <span class="unit">kgCå₂/m²</span>
+                  <span class="unit">kgCO₂/m²</span>
                 </div>
               </div>
               <div class="carbon-item">
@@ -285,7 +308,7 @@
                     <option value="=">=</option>
                   </select>
                   <input type="text" placeholder="请输入" v-model="form.carbonPerCapita.value" />
-                  <span class="unit">kgCå₂/m²</span>
+                  <span class="unit">kgCO₂/m²</span>
                 </div>
               </div>
             </div>
@@ -295,7 +318,12 @@
 
       <!-- 底部 -->
       <div class="modal-footer">
-        <span class="status-text">已配置筛选条件</span>
+        <span class="status-text">
+          已配置筛选条件
+          <span v-if="form.status" class="active-filter-tag">
+            系统状态：{{ statusTextMap[form.status] }}
+          </span>
+        </span>
         <div class="footer-buttons">
           <button class="btn btn-default" @click="handleClose">取消</button>
           <button class="btn btn-primary" @click="handleSave">
@@ -312,7 +340,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
 
 const props = defineProps<{
   visible: boolean
@@ -328,17 +356,28 @@ const tabs = [
   { key: 'energy', label: '能耗指标筛选' }
 ]
 
+// 状态文本映射（用于显示）
+const statusTextMap: Record<string, string> = {
+  'normal': '运行正常',
+  'error': '异常状态',
+  'warning': '告警状态',
+  'offline': '离线'
+}
+
 const form = reactive({
-  // 建筑属性 - 已改为字符串输入框
+  // 系统状态筛选（新增）
+  status: '',
+  
+  // 建筑属性
   buildingId: '',
   site: '',
-  buildingType: '',  // 改为字符串
-  subUsage: '',      // 改为字符串
+  buildingType: '',
+  subUsage: '',
   builtYear: '',
   area: '',
   floors: '',
   occupancy: '',
-  leedLevel: '',     // 改为字符串
+  leedLevel: '',
   energyStar: '',
   euiMin: '',
   
@@ -363,502 +402,40 @@ const form = reactive({
   carbonPerCapita: { compare: '>', value: '' }
 })
 
+// 监听 visible 变化，当弹窗关闭时重置状态筛选（可选）
+watch(() => props.visible, (newVal) => {
+  if (!newVal) {
+    // 弹窗关闭时的逻辑，如果需要重置可以在这里处理
+    // form.status = ''
+  }
+})
+
 const handleClose = () => {
   emit('update:visible', false)
 }
 
 const handleSave = () => {
-  emit('save', form)
+  // 构建筛选条件对象，只包含非空值
+  const filters: Record<string, any> = {}
+  
+  // 添加系统状态筛选（如果已选择）
+  if (form.status) {
+    filters.status = form.status
+  }
+  
+  // 添加其他非空筛选条件
+  if (form.buildingId) filters.buildingId = form.buildingId
+  if (form.site) filters.site = form.site
+  if (form.buildingType) filters.buildingType = form.buildingType
+  // ... 可以添加其他条件
+  
+  emit('save', filters)
   handleClose()
 }
 </script>
 
 <style scoped>
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.header-left h1 {
-  font-size: 24px;
-  font-weight: 700;
-  color: #002b54;
-  margin: 0;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.status-badge.normal {
-  background: #e6f7e6;
-  color: #52c41a;
-}
-
-.status-badge.warning {
-  background: #fff7e6;
-  color: #fa8c16;
-}
-
-.status-badge.error {
-  background: #fff1f0;
-  color: #ff4d4f;
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.header-right {
-  display: flex;
-  gap: 12px;
-}
-
-.btn-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: 1px solid #d9d9d9;
-  background: white;
-  border-radius: 6px;
-  color: #666;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.btn-back:hover {
-  border-color: #1890ff;
-  color: #1890ff;
-}
-
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: #0056b3;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.btn-primary:hover {
-  background: #004494;
-}
-
-.content-grid {
-  display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: 24px;
-  align-items: start;
-}
-
-.left-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.tab-header {
-  display: flex;
-  background: white;
-  border-radius: 12px 12px 0 0;
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-
-.tab-btn {
-  flex: 1;
-  padding: 16px;
-  border: none;
-  background: #f5f7fa;
-  color: #666;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s;
-  position: relative;
-}
-
-.tab-btn:hover {
-  background: #e8ecf1;
-}
-
-.tab-btn.active {
-  background: white;
-  color: #0056b3;
-  font-weight: 600;
-}
-
-.tab-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 20%;
-  width: 60%;
-  height: 2px;
-  background: #0056b3;
-  border-radius: 2px;
-}
-
-.info-card {
-  background: white;
-  border-radius: 0 0 12px 12px;
-  padding: 24px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-
-.metadata-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 24px;
-}
-
-.meta-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.meta-item.full-width {
-  grid-column: span 2;
-}
-
-.meta-label {
-  font-size: 12px;
-  color: #999;
-  font-weight: 400;
-}
-
-.meta-value {
-  font-size: 14px;
-  color: #333;
-  font-weight: 600;
-}
-
-.sub-value {
-  color: #999;
-  font-weight: 400;
-  margin-left: 4px;
-}
-
-.certifications {
-  display: flex;
-  gap: 40px;
-  padding-top: 20px;
-  border-top: 1px solid #f0f0f0;
-}
-
-.cert-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.cert-label {
-  font-size: 12px;
-  color: #999;
-}
-
-.cert-badge {
-  display: inline-flex;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.cert-badge.platinum {
-  background: #f0f5ff;
-  color: #2f54eb;
-}
-
-.energy-star {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 20px;
-  font-weight: 700;
-  color: #333;
-}
-
-.star-icon {
-  color: #faad14;
-}
-
-.derived-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 24px;
-}
-
-.derived-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.derived-label {
-  font-size: 12px;
-  color: #999;
-  font-weight: 400;
-}
-
-.derived-value {
-  font-size: 14px;
-  color: #333;
-  font-weight: 600;
-}
-
-.metrics-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px 24px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-
-.metrics-card h3 {
-  font-size: 14px;
-  color: #333;
-  font-weight: 600;
-  margin: 0 0 16px 0;
-}
-
-.metrics-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.metric-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px;
-  background: #f8f9fa;
-  border-radius: 8px;
-}
-
-.metric-label {
-  font-size: 12px;
-  color: #666;
-}
-
-.metric-value {
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.metric-value.abnormal {
-  color: #52c41a;
-}
-
-.metric-value.eui {
-  color: #0056b3;
-}
-
-.right-panel {
-  min-width: 0;
-}
-
-.monitor-card {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-
-.monitor-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.header-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.monitor-icon {
-  color: #0056b3;
-}
-
-.header-title h3 {
-  font-size: 16px;
-  color: #333;
-  font-weight: 600;
-  margin: 0;
-}
-
-.btn-download {
-  padding: 8px;
-  border: 1px solid #d9d9d9;
-  background: white;
-  border-radius: 6px;
-  color: #666;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-download:hover {
-  border-color: #1890ff;
-  color: #1890ff;
-}
-
-.monitor-table-wrapper {
-  margin-bottom: 20px;
-  min-height: 480px;
-}
-
-.monitor-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.monitor-table th {
-  text-align: left;
-  padding: 12px 16px;
-  font-size: 13px;
-  color: #666;
-  font-weight: 500;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.monitor-table td {
-  padding: 16px;
-  border-bottom: 1px solid #f5f5f5;
-  vertical-align: middle;
-  height: 60px;
-}
-
-.empty-row td {
-  border-bottom: 1px solid #f5f5f5;
-  height: 60px;
-}
-
-.col-time {
-  width: 200px;
-  color: #666;
-  font-size: 14px;
-}
-
-.col-energy, .col-env {
-  width: 150px;
-}
-
-.btn-view {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 1px solid #d9d9d9;
-  background: white;
-  border-radius: 4px;
-  color: #666;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.btn-view:hover {
-  border-color: #1890ff;
-  color: #1890ff;
-  background: #e6f7ff;
-}
-
-.btn-view.green {
-  border-color: #b7eb8f;
-  background: #f6ffed;
-  color: #52c41a;
-}
-
-.btn-view.green:hover {
-  background: #d9f7be;
-}
-
-.pagination-wrapper {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
-}
-
-.pagination-info {
-  font-size: 13px;
-  color: #999;
-}
-
-.pagination-controls {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.page-btn {
-  min-width: 32px;
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid #d9d9d9;
-  background: white;
-  border-radius: 6px;
-  color: #666;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.page-btn:hover:not(:disabled) {
-  border-color: #1890ff;
-  color: #1890ff;
-}
-
-.page-btn.active {
-  background: #0056b3;
-  border-color: #0056b3;
-  color: white;
-}
-
-.page-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.page-bottom-spacer {
-  height: 60px;
-  width: 100%;
-  background: #f5f7fa;
-  margin-top: 24px;
-  border-radius: 12px;
-}
-
-/* 弹窗样式 */
+/* ===== 弹窗基础样式 ===== */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -885,6 +462,7 @@ const handleSave = () => {
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
+/* ===== 头部样式 ===== */
 .modal-header {
   padding: 20px 24px;
   border-bottom: 1px solid #E5E7EB;
@@ -941,12 +519,24 @@ h3 {
   color: #374151;
 }
 
+/* ===== Tab 切换 ===== */
 .modal-tabs {
   display: flex;
   gap: 0;
   padding: 0 24px;
-  border-bottom: 1px solid #E5E7EB;
   background: #F9FAFB;
+  position: relative;
+}
+
+.modal-tabs::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #E5E7EB;
+  z-index: 0;
 }
 
 .tab-btn {
@@ -957,8 +547,14 @@ h3 {
   color: #6B7280;
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
   transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  color: #374151;
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .tab-btn.active {
@@ -968,6 +564,7 @@ h3 {
   font-weight: 500;
 }
 
+/* ===== 内容区域 ===== */
 .modal-body {
   flex: 1;
   overflow-y: auto;
@@ -1008,11 +605,15 @@ h3 {
   border-radius: 2px;
 }
 
-/* 建筑属性样式 */
+/* ===== 表单样式 ===== */
 .form-row {
   display: flex;
   gap: 24px;
   margin-bottom: 16px;
+}
+
+.form-row:last-child {
+  margin-bottom: 0;
 }
 
 .form-item {
@@ -1020,6 +621,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .form-item label {
@@ -1028,6 +630,26 @@ h3 {
   color: #374151;
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+/* 系统状态选择项特殊样式 */
+.status-select-item {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.status-select {
+  width: 200px;
+  cursor: pointer;
+  background-color: white;
+}
+
+.status-hint {
+  font-size: 13px;
+  color: #059669;
+  margin-left: 92px; /* label width + gap */
+  margin-top: 4px;
+  font-weight: 500;
 }
 
 .input-box {
@@ -1040,6 +662,7 @@ h3 {
   color: #374151;
   outline: none;
   transition: border-color 0.2s;
+  min-width: 0;
 }
 
 .input-box:focus {
@@ -1057,11 +680,13 @@ h3 {
   border: 1px solid #D1D5DB;
   border-radius: 6px;
   overflow: hidden;
+  min-width: 0;
 }
 
 .input-with-unit .input-box {
   border: none;
   border-radius: 0;
+  flex: 1;
 }
 
 .input-with-unit .unit {
@@ -1072,9 +697,10 @@ h3 {
   height: 36px;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
-/* 能耗指标样式 - 3列网格 */
+/* ===== 能耗指标样式 ===== */
 .energy-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1091,6 +717,9 @@ h3 {
   font-size: 13px;
   color: #4B5563;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .range-inputs {
@@ -1104,12 +733,13 @@ h3 {
   height: 36px;
   border: 1px solid #D1D5DB;
   border-radius: 6px;
-  padding: 0 12px;
+  padding: 0 8px;
   font-size: 14px;
   color: #374151;
   outline: none;
   text-align: center;
   transition: border-color 0.2s;
+  min-width: 0;
 }
 
 .range-inputs input:focus {
@@ -1118,14 +748,29 @@ h3 {
 
 .range-inputs input::placeholder {
   color: #9CA3AF;
+  font-size: 13px;
 }
 
 .separator {
   color: #9CA3AF;
   font-size: 12px;
+  flex-shrink: 0;
 }
 
-/* 双碳指标样式 */
+/* ===== 设备健康度样式 ===== */
+.health-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .health-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== 双碳指标样式 ===== */
 .carbon-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1142,6 +787,9 @@ h3 {
   font-size: 13px;
   color: #4B5563;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .compare-input {
@@ -1161,6 +809,7 @@ h3 {
   outline: none;
   background: white;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .compare-input input {
@@ -1173,6 +822,7 @@ h3 {
   color: #374151;
   outline: none;
   transition: border-color 0.2s;
+  min-width: 0;
 }
 
 .compare-input input:focus {
@@ -1187,9 +837,10 @@ h3 {
   font-size: 12px;
   color: #6B7280;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
-/* 底部样式 */
+/* ===== 底部样式 ===== */
 .modal-footer {
   padding: 16px 24px;
   border-top: 1px solid #E5E7EB;
@@ -1202,6 +853,18 @@ h3 {
 .status-text {
   font-size: 14px;
   color: #6B7280;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.active-filter-tag {
+  background: #DCFCE7;
+  color: #166534;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .footer-buttons {
@@ -1241,7 +904,7 @@ h3 {
   background: #004a8d;
 }
 
-/* 响应式调整 */
+/* ===== 响应式调整 ===== */
 @media (max-width: 768px) {
   .energy-grid,
   .carbon-grid {
@@ -1251,6 +914,15 @@ h3 {
   .form-row {
     flex-direction: column;
     gap: 12px;
+  }
+  
+  .health-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .status-hint {
+    margin-left: 0;
+    width: 100%;
   }
 }
 
@@ -1262,6 +934,16 @@ h3 {
   
   .form-item label {
     width: 70px;
+    font-size: 13px;
+  }
+  
+  .input-box,
+  .compare-input input {
+    font-size: 13px;
+  }
+  
+  .status-select {
+    width: 100%;
   }
 }
 </style>

@@ -1,12 +1,13 @@
 <template>
   <Teleport to="body">
-    <div class="ai-orbit" :class="{ open: isOpen }">
+    <div class="ai-orbit" :class="{ open: isOpen, docked: !isOpen }">
       <button
         ref="triggerRef"
         class="ai-fab"
         :class="{ active: isOpen, busy: isSending }"
         type="button"
         aria-label="打开全局 AI 助手"
+        title="全局 AI 助手"
         @click="toggleAssistant"
       >
         <img src="/character+mini.png" alt="" class="fab-avatar" />
@@ -468,6 +469,7 @@ const normalizeContext = (value: AIQAContext | null | undefined): AIQAContext | 
   const next: AIQAContext = {}
 
   if (value.building_id) next.building_id = value.building_id
+  if (value.site_id) next.site_id = value.site_id
   if (value.meter) next.meter = value.meter
   if (value.time_range?.start && value.time_range?.end) {
     next.time_range = {
@@ -1130,6 +1132,11 @@ onBeforeUnmount(() => {
   bottom: 26px;
   z-index: 1200;
   font-family: var(--ai-body-font);
+  transition: transform 260ms ease, opacity 260ms ease;
+}
+
+.ai-orbit.docked:not(:hover):not(:focus-within) {
+  transform: translateX(42px);
 }
 
 .ai-fab {
@@ -2148,6 +2155,10 @@ onBeforeUnmount(() => {
   .ai-orbit {
     right: 16px;
     bottom: 16px;
+  }
+
+  .ai-orbit.docked:not(:hover):not(:focus-within) {
+    transform: none;
   }
 
   .assistant-shell {

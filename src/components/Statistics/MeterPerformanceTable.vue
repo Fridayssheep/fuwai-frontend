@@ -1,25 +1,8 @@
 <template>
   <div class="performance-panel">
     <div class="panel-header">
-      <h3>设备运行监测表</h3>
+      <h3>分建筑用能效绩表</h3>
       <div class="header-right">
-        <!-- 表计类型筛选 -->
-        <div class="filter-group">
-          <select v-model="filterMeterType" @change="onFilterChange" class="filter-select">
-            <option value="">全部类型</option>
-            <option v-for="t in meterTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
-          </select>
-        </div>
-        <!-- 状态筛选 -->
-        <div class="filter-group">
-          <select v-model="filterStatus" @change="onFilterChange" class="filter-select">
-            <option value="">全部状态</option>
-            <option value="online">在线</option>
-            <option value="warning">告警</option>
-            <option value="fault">故障</option>
-            <option value="offline">离线</option>
-          </select>
-        </div>
         <span class="update-time">数据最后更新: {{ lastUpdated }}</span>
         <button class="refresh-btn" @click="fetchData" :disabled="loading">
           <Icon icon="lucide:refresh-cw" :class="{ 'spin': loading }" />
@@ -27,57 +10,44 @@
       </div>
     </div>
 
-    <div v-if="loadError" class="table-error-banner">
-      <Icon icon="lucide:alert-circle" class="error-icon" />
-      <span>{{ loadError }}</span>
-      <button class="error-retry" type="button" @click="fetchData">重试</button>
-    </div>
-
     <div class="table-container">
       <table class="performance-table">
         <thead>
           <tr>
-            <th>设备名称</th>
-            <th>表计类型</th>
-            <th>所属建筑</th>
+            <th>建筑ID</th>
+            <th>设备数量</th>
+            <th>期间累计 (KWH)</th>
+            <th>单位面积能耗</th>
             <th>状态</th>
-            <th>最后活跃时间</th>
             <th class="action-col">操作</th>
           </tr>
         </thead>
         <tbody>
-          <!-- Loading 状态 -->
           <tr v-if="loading && tableData.length === 0">
             <td colspan="6" class="loading-cell">
               <Icon icon="lucide:loader-2" class="spin loading-icon" />
-              <span>设备数据检索中，请稍候...</span>
+              <span>数据检索中，请稍候...</span>
             </td>
           </tr>
           
-          <!-- 完全无数据 -->
           <tr v-else-if="!loading && tableData.length === 0">
-            <td colspan="6" class="empty-cell">暂无设备数据</td>
+            <td colspan="6" class="empty-cell">暂无建筑数据</td>
           </tr>
 
-          <!-- 真实数据 -->
-          <tr v-for="row in tableData" :key="row.meter_id" class="data-row">
+          <tr v-for="row in tableData" :key="row.building_id" class="data-row">
+            <td class="font-bold">{{ row.building_id }}</td>
+            <td class="font-bold font-numeric">{{ row.meterCount }} 个</td>
+            <td class="font-bold font-numeric highlight-val">{{ formatNumber(row.energyTotal) }}</td>
             <td>
-              <div class="meter-name-cell">
-                <Icon :icon="getMeterIcon(row.meter_type)" class="meter-type-icon" :class="row.meter_type" />
-                <span class="font-bold">{{ row.meter_name || row.meter_id }}</span>
-              </div>
+              <span class="eui-val font-numeric">{{ formatNumber(row.eui) }}</span> 
+              <span class="unit">KWH/㎡</span>
             </td>
-            <td>
-              <span class="meter-type-badge" :class="row.meter_type">{{ getMeterTypeLabel(row.meter_type) }}</span>
-            </td>
-            <td class="building-id-cell">{{ row.building_id }}</td>
             <td>
               <span class="status-badge" :class="row.status">
                 <span class="dot"></span>
-                {{ getStatusText(row.status) }}
+                {{ row.statusText }}
               </span>
             </td>
-            <td class="font-numeric last-seen-cell">{{ formatLastSeen(row.last_seen_at) }}</td>
             <td class="action-col">
               <button class="action-link" type="button" @click="viewDetails(row)">详情</button>
             </td>
@@ -88,7 +58,7 @@
 
     <div class="panel-footer pagination" v-if="paginationInfo.total > 0">
       <div class="pagination-info">
-        共计 {{ paginationInfo.total }} 台设备
+        共计 {{ paginationInfo.total }} 栋建筑
       </div>
       <div class="pagination-controls">
         <button 
@@ -107,108 +77,54 @@
       </div>
     </div>
 
-    <!-- 设备详情弹窗 -->
-    <MeterDetailsModal
-      v-model:visible="modalVisible"
-      :meter-id="selectedMeterId"
+    <!-- 弹窗 -->
+    <BuildingDetailsModal 
+      v-model:visible="modalVisible" 
+      :building-id="selectedBuildingId"
+      :start-time="startTime"
+      :end-time="endTime"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue'
+import { getCurrentTimeString } from '../../utils/timeManager'
 import { Icon } from '@iconify/vue'
-import { getMeters } from '../../api/statistics'
-import MeterDetailsModal from './MeterDetailsModal.vue'
+import { getBuildings, getMeters, getEnergyQuery } from '../../api/statistics'
+import BuildingDetailsModal from './BuildingDetailsModal.vue'
 
 const props = defineProps<{
   startTime: string
   endTime: string
 }>()
 
-interface MeterRow {
-  meter_id: string
-  meter_name: string
-  meter_type: string
+interface BuildingRow {
   building_id: string
-  status: string
-  last_seen_at: string | null
-  manufacturer: string | null
-  model: string | null
-  install_date: string | null
+  meterCount: number
+  energyTotal: number
+  eui: number
+  status: 'normal' | 'warning' | 'fault'
+  statusText: string
 }
 
-const meterTypes = [
-  { value: 'electricity', label: '电力' },
-  { value: 'chilledwater', label: '冷冻水' },
-  { value: 'steam', label: '蒸汽' },
-  { value: 'gas', label: '燃气' },
-  { value: 'hotwater', label: '热水' },
-  { value: 'water', label: '水' },
-  { value: 'irrigation', label: '灌溉' },
-  { value: 'solar', label: '光伏' },
-]
-
-const tableData = ref<MeterRow[]>([])
+const tableData = ref<BuildingRow[]>([])
 const loading = ref(false)
-const loadError = ref('')
 const lastUpdated = ref('')
-const filterMeterType = ref('')
-const filterStatus = ref('')
 
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(5)
 const paginationInfo = ref({ total: 0 })
 const totalPages = computed(() => Math.ceil(paginationInfo.value.total / pageSize.value))
 
 const modalVisible = ref(false)
-const selectedMeterId = ref('')
+const selectedBuildingId = ref('')
 
 const unwrap = (res: any) => res?.data ?? res
 
-const getMeterIcon = (type: string): string => {
-  const icons: Record<string, string> = {
-    electricity: 'lucide:zap',
-    chilledwater: 'lucide:snowflake',
-    steam: 'lucide:cloud',
-    gas: 'lucide:flame',
-    hotwater: 'lucide:droplets',
-    water: 'lucide:droplet',
-    irrigation: 'lucide:sprout',
-    solar: 'lucide:sun',
-  }
-  return icons[type] || 'lucide:gauge'
-}
-
-const getMeterTypeLabel = (type: string): string => {
-  const labels: Record<string, string> = {
-    electricity: '电力',
-    chilledwater: '冷冻水',
-    steam: '蒸汽',
-    gas: '燃气',
-    hotwater: '热水',
-    water: '水',
-    irrigation: '灌溉',
-    solar: '光伏',
-  }
-  return labels[type] || type
-}
-
-const getStatusText = (status: string): string => {
-  const texts: Record<string, string> = {
-    online: '在线',
-    warning: '告警',
-    fault: '故障',
-    offline: '离线',
-  }
-  return texts[status] || status
-}
-
-const formatLastSeen = (iso: string | null | undefined): string => {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+const formatNumber = (val: number | null | undefined): string => {
+  if (val == null || isNaN(val)) return '—'
+  return val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 
 const changePage = (p: number) => {
@@ -217,64 +133,98 @@ const changePage = (p: number) => {
   fetchData()
 }
 
-const onFilterChange = () => {
-  currentPage.value = 1
-  fetchData()
-}
-
 const fetchData = async () => {
+  if (!props.startTime || !props.endTime) return
+  
   loading.value = true
-  loadError.value = ''
   try {
-    const params: Record<string, any> = {
-      page: currentPage.value,
-      page_size: pageSize.value,
-    }
-    if (filterMeterType.value) params.meter_type = filterMeterType.value
-    if (filterStatus.value) params.status = filterStatus.value
-
-    const raw = await getMeters(params)
-    const data = unwrap(raw)
-    const items = data?.items || []
-
-    paginationInfo.value.total = data?.pagination?.total || 0
-
-    tableData.value = items.map((m: any) => {
-      let bId = m.building_id
-      let mType = m.meter_type
+    // 1. 获取主建筑列表，带上分页参数
+    const buildRaw = await getBuildings({ page: currentPage.value, page_size: pageSize.value })
+    const buildData = unwrap(buildRaw)
+    const items = buildData?.items || []
+    
+    paginationInfo.value.total = buildData?.pagination?.total || 0
+    
+    // 2. 并发组装每栋建筑的数据
+    const promises = items.map(async (b: any) => {
+      const bid = b.building_id
       
-      // 容错处理：当后端未返回完整类型或建筑ID，且 meter_id 包含双冒号分隔符时（例如 bdg12::water）
-      if (m.meter_id && m.meter_id.includes('::')) {
-        const parts = m.meter_id.split('::')
-        if (!bId) bId = parts[0]
-        if (!mType) mType = parts[1]
-      }
+      // 请求设备数量和状态推导
+      let meterCount = 0
+      let status: BuildingRow['status'] = 'normal'
+      let statusText = '正常运行'
+      
+      try {
+        const meterRaw = await getMeters({ building_id: bid })
+        const meterData = unwrap(meterRaw)
+        meterCount = meterData?.pagination?.total || 0
+        
+        let hasWarning = false
+        let hasOffline = false
+        const mItems = meterData?.items || []
+        
+        for (const m of mItems) {
+          if (m.status === 'fault') { status = 'fault'; statusText = '故障停机'; break; }
+          if (m.status === 'warning') { hasWarning = true }
+          if (m.status === 'offline') { hasOffline = true }
+        }
 
+        if (status !== 'fault') {
+          if (hasWarning) {
+            status = 'warning'
+            statusText = '告警状态'
+          } else if (hasOffline || mItems.length === 0) {
+            // 用 warning 样式，但文案提示离线或者未接入
+            status = 'warning'
+            statusText = mItems.length === 0 ? '设备未接入' : '部分离线'
+          }
+        }
+      } catch (e) {
+        console.error(`Failed to fetch meters for ${bid}`, e)
+      }
+      
+      // 请求当日累计能耗
+      let energyTotal = 0
+      try {
+        const queryRaw = await getEnergyQuery({ 
+          building_ids: [bid], 
+          start_time: props.startTime, 
+          end_time: props.endTime,
+          granularity: 'month'
+        })
+        const queryData = unwrap(queryRaw)
+        energyTotal = queryData?.summary?.total || 0
+      } catch (e) {
+        console.error(`Failed to fetch energy for ${bid}`, e)
+      }
+      
+      // 算 eui
+      const sqm = b.sqm || 0
+      const eui = sqm > 0 ? (energyTotal / sqm) : 0
+      
       return {
-        meter_id: m.meter_id,
-        meter_name: m.meter_name || m.meter_id,
-        meter_type: mType || '',
-        building_id: bId || '',
-        status: m.status || 'offline',
-        last_seen_at: m.last_seen_at || null,
-        manufacturer: m.manufacturer || null,
-        model: m.model || null,
-        install_date: m.install_date || null,
-      }
+        building_id: bid,
+        meterCount,
+        energyTotal,
+        eui,
+        status,
+        statusText
+      } as BuildingRow
     })
-
-    const d = new Date()
+    
+    tableData.value = await Promise.all(promises)
+    
+    const d = new Date(getCurrentTimeString())
     lastUpdated.value = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
   } catch (err) {
-    console.error('设备列表获取失败:', err)
-    loadError.value = '设备列表加载失败，当前响应较慢。你可以稍后重试。'
+    console.error('建筑效绩表聚合失败:', err)
   } finally {
     loading.value = false
   }
 }
 
-const viewDetails = (row: MeterRow) => {
-  selectedMeterId.value = row.meter_id
+const viewDetails = (row: BuildingRow) => {
+  selectedBuildingId.value = row.building_id
   modalVisible.value = true
 }
 
@@ -306,37 +256,6 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.table-error-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  padding: 12px 14px;
-  border: 1px solid #fecaca;
-  border-radius: 10px;
-  background: #fff5f5;
-  color: #b42318;
-  font-size: 13px;
-}
-
-.table-error-banner .error-icon {
-  flex-shrink: 0;
-}
-
-.error-retry {
-  margin-left: auto;
-  border: none;
-  border-radius: 8px;
-  background: rgba(180, 35, 24, 0.08);
-  color: inherit;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
 }
 
 .panel-header h3 {
@@ -350,36 +269,6 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex-wrap: wrap;
-}
-
-.filter-group {
-  position: relative;
-}
-
-.filter-select {
-  appearance: none;
-  -webkit-appearance: none;
-  padding: 6px 32px 6px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 13px;
-  color: #334155;
-  background: #ffffff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat right 10px center;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: inherit;
-  min-width: 100px;
-}
-
-.filter-select:focus {
-  outline: none;
-  border-color: #0b4582;
-  box-shadow: 0 0 0 3px rgba(11, 69, 130, 0.08);
-}
-
-.filter-select:hover {
-  border-color: #94a3b8;
 }
 
 .update-time {
@@ -429,15 +318,11 @@ onMounted(() => {
 }
 
 .performance-table td {
-  padding: 14px 16px;
+  padding: 16px;
   border-bottom: 1px solid #f8fafc;
   color: #0f172a;
   font-size: 14px;
   vertical-align: middle;
-}
-
-.data-row {
-  transition: background-color 0.15s ease;
 }
 
 .data-row:hover td {
@@ -452,62 +337,19 @@ onMounted(() => {
   font-variant-numeric: tabular-nums;
 }
 
-/* ─── Meter Name Cell ──────────────────────────────────────── */
-.meter-name-cell {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.highlight-val {
+  font-size: 15px;
 }
 
-.meter-type-icon {
-  font-size: 18px;
-  flex-shrink: 0;
+.eui-val {
+  font-weight: 700;
+  color: #d97706;
 }
 
-.meter-type-icon.electricity { color: #f59e0b; }
-.meter-type-icon.chilledwater { color: #06b6d4; }
-.meter-type-icon.steam { color: #8b5cf6; }
-.meter-type-icon.gas { color: #ef4444; }
-.meter-type-icon.hotwater { color: #f97316; }
-.meter-type-icon.water { color: #3b82f6; }
-.meter-type-icon.irrigation { color: #22c55e; }
-.meter-type-icon.solar { color: #eab308; }
-
-/* ─── Meter Type Badge ─────────────────────────────────────── */
-.meter-type-badge {
-  display: inline-block;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 6px;
-  background: #f1f5f9;
-  color: #64748b;
-}
-
-.meter-type-badge.electricity { background: #fef3c7; color: #b45309; }
-.meter-type-badge.chilledwater { background: #cffafe; color: #0e7490; }
-.meter-type-badge.steam { background: #ede9fe; color: #6d28d9; }
-.meter-type-badge.gas { background: #fee2e2; color: #b91c1c; }
-.meter-type-badge.hotwater { background: #ffedd5; color: #c2410c; }
-.meter-type-badge.water { background: #dbeafe; color: #1d4ed8; }
-.meter-type-badge.irrigation { background: #dcfce7; color: #15803d; }
-.meter-type-badge.solar { background: #fef9c3; color: #a16207; }
-
-/* ─── Building ID ──────────────────────────────────────────── */
-.building-id-cell {
-  color: #0b4582;
-  font-weight: 500;
-  font-size: 13px;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ─── Last Seen ────────────────────────────────────────────── */
-.last-seen-cell {
-  font-size: 13px;
-  color: #64748b;
+.unit {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-left: 2px;
 }
 
 /* ─── Status Badges ────────────────────────────────────────── */
@@ -530,7 +372,7 @@ onMounted(() => {
   background: currentColor;
 }
 
-.status-badge.online {
+.status-badge.normal {
   background: #ecfdf5;
   color: #059669;
 }
@@ -543,11 +385,6 @@ onMounted(() => {
 .status-badge.fault {
   background: #fef2f2;
   color: #dc2626;
-}
-
-.status-badge.offline {
-  background: #f1f5f9;
-  color: #94a3b8;
 }
 
 /* ─── Actions & Footer ─────────────────────────────────────── */

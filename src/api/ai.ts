@@ -13,6 +13,7 @@ export interface Pagination {
 
 export interface AIQAContext {
   building_id?: string | null
+  site_id?: string | null
   meter?: string | null
   time_range?: TimeRange | null
 }
