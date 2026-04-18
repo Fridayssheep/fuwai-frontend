@@ -284,7 +284,7 @@ const fetchData = async () => {
     const energyData = unwrap(energyRaw)
     // 【修复】正确初始化 Map 对象
     const energyMap: Record<string, number> = {}
-    if (Array.isArray(energyData?.items)) {
+    const energyMap: Record<string, number> = {}
       energyData.items.forEach((p: any) => {
         // 后端可能返回 building_id 或 id，这里做兼容
         const bid = p.building_id || p.id

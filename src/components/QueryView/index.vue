@@ -12,7 +12,19 @@
             </svg>
           </div>
           <h2>查询筛选面板</h2>
-
+          
+          <div v-if="isHighlightsError" class="alert-badge" style="background: #FEF3F2; border-color: #FECACA; color: #DC2626;">
+            <span class="dot" style="background: #DC2626;"></span>
+            <span>系统运行状态：数据获取失败</span>
+          </div>
+          <div v-else-if="highlightsData.abnormalBuildings > 0" class="alert-badge">
+            <span class="dot red"></span>
+            <span>系统运行监测：检测到 {{ highlightsData.abnormalBuildings }} 处异常待处理</span>
+          </div>
+          <div v-else class="alert-badge" style="background: #F0FDF4; border-color: #86EFAC; color: #16A34A;">
+            <span class="dot" style="background: #16A34A;"></span>
+            <span>系统运行状态：运行正常</span>
+          </div>
         </div>
       </div>
       
@@ -41,7 +53,7 @@
 
         <div class="button-group">
           <button class="btn btn-primary-dark" @click="showAdvanced = true">
-            高级筛选 
+            高级筛选 / 自定义时间
           </button>
           <button class="btn btn-outline" @click="handleReset">重置</button>
         </div>
@@ -111,6 +123,7 @@
       @export="handleExportConfirm" 
     />
     <BuildingDetailsModal
+      v-if="showStatsModal"
       v-model:visible="showStatsModal"
       :building-id="selectedBuildingId"
       :start-time="timeFilterStart"
@@ -126,10 +139,10 @@
           </svg>
         </div>
         <h3>报表任务已提交</h3>
-        <p>后台正在为您聚合数据并生成分析报告。完成后，您可以在<b>报表工作台</b>直接下载 Markdown 格式文件。</p>
+        <p>后台正在为您聚合数据并生成分析报告。完成后，您可以在<b>统计报表</b>页面直接下载 Markdown 格式文件。</p>
         <div class="modal-actions">
           <button class="btn btn-outline" @click="showSuccessModal = false">留在本页</button>
-          <button class="btn btn-primary-dark" @click="goToReportWorkbench">前往报表工作台</button>
+          <button class="btn btn-primary-dark" @click="goToReportWorkbench">前往统计工作台</button>
         </div>
       </div>
     </div>
@@ -183,8 +196,8 @@ const sortConfig = ref({
 
 // ===== 时间逻辑 =====
 const calculateTimeRange = (range: string) => {
-  // 如果是自定义模式，直接返回存储的时间
-  if (range === 'custom' && customTimeRange.value) {
+    const items = res.data?.items || [];
+    highlightsData.value.abnormalBuildings = items.filter(i => i.type === 'anomaly').length;
     return { 
       start_time: customTimeRange.value.start, 
       end_time: customTimeRange.value.end 
@@ -203,7 +216,7 @@ const calculateTimeRange = (range: string) => {
     case 'week': start = new Date(year, month, date - (day === 0 ? 6 : day - 1), 0, 0, 0); break;
     case 'month': start = new Date(year, month, 1, 0, 0, 0); break;
     case 'year': start = new Date(year, 0, 1, 0, 0, 0); break;
-    default: start = new Date(now.getTime() - 7 * 86400000); // 兜底一周
+    default: start = new Date(now.getTime() - 7 * 86400000);
   }
   return { start_time: start.toISOString(), end_time: now.toISOString() };
 };
@@ -255,19 +268,15 @@ const handleSelectionChange = (ids: string[]) => {
   selectedBuildings.value = ids;
 };
 
-// 对接异步任务模式（区分汇总与故障报表）
 const handleExportConfirm = async (config: { format: string; includeAiSummary: boolean; reportCategory: 'summary' | 'anomaly' }) => {
   loading.value = true;
   try {
     const { start_time, end_time } = calculateTimeRange(filterForm.value.timeRange);
-    
     let reportType: ReportType = 'custom_report';
     
     if (config.reportCategory === 'anomaly') {
-      // 故障专项报表
       reportType = 'anomaly_report';
     } else {
-      // 普通汇总报表，根据时间跨度智能匹配
       const range = filterForm.value.timeRange;
       if (range === 'today') reportType = 'daily_summary';
       else if (range === 'week') reportType = 'weekly_summary';
@@ -294,16 +303,12 @@ const handleExportConfirm = async (config: { format: string; includeAiSummary: b
 
 const goToReportWorkbench = () => {
   showSuccessModal.value = false;
-  router.push('/reports');
+  router.push('/statistics'); // 修正跳转路径
 };
 
 const handleStatusChange = () => { buildingTableRef.value?.refresh(); };
-
 const handleTimeRangeChange = () => { 
-  // 如果切回预设值，清空自定义时间
-  if (filterForm.value.timeRange !== 'custom') {
-    customTimeRange.value = null;
-  }
+  if (filterForm.value.timeRange !== 'custom') customTimeRange.value = null;
   buildingTableRef.value?.refresh(); 
   fetchHighlightsData();
 };
@@ -333,13 +338,10 @@ const toggleSortOrder = () => {
 
 const handleAdvancedSave = (f: any) => {
   advancedFilters.value = f;
-  
-  // 核心：如果高级筛选里选了时间，自动进入“自定义”模式
   if (f.startTime && f.endTime) {
     customTimeRange.value = { start: f.startTime, end: f.endTime };
     filterForm.value.timeRange = 'custom';
   }
-  
   buildingTableRef.value?.refresh();
   fetchHighlightsData();
 };
@@ -359,49 +361,35 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.query-page {
-  min-height: 100%; overflow-y: auto; margin-left: 20px; width: calc(100% - 20px);
-  box-sizing: border-box; background: #F5F7FA; padding: 24px;
-}
-
+.query-page { min-height: 100%; overflow-y: auto; margin-left: 20px; width: calc(100% - 20px); box-sizing: border-box; background: #F5F7FA; padding: 24px; }
 h1 { font-size: 20px; font-weight: 800; color: #002B54; margin-bottom: 20px; letter-spacing: -0.5px; }
-
 .filter-panel { background: #ffffff; border-radius: 12px; border: 1px solid #E5E7EB; padding: 20px; margin-bottom: 16px; }
 .panel-header { margin-bottom: 16px; }
 .title-area { display: flex; align-items: center; gap: 12px; }
 .icon-box { width: 32px; height: 32px; background: #EFF6FF; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-
 .alert-badge { margin-left: 16px; display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; font-size: 12px; color: #DC2626; }
 .dot { width: 6px; height: 6px; border-radius: 50%; background: #DC2626; }
 .dot.red { background: #EF4444; }
-
 .filter-row { display: flex; align-items: center; gap: 24px; }
 .filter-item { display: flex; align-items: center; gap: 12px; }
 .filter-item label { font-size: 14px; color: #4B5563; font-weight: 500; }
-
-.select-box { width: 180px; height: 36px; border: 1px solid #D1D5DB; border-radius: 8px; padding: 0 10px; font-size: 14px; background: white; cursor: pointer; }
-.select-box:disabled { background: #f9fafb; cursor: default; color: #005BAC; font-weight: 600; }
-
+.select-box { width: 180px; height: 36px; border: 1px solid #D1D5DB; border-radius: 8px; padding: 0 10px; font-size: 14px; background: white; }
 .button-group { margin-left: auto; display: flex; gap: 12px; }
-
 .btn { height: 36px; padding: 0 16px; border-radius: 8px; font-size: 14px; cursor: pointer; display: flex; align-items: center; border: none; }
 .btn-primary-dark { background: #002B54; color: white; }
 .btn-outline { background: white; border: 1px solid #D1D5DB; }
-
 .data-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .sort-section { display: flex; align-items: center; gap: 12px; }
 .sort-tag { padding: 6px 14px; border: none; background: #F3F4F6; border-radius: 20px; cursor: pointer; font-size: 13px; }
 .sort-tag.active { background: #005BAC; color: white; }
 .sort-order-icon { font-size: 13px; color: #666; cursor: pointer; }
-
 .export-section { display: flex; gap: 10px; }
 .btn-refresh { height: 36px; padding: 0 15px; background: white; border: 1px solid #D1D5DB; border-radius: 18px; cursor: pointer; }
 .btn-export { height: 36px; padding: 0 20px; background: #52C41A; color: white; border: none; border-radius: 18px; cursor: pointer; }
 .btn-confirm-export { height: 36px; padding: 0 20px; background: #9CA3AF; color: white; border: none; border-radius: 18px; }
 .btn-confirm-export-green { background: #52C41A; cursor: pointer; }
 .btn-cancel-select { height: 36px; padding: 0 15px; border: 1px solid #D9D9D9; background: white; border-radius: 18px; cursor: pointer; }
-
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 20, 50, 0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 3000; }
 .success-modal { background: white; border-radius: 24px; width: 100%; max-width: 420px; padding: 40px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.2); animation: modalSlideUp 0.3s ease-out; }
 .success-icon-wrap { width: 80px; height: 80px; background: #F0FDF4; color: #16A34A; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; }
@@ -409,7 +397,6 @@ h1 { font-size: 20px; font-weight: 800; color: #002B54; margin-bottom: 20px; let
 .success-modal p { margin: 0 0 32px; font-size: 15px; color: #666; line-height: 1.6; }
 .modal-actions { display: flex; gap: 16px; }
 .modal-actions .btn { flex: 1; justify-content: center; height: 48px; font-weight: 700; border-radius: 12px; }
-
 @keyframes modalSlideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 .spin { animation: spin 1s linear infinite; display: inline-block; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
