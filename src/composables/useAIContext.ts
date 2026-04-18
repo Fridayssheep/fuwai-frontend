@@ -20,6 +20,7 @@ const normalizeContext = (value: AIQAContext | null | undefined): AIQAContext | 
   const next: AIQAContext = {}
 
   if (value.building_id) next.building_id = value.building_id
+  if (value.site_id) next.site_id = value.site_id
   if (value.meter) next.meter = value.meter
   if (value.time_range?.start && value.time_range?.end) {
     next.time_range = {
