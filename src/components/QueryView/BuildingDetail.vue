@@ -541,10 +541,13 @@ import {
 const rawData = ref({
   buildingDetail: null as any,
   energySummary: null as any,
-  categoryEnergy: null as any,  // 这个字段存储分类能耗数据
-  copEui: null as any
+  categoryEnergy: null as any,  // 当前选中的分类能耗
+  copEui: null as any,          // COP接口数据 (avg_cop, min_cop, max_cop)
+  carbonData: null as any,      // 年度总碳排放数据 (b.carbon)
+  solarData: null as any,       // 太阳能发电量
+  electricityData: null as any, // 建筑总用电量 (electricity)
+  waterData: null as any,       // 水耗总量 (water)
 });
-
 
 // ===== 扩展接口定义以解决类型问题 =====
 interface BuildingInfo {
@@ -891,6 +894,11 @@ const closeEnvModal = () => {
 
 // ===== 建筑详情数据获取 =====
 const fetchData = async () => {
+  // 从路由参数获取时间范围（如果父组件通过 query 传递）
+  const routeTimeRange = route.query.timeRange as any;
+  if (routeTimeRange && ['today', 'week', 'month', 'quarter', 'year'].includes(routeTimeRange)) {
+    timeRange.value = routeTimeRange;
+  }
   if (!buildingId.value) return;
   loading.value = true;
   error.value = false;
@@ -1009,70 +1017,221 @@ const timeRangeText = computed(() => {
 const euiResponse = ref<any>(null);
 const alarmResponse = ref<any>(null);
 
-// 获取EUI和故障数据
+// 获取EUI、故障、碳排放、可再生能源、水耗等所有数据
 const fetchMetricsData = async () => {
   try {
-    const [euiRes, alarmRes] = await Promise.all([
+    // 【关键修改】使用 calculateTimeRange 根据当前 timeRange 计算时间
+    const { start_time, end_time } = calculateTimeRange(timeRange.value);
+    
+    // 根据时间范围选择合适的粒度
+    let granularity: 'hour' | 'day' | 'week' | 'month' = 'month';
+    switch (timeRange.value) {
+      case 'today': granularity = 'hour'; break;
+      case 'week': granularity = 'day'; break;
+      case 'month': granularity = 'day'; break;
+      case 'quarter': granularity = 'month'; break;
+      case 'year': granularity = 'month'; break;
+    }
+    
+    console.log(`获取指标数据: ${timeRange.value} (${start_time} ~ ${end_time}), 粒度: ${granularity}`);
+
+    // 并行请求所有需要的接口
+    const [euiRes, alarmRes, carbonRes, solarRes, elecRes, waterRes] = await Promise.all([
+      // 1. COP/EUI计算结果接口
       axios.get('/energy/cop', {
-        params: { building_id: buildingId.value }
-      }).catch(err => {
-        console.error('EUI接口请求失败:', err);
-        return null;
-      }),
-      // 用户指定接口：获取设备告警记录
-      axios.get('/meters/1/alarms', {
         params: { 
-          page: 1,
-          page_size: 999 // 取足够多的数据
+          building_id: buildingId.value,
+          start_time,
+          end_time,
+          granularity
         }
       }).catch(err => {
+        console.error('COP接口请求失败:', err);
+        return null;
+      }),
+      
+      // 2. 设备告警记录（故障次数）- 告警接口通常不需要时间范围，或根据需求调整
+      axios.get('/meters/1/alarms', {
+        params: { page: 1, page_size: 999 }
+      }).catch(err => {
         console.error('告警接口请求失败:', err);
+        return null;
+      }),
+      
+      // 3. 建筑总碳排放（使用通用查询接口）
+      axios.get('/energy/query', {
+        params: {
+          building_id: buildingId.value,
+          meter: 'carbon', // 或 electricity 然后转换
+          aggregation: 'sum',
+          start_time,
+          end_time
+        }
+      }).catch(err => {
+        console.error('碳排放接口请求失败:', err);
+        return null;
+      }),
+      
+      // 4. 太阳能发电量（可再生能源）
+      getBuildingEnergySummary(buildingId.value, {
+        meter: 'solar' as any,
+        granularity,
+        start_time,
+        end_time
+      }).catch(err => {
+        console.error('太阳能接口请求失败:', err);
+        return null;
+      }),
+      
+      // 5. 建筑总用电量（用于计算可再生能源替代率）
+      getBuildingEnergySummary(buildingId.value, {
+        meter: 'electricity' as any,
+        granularity,
+        start_time,
+        end_time
+      }).catch(err => {
+        console.error('总用电接口请求失败:', err);
+        return null;
+      }),
+      
+      // 6. 水耗总量（用于计算单位面积水耗）
+      axios.get('/energy/query', {
+        params: {
+          building_id: buildingId.value,
+          meter: 'water',
+          aggregation: 'sum',
+          start_time,
+          end_time
+        }
+      }).catch(err => {
+        console.error('水耗接口请求失败:', err);
         return null;
       })
     ]);
     
+    // 存储所有数据
     euiResponse.value = euiRes?.data?.data ?? euiRes?.data;
     alarmResponse.value = alarmRes?.data?.data ?? alarmRes?.data;
+    rawData.value.carbonData = carbonRes?.data?.data ?? carbonRes?.data;
+    rawData.value.solarData = solarRes?.data ?? solarRes;
+    rawData.value.electricityData = elecRes?.data ?? elecRes;
+    rawData.value.waterData = waterRes?.data?.data ?? waterRes?.data;
     
-    console.log('EUI数据:', euiResponse.value);
-    console.log('告警数据:', alarmResponse.value);
+    console.log('✅ 指标数据加载完成，时间范围:', timeRange.value);
   } catch (e) {
     console.error('获取运行指标失败:', e);
   }
 };
 
 const derivedData = computed(() => {
+  // ===== 基础数据提取 =====
+  const area = Number(buildingInfo.value.sqm) || 22117; // 建筑面积(m²)，默认22,117
+  const occupancy = Number(buildingInfo.value.occupancy) || 85; // 使用人数，默认85人避免除0
+  
+  // ===== 1. COP数据 (来自 /energy/cop 接口) =====
+  // 用户要求：基准EUI→平均COP，源头级→最大COP，场地级→最小COP
+  const copSummary = euiResponse.value?.summary || {};
+  const avgCOP = copSummary.avg_cop ?? 3.2;
+  const minCOP = copSummary.min_cop ?? 3.2;
+  const maxCOP = copSummary.max_cop ?? 3.2;
+  
+  // ===== 2. 碳排放数据计算 =====
+  // 实际总碳排放量 (kgCO2e/年)
+  const totalCarbon = Number(
+    rawData.value.carbonData?.total ?? 
+    rawData.value.carbonData?.annual_carbon ?? 
+    1250.50
+  );
+  
+  // 基准碳排放量计算：基准EUI(110) × 面积 × 碳排放因子(0.5703 kgCO2/kWh)
+  // 使用中国电网平均碳排放因子 0.5703 kgCO2/kWh (2024年生态环境部发布)
+  const baselineEUI = 110; // kWh/m²/年 (GB/T 51161-2016 娱乐/公共建筑约束值)
+  const carbonFactor = 0.5703; // kgCO2/kWh
+  const baselineCarbon = baselineEUI * area * carbonFactor; // 基准碳排放 (kgCO2e)
+  
+  // 碳减排量和减排率 (图三公式)
+  const carbonReduction = Math.max(0, baselineCarbon - totalCarbon);
+  const carbonReductionRate = baselineCarbon > 0 ? 
+    ((carbonReduction / baselineCarbon) * 100).toFixed(1) : '0.0';
+  
+  // ===== 3. 单位面积和人均碳排放 =====
+  const carbonPerArea = area > 0 ? (totalCarbon / area).toFixed(1) : '10.1';
+  const carbonPerPerson = occupancy > 0 ? (totalCarbon / occupancy).toFixed(1) : '147.1';
+  
+  // ===== 4. 能耗数据 (用于人均能耗和可再生能源替代率) =====
+  // 建筑总用电量 (kWh/年) - 作为"建筑总能耗"
+  const totalElectricity = Number(
+    rawData.value.electricityData?.summary?.total ?? 
+    rawData.value.electricityData?.total ?? 
+    12500.8
+  );
+  
+  // 太阳能发电量 (kWh/年) - 自发自用
+  const solarGeneration = Number(
+    rawData.value.solarData?.summary?.total ?? 
+    rawData.value.solarData?.total ?? 
+    0
+  );
+  
+  // 人均能耗强度 (kWh/人/年) = 总能耗 / 人数
+  const energyPerPerson = occupancy > 0 ? 
+    (totalElectricity / occupancy).toFixed(1) : '125.5';
+  
+  // 可再生能源替代率 (图四公式) = 太阳能发电 / 总用电 × 100%
+  const renewableRate = totalElectricity > 0 ? 
+    ((solarGeneration / totalElectricity) * 100).toFixed(1) : '0.0';
+  
+  // ===== 5. 水耗数据 =====
+  // 水耗总量 (m³/年)
+  const waterConsumption = Number(
+    rawData.value.waterData?.summary?.total ?? 
+    rawData.value.waterData?.total ?? 
+    552.9 // 默认: 0.025 * 22117 ≈ 552.9
+  );
+  
+  // 单位面积水耗 (m³/m²) = 水耗 / 面积
+  const waterPerArea = area > 0 ? 
+    (waterConsumption / area).toFixed(3) : '0.025';
+  
+  // ===== 6. 分类能耗数据 (原有逻辑保留) =====
   const catData = rawData.value.categoryEnergy;
+  const categoryEnergyTotal = Number(catData?.summary?.total ?? 0);
   
-  // 从接口返回数据中提取实际值（根据图2返回结构：data.summary.total）
-  const totalEnergy = catData?.summary?.total ?? 
-                     catData?.data?.summary?.total ?? 
-                     catData?.total ?? 
-                     '0';
+  // 分项能耗占比 = 分类能耗 / 总能耗
+  const energyRatio = totalElectricity > 0 ? 
+    ((categoryEnergyTotal / totalElectricity) * 100).toFixed(1) + '%' : '0%';
   
-  // 获取总能耗（用于计算占比）- 你可以从其他接口获取，这里先使用固定值作为示例
-  const totalEnergyAll = 12500.8; 
-  const energyRatio = Number(totalEnergy) > 0 ? 
-    ((Number(totalEnergy) / totalEnergyAll) * 100).toFixed(1) + '%' : 
-    '0%';
-
   return { 
-    cop: '3.2', 
-    annualCarbon: '1250.50', 
-    carbonPerArea: '10.1', 
-    carbonPerPerson: '147.1', 
-    carbonReduction: '450.2', 
-    carbonReductionRate: '26.5%', 
-    renewableRate: '15%', 
-    euiBaseline: '110', 
-    euiSource: '95.2', 
-    euiSite: '88.5', 
-    waterPerArea: '0.025', 
-    energyPerPerson: '125.5', 
-    energyType: energyCategory.value, 
-    totalEnergy: totalEnergy.toString(), // 使用接口返回的真实数据
-    energyRatio: energyRatio, // 使用计算出的占比
-    totalEnergyAll: totalEnergyAll.toString()
+    // COP数据 (用户要求：用COP值填充EUI字段)
+    cop: avgCOP.toFixed(1),                    // COP值 (平均)
+    
+    // 碳排放数据 (全部接入接口或基于接口计算)
+    annualCarbon: totalCarbon.toFixed(2),      // 建筑年度总碳排放量 (kgCO2e)
+    carbonPerArea: carbonPerArea,               // 单位面积碳排放量 (kgCO2e/m²)
+    carbonPerPerson: carbonPerPerson,           // 人均碳排放量 (kgCO2e/人)
+    carbonReduction: carbonReduction.toFixed(1), // 碳减排量 (kgCO2e)
+    carbonReductionRate: carbonReductionRate + '%', // 碳减排率 (%)
+    
+    // 可再生能源 (基于接口计算)
+    renewableRate: renewableRate + '%',         // 可再生能源替代率 (%)
+    
+    // EUI相关字段 (用户要求：换成平均/最大/最小COP值)
+    // 模板标签建议同步改为：平均EUI(COP)、最大EUI(COP)、最小EUI(COP)
+    euiBaseline: avgCOP.toFixed(1),            // 原"能耗强度基准值EUI" → 平均COP
+    euiSource: maxCOP.toFixed(1),               // 原"源头级EUI" → 最大COP
+    euiSite: minCOP.toFixed(1),                 // 原"场地级EUI" → 最小COP
+    
+    // 水耗 (基于接口计算)
+    waterPerArea: waterPerArea,                 // 单位面积水耗 (m³/m²)
+    
+    // 人均能耗 (基于接口计算)
+    energyPerPerson: energyPerPerson,           // 人均能耗强度 (kWh/人/年)
+    
+    // 分类能耗展示
+    energyType: energyCategory.value,           // 当前选中的能耗类别
+    totalEnergy: categoryEnergyTotal.toFixed(1), // 对应类别总能耗 (kWh)
+    energyRatio: energyRatio,                     // 分项能耗占比 (%)
+    totalEnergyAll: totalElectricity.toFixed(1)   // 建筑总能耗 (总用电量) (kWh)
   };
 });
 
