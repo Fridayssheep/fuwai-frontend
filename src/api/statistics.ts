@@ -279,7 +279,7 @@ export const getBuildingEnergySummary = (buildingId: string, params?: BuildingEn
 
 // ─── Types: Reports Integration ───────────────────────────────────
 
-export type ReportType = 'daily_summary' | 'weekly_summary' | 'monthly_summary' | 'anomaly_report'
+export type ReportType = 'daily_summary' | 'weekly_summary' | 'monthly_summary' | 'custom_summary' | 'anomaly_report'
 
 export type ReportStatus = 'queued' | 'processing' | 'ready' | 'failed'
 

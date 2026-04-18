@@ -113,7 +113,7 @@ import type { ReportSourceContext } from './reportWorkbenchTypes'
 import ReportPreviewModal from './ReportPreviewModal.vue'
 
 type ReportType = GenerateReportRequest['report_type']
-const reportTypeOptions = [{ value: 'daily_summary', label: '日报' }, { value: 'weekly_summary', label: '周报' }, { value: 'monthly_summary', label: '月报' }, { value: 'anomaly_report', label: '异常分析报告' }] as { value: ReportType; label: string }[]
+const reportTypeOptions = [{ value: 'daily_summary', label: '日报' }, { value: 'weekly_summary', label: '周报' }, { value: 'monthly_summary', label: '月报' }, { value: 'custom_summary', label: '自定义报表' }, { value: 'anomaly_report', label: '异常分析报告' }] as { value: ReportType; label: string }[]
 const reportStatusOptions = [{ value: 'queued', label: '排队中' }, { value: 'processing', label: '处理中' }, { value: 'ready', label: '已完成' }, { value: 'failed', label: '失败' }] as { value: ReportStatus; label: string }[]
 
 const props = defineProps<{ selectedReportId?: string; selectionVersion?: number; sourceContext?: ReportSourceContext | null }>()
@@ -139,7 +139,9 @@ const previewLoading = ref(false)
 const previewError = ref('')
 const previewContent = ref('')
 const previewTitle = ref('')
+const REPORT_POLL_INTERVAL_MS = 15000
 let reportPollingTimer: ReturnType<typeof setInterval> | null = null
+let reportPollingInFlight = false
 
 const unwrap = <T>(payload: T | { data?: T }) => ((payload as { data?: T })?.data ?? payload) as T
 const formatNumber = (val: number | null | undefined) => val == null || Number.isNaN(val) ? '0.0' : val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
@@ -178,9 +180,11 @@ const registerContext = (context?: ReportSourceContext | null) => {
   if (!context?.reportId) return
   reportContextMap.value = { ...reportContextMap.value, [context.reportId]: context }
 }
-const loadReportList = async (selectFirst = false) => {
-  reportListLoading.value = true
-  reportListError.value = ''
+const loadReportList = async (selectFirst = false, options: { silent?: boolean } = {}) => {
+  if (!options.silent) {
+    reportListLoading.value = true
+    reportListError.value = ''
+  }
   try {
     const response = unwrap(await listReports({ report_type: reportFilters.value.report_type || undefined, status: reportFilters.value.status || undefined, page: reportFilters.value.page, page_size: reportFilters.value.page_size }))
     reportList.value = response?.items || []
@@ -189,25 +193,47 @@ const loadReportList = async (selectFirst = false) => {
     if (!selectedReportId.value && (selectFirst || reportList.value.length)) { const targetId = reportList.value[0]?.report_id; if (targetId) await selectReport(targetId) }
     syncReportPolling()
   } catch (error: any) {
-    reportListError.value = error?.message || '报表列表加载失败'
+    if (options.silent) {
+      console.warn('报表后台刷新失败:', error)
+    } else {
+      reportListError.value = error?.message || '报表列表加载失败'
+    }
   } finally {
-    reportListLoading.value = false
+    if (!options.silent) reportListLoading.value = false
   }
 }
-const fetchReportDetail = async (reportId: string) => {
-  reportDetailLoading.value = true
-  reportDetailError.value = ''
-  try { reportDetail.value = unwrap(await getReportDetail(reportId)) } catch (error: any) { reportDetailError.value = error?.message || '报表详情加载失败'; reportDetail.value = null } finally { reportDetailLoading.value = false }
+const fetchReportDetail = async (reportId: string, options: { silent?: boolean } = {}) => {
+  if (!options.silent) {
+    reportDetailLoading.value = true
+    reportDetailError.value = ''
+  }
+  try {
+    reportDetail.value = unwrap(await getReportDetail(reportId))
+  } catch (error: any) {
+    if (options.silent) {
+      console.warn('报表详情后台刷新失败:', error)
+    } else {
+      reportDetailError.value = error?.message || '报表详情加载失败'
+      reportDetail.value = null
+    }
+  } finally {
+    if (!options.silent) reportDetailLoading.value = false
+  }
 }
 const hasPendingReports = () => reportList.value.some(item => item.status === 'queued' || item.status === 'processing')
 const refreshPendingReports = async () => {
-  if (reportListLoading.value) return
-  await loadReportList()
-  if (selectedReportId.value) await fetchReportDetail(selectedReportId.value)
+  if (reportListLoading.value || reportPollingInFlight) return
+  reportPollingInFlight = true
+  try {
+    await loadReportList(false, { silent: true })
+    if (selectedReportId.value) await fetchReportDetail(selectedReportId.value, { silent: true })
+  } finally {
+    reportPollingInFlight = false
+  }
 }
 const syncReportPolling = () => {
   if (hasPendingReports()) {
-    if (!reportPollingTimer) reportPollingTimer = setInterval(refreshPendingReports, 5000)
+    if (!reportPollingTimer) reportPollingTimer = setInterval(refreshPendingReports, REPORT_POLL_INTERVAL_MS)
     return
   }
   if (reportPollingTimer) {
@@ -293,9 +319,6 @@ const syncExternalSelection = async () => {
   if (!props.selectedReportId) return
   await loadReportList()
   await selectReport(props.selectedReportId)
-  reportNotice.value = isSelectedReportReady.value
-    ? { type: 'ok', text: '报表已生成完成。' }
-    : { type: 'ok', text: '报表任务已创建，正在后台生成。' }
 }
 watch(() => [props.selectedReportId, props.selectionVersion], syncExternalSelection)
 onMounted(async () => { registerContext(props.sourceContext); await loadReportList(true); if (props.selectedReportId) await syncExternalSelection() })

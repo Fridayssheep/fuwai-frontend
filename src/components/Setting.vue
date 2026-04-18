@@ -118,8 +118,12 @@
               </div>
 
               <div class="time-actions">
-                <button class="time-btn primary" @click="applyTime">立即修改当前时间</button>
-                <button class="time-btn secondary" @click="restoreTime">恢复真实系统时间</button>
+                <button class="time-btn primary" :disabled="timeSaving" @click="applyTime">
+                  {{ timeSaving ? '同步中...' : '立即修改当前时间' }}
+                </button>
+                <button class="time-btn secondary" :disabled="timeSaving" @click="restoreTime">
+                  {{ timeSaving ? '请稍候...' : '恢复真实系统时间' }}
+                </button>
               </div>
             </div>
           </div>
@@ -264,6 +268,21 @@
 
     </div>
 
+    <Transition name="settings-toast">
+      <div v-if="toast.visible" class="settings-toast" :class="toast.type" role="status" aria-live="polite">
+        <div class="toast-icon">
+          <Icon :icon="toastIcon" />
+        </div>
+        <div class="toast-copy">
+          <strong>{{ toast.title }}</strong>
+          <span>{{ toast.message }}</span>
+        </div>
+        <button class="toast-close" type="button" aria-label="关闭提示" @click="hideToast">
+          <Icon icon="lucide:x" />
+        </button>
+      </div>
+    </Transition>
+
     <!-- 上传数据集确认弹窗 -->
     <div v-if="showUploadModal" class="upload-modal-overlay" @click.self="closeModal">
       <div class="upload-modal">
@@ -366,6 +385,44 @@ const notifySettings = reactive([
 const showApiKey = ref(false)
 const showRagflowKey = ref(false)
 const timezone = ref('GMT+08:00')
+const timeSaving = ref(false)
+let toastTimer: number | null = null
+
+const toast = reactive({
+  visible: false,
+  type: 'success' as 'success' | 'error' | 'info',
+  title: '',
+  message: ''
+})
+
+const toastIcon = computed(() => {
+  if (toast.type === 'success') return 'lucide:check-circle-2'
+  if (toast.type === 'error') return 'lucide:alert-circle'
+  return 'lucide:info'
+})
+
+const showToast = (type: 'success' | 'error' | 'info', title: string, message: string) => {
+  if (toastTimer !== null) {
+    window.clearTimeout(toastTimer)
+    toastTimer = null
+  }
+  toast.type = type
+  toast.title = title
+  toast.message = message
+  toast.visible = true
+  toastTimer = window.setTimeout(() => {
+    toast.visible = false
+    toastTimer = null
+  }, 4200)
+}
+
+const hideToast = () => {
+  if (toastTimer !== null) {
+    window.clearTimeout(toastTimer)
+    toastTimer = null
+  }
+  toast.visible = false
+}
 
 const aiLoading = ref(true)
 const aiError = ref('')
@@ -429,10 +486,10 @@ const saveAISettings = async () => {
   try {
     const { config_path, ...payload } = aiSettings
     await import('../utils/request').then(m => m.default.put('/system/ai-settings', payload))
-    alert('AI 配置已保存')
+    showToast('success', 'AI 配置已保存', '新的模型与知识库配置已写入系统。')
   } catch (err: any) {
     console.error('保存AI配置失败:', err)
-    alert('保存失败: ' + (err?.response?.data?.detail || err?.message || '未知错误'))
+    showToast('error', 'AI 配置保存失败', err?.response?.data?.detail || err?.message || '请检查网络连接或后端服务状态。')
   }
 }
 
@@ -475,6 +532,20 @@ const formatAndDisplayTime = (date: Date) => {
   currentDate.value = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${weekdays[date.getDay()]}`
 }
 
+const formatReadableDateTime = (iso: string) => {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
+}
+
 const reverseTimezoneMap: Record<string, string> = {
   'Asia/Shanghai': 'GMT+08:00',
   'Asia/Tokyo': 'GMT+09:00',
@@ -493,33 +564,50 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (timeTimer !== null) clearInterval(timeTimer)
+  if (toastTimer !== null) window.clearTimeout(toastTimer)
 })
 
 const applyTime = async () => {
   if (!targetTime.value) {
-    alert('请先选择目标时间')
+    showToast('info', '请选择目标时间', '先在时间输入框中选择一个数据集内的时间点，再执行修改。')
     return
   }
   const offset = getTimezoneOffset(timezone.value)
   const isoTime = `${targetTime.value}${offset}`
   const ianaTz = timezoneMap[timezone.value] || 'Asia/Shanghai'
+  const previousWasCustom = timeState.isCustomTime
+  const previousTime = getCurrentTimeString()
+  const previousTimezone = timeState.timezone
+  timeSaving.value = true
   try {
     startCustomTime(isoTime, ianaTz)
-    const res = await syncTimeToBackend() as any
-    alert(`系统时间已修改为目标时间（来源：${res?.source || 'custom_time'}）`)
-  } catch (err) {
+    await syncTimeToBackend()
+    showToast('success', '系统时间已切换', `当前页面和后端服务已同步至 ${formatReadableDateTime(isoTime)}。`)
+  } catch (err: any) {
+    if (previousWasCustom) startCustomTime(previousTime, previousTimezone)
+    else resetToNaturalTime()
     console.error('设置时间失败:', err)
-    alert('时间设置失败，请检查网络连接或后端服务')
+    showToast('error', '时间设置失败', err?.response?.data?.detail || err?.message || '未能同步到后端服务，已保留原时间设置。')
+  } finally {
+    timeSaving.value = false
   }
 }
 
 const restoreTime = async () => {
+  const previousWasCustom = timeState.isCustomTime
+  const previousTime = getCurrentTimeString()
+  const previousTimezone = timeState.timezone
+  timeSaving.value = true
   try {
     resetToNaturalTime()
     await syncTimeToBackend()
-    alert('系统时间已恢复为真实环境时间')
-  } catch (err) {
-    alert('时间恢复失败，请检查网络')
+    showToast('success', '已恢复真实时间', '系统将重新使用当前真实环境时间作为数据查询基准。')
+  } catch (err: any) {
+    if (previousWasCustom) startCustomTime(previousTime, previousTimezone)
+    console.error('时间恢复失败:', err)
+    showToast('error', '时间恢复失败', err?.response?.data?.detail || err?.message || '后端同步未完成，已保留原时间设置。')
+  } finally {
+    timeSaving.value = false
   }
 }
 
@@ -893,6 +981,11 @@ input:checked + .slider:before { transform: translateX(20px); }
   cursor: pointer; transition: all 0.2s;
 }
 .time-btn:active { transform: scale(0.98); }
+.time-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+  transform: none;
+}
 .time-btn.primary { background: #eff6ff; color: #0b4582; }
 .time-btn.primary:hover { background: #dbeafe; }
 .time-btn.secondary { background: #fafbfc; color: #333; border: 1px solid #c8d8ec; }
@@ -911,6 +1004,110 @@ input:checked + .slider:before { transform: translateX(20px); }
 
 @media (max-width: 1200px) {
   .settings-grid { grid-template-columns: 1fr; }
+}
+
+.settings-toast {
+  position: fixed;
+  right: 34px;
+  top: 88px;
+  z-index: 1100;
+  width: min(420px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 30px;
+  gap: 12px;
+  align-items: center;
+  padding: 16px 16px 16px 14px;
+  border: 1px solid rgba(219, 229, 239, 0.92);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 8% 12%, rgba(11, 69, 130, 0.11), transparent 30%),
+    rgba(255, 255, 255, 0.96);
+  box-shadow: 0 22px 55px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(16px);
+}
+
+.settings-toast::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  border-radius: 18px 0 0 18px;
+  background: #0b4582;
+}
+
+.settings-toast.success::before { background: #059669; }
+.settings-toast.error::before { background: #dc2626; }
+.settings-toast.info::before { background: #0b4582; }
+
+.toast-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0b4582;
+  background: #eff6ff;
+  font-size: 21px;
+}
+
+.settings-toast.success .toast-icon {
+  color: #059669;
+  background: #ecfdf5;
+}
+
+.settings-toast.error .toast-icon {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.toast-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toast-copy strong {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.toast-copy span {
+  color: #52637a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.toast-close {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 10px;
+  background: #f4f7fb;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+}
+
+.toast-close:hover {
+  color: #0b4582;
+  background: #e8f0fe;
+}
+
+.settings-toast-enter-active,
+.settings-toast-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.settings-toast-enter-from,
+.settings-toast-leave-to {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.98);
 }
 
 /* 上传弹窗 */
