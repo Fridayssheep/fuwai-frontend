@@ -244,6 +244,44 @@
                       </div>
                       <p>{{ baseReportSummary }}</p>
                     </div>
+
+                    <div v-if="reportHourlyData.length" class="hourly-table-wrapper">
+                      <div class="title">
+                        <Icon icon="lucide:clock" />
+                        小时级数据
+                      </div>
+                      <table class="hourly-table">
+                        <thead>
+                          <tr>
+                            <th>时间</th>
+                            <th>总能耗</th>
+                            <th>峰值</th>
+                            <th>平均</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="(item, idx) in reportHourlyData" :key="idx">
+                            <td>{{ item.hour }}</td>
+                            <td class="font-numeric">{{ formatNumber(item.total) }}</td>
+                            <td class="font-numeric">{{ formatNumber(item.peak) }}</td>
+                            <td class="font-numeric">{{ formatNumber(item.average) }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div v-if="reportSummaryMetrics.length" class="metrics-grid">
+                      <div class="title">
+                        <Icon icon="lucide:bar-chart-3" />
+                        指标摘要
+                      </div>
+                      <div class="metrics-cards">
+                        <div v-for="metric in reportSummaryMetrics" :key="metric.key" class="metric-card">
+                          <span class="metric-label">{{ metric.label }}</span>
+                          <span class="metric-value">{{ formatNumber(metric.value) }}<span v-if="metric.unit" class="metric-unit">{{ metric.unit }}</span></span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <div v-else class="empty-state">
@@ -454,6 +492,7 @@ import { Icon } from '@iconify/vue'
 import { connectOpsGuideStream, type OpsGuideResponse, type OpsGuideSSEEvent } from '../../api/anomaly'
 import {
   deleteReport,
+  downloadReport,
   generateReport,
   getReportDetail,
   listReports,
@@ -538,6 +577,11 @@ const normalizeToISOString = (value: string) => {
   return Number.isNaN(date.getTime()) ? '' : date.toISOString()
 }
 
+const formatNumber = (val: number | null | undefined): string => {
+  if (val == null || isNaN(val)) return '0.0'
+  return val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
+
 const formatGeneratedAt = (value?: string | null) => {
   if (!value) return '-'
   const date = new Date(value)
@@ -567,6 +611,14 @@ const baseReportSummary = computed(() =>
   selectedReportListItem.value?.summary ||
   ''
 )
+
+const reportHourlyData = computed(() => {
+  return reportDetail.value?.data?.hourly_data || []
+})
+
+const reportSummaryMetrics = computed(() => {
+  return reportDetail.value?.data?.summary_metrics || []
+})
 
 const reportAiMetaText = computed(() => {
   const meta = reportAiResponse.value?.meta
@@ -770,9 +822,24 @@ const viewReportFile = () => {
   }
 }
 
-const downloadReportFile = () => {
+const downloadReportFile = async () => {
   const reportId = selectedReportId.value || reportDetail.value?.report_id
-  if (reportId) window.open(`/api/reports/${reportId}?download=true&format=md`, '_blank')
+  if (!reportId) return
+
+  try {
+    const blob = await downloadReport(reportId, 'md') as unknown as Blob
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `report_${reportId}.md`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (err: any) {
+    alert('下载失败: ' + (err.message || '未知错误'))
+    console.error(err)
+  }
 }
 
 const removeSelectedReport = async () => {
@@ -1094,4 +1161,16 @@ em{font-style:normal;font-size:11px;padding:3px 8px;border-radius:999px;backgrou
   .body{padding:14px}
   .grid,.filters,.detail-grid{grid-template-columns:1fr}
 }
+.font-numeric{text-align:right;font-variant-numeric:tabular-nums}
+.hourly-table-wrapper,.metrics-grid{margin-top:12px}
+.hourly-table{width:100%;border-collapse:collapse;font-size:13px}
+.hourly-table th,.hourly-table td{padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:left}
+.hourly-table th{background:#f8fafc;font-weight:600;color:#475569}
+.hourly-table td{color:#334155}
+.hourly-table tr:hover td{background:#f8fafc}
+.metrics-grid .metrics-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:8px}
+.metrics-cards .metric-card{display:flex;flex-direction:column;gap:4px;padding:12px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0}
+.metric-label{font-size:11px;color:#64748b}
+.metric-value{font-size:15px;font-weight:700;color:#0f172a}
+.metric-unit{font-size:12px;color:#64748b;margin-left:2px}
 </style>
