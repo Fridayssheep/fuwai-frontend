@@ -109,7 +109,21 @@ const renderMarkdown = (source: string) => {
     codeBlockLanguage = ''
   }
 
-  for (const line of lines) {
+  const isTableSeparator = (line: string) => {
+    return /^\|?(\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?$/.test(line.trim())
+  }
+
+  const splitTableRow = (line: string) => {
+    return line
+      .trim()
+      .replace(/^\|/, '')
+      .replace(/\|$/, '')
+      .split('|')
+      .map(cell => cell.trim())
+  }
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] || ''
     const codeFenceMatch = line.match(/^```(\w+)?\s*$/)
     if (codeFenceMatch) {
       flushParagraph()
@@ -129,6 +143,31 @@ const renderMarkdown = (source: string) => {
     if (!trimmed) {
       flushParagraph()
       flushList()
+      continue
+    }
+
+    const nextLine = lines[index + 1]?.trim() || ''
+    if (trimmed.includes('|') && isTableSeparator(nextLine)) {
+      flushParagraph()
+      flushList()
+
+      const header = splitTableRow(trimmed)
+      const bodyRows: string[][] = []
+
+      index += 2
+      while (index < lines.length) {
+        const rowLine = (lines[index] || '').trim()
+        if (!rowLine || !rowLine.includes('|')) {
+          index -= 1
+          break
+        }
+        bodyRows.push(splitTableRow(rowLine))
+        index += 1
+      }
+
+      const thead = `<thead><tr>${header.map(cell => `<th>${renderInlineMarkdown(cell || '')}</th>`).join('')}</tr></thead>`
+      const tbody = `<tbody>${bodyRows.map(row => `<tr>${row.map(cell => `<td>${renderInlineMarkdown(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`
+      blocks.push(`<table>${thead}${tbody}</table>`)
       continue
     }
 
@@ -234,6 +273,10 @@ watch(
 .markdown-body :deep(h1){font-size:24px}.markdown-body :deep(h2){font-size:20px}.markdown-body :deep(h3){font-size:17px}
 .markdown-body :deep(ul),.markdown-body :deep(ol){margin:8px 0 0;padding-left:18px}
 .markdown-body :deep(li){margin:4px 0}
+.markdown-body :deep(table){width:100%;border-collapse:collapse;margin-top:12px;background:#fff;border:1px solid #dbe5ef;border-radius:12px;overflow:hidden}
+.markdown-body :deep(th),.markdown-body :deep(td){padding:10px 12px;border-bottom:1px solid #e5edf5;text-align:left;vertical-align:top}
+.markdown-body :deep(th){background:#f7fafc;color:#0f172a;font-weight:700}
+.markdown-body :deep(tr:last-child td){border-bottom:none}
 .markdown-body :deep(code){padding:2px 6px;border-radius:6px;background:rgba(16,90,167,.08);color:#0b4582;font-size:12px;font-family:'SFMono-Regular','Consolas','Liberation Mono',monospace}
 .markdown-body :deep(pre){margin:10px 0 0;padding:14px;border-radius:12px;background:#0f1c2b;overflow:auto}
 .markdown-body :deep(pre code){padding:0;background:transparent;color:#d9e8fb;font-size:12px;line-height:1.6}
