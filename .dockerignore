@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.npm-cache
+.DS_Store
+*.log
+*.local
+coverage
+*.tsbuildinfo
+.vscode
+.idea
+Building Energy AI & Backend API.openapi.json
