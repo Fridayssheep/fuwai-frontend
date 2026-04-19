@@ -300,6 +300,13 @@ const transformMermaidSource = (source: string) => {
   return transformMetricComparisonChart(source)
 }
 
+const detectMermaidKind = (source: string) => {
+  const normalized = source.trim().toLowerCase()
+  if (normalized.startsWith('xychart-beta')) return 'chart'
+  if (normalized.startsWith('pie')) return 'chart'
+  return 'diagram'
+}
+
 const renderMermaidDiagrams = async () => {
   if (!props.visible || props.loading || props.error || !props.content) return
 
@@ -314,9 +321,11 @@ const renderMermaidDiagrams = async () => {
     const pre = block.parentElement
     if (!pre) return
 
+    const source = transformMermaidSource(block.textContent || '')
     const wrapper = document.createElement('div')
-    wrapper.className = 'mermaid'
-    wrapper.textContent = transformMermaidSource(block.textContent || '')
+    const mermaidKind = detectMermaidKind(source)
+    wrapper.className = mermaidKind === 'chart' ? 'mermaid mermaid-chart' : 'mermaid mermaid-diagram'
+    wrapper.textContent = source
     pre.replaceWith(wrapper)
   })
 
@@ -370,13 +379,20 @@ watch(
 .markdown-body :deep(pre code){padding:0;background:transparent;color:#d9e8fb;font-size:12px;line-height:1.6}
 .markdown-body :deep(a){color:#0b4582;text-decoration:underline}
 .markdown-body :deep(strong){font-weight:800}
-.markdown-body :deep(.mermaid){display:flex;justify-content:center;margin-top:14px;padding:14px 10px;border:1px solid #dbe5ef;border-radius:14px;background:linear-gradient(180deg,#f8fbff 0%,#eef5ff 100%)}
-.markdown-body :deep(.mermaid svg){max-width:100%;height:auto}
+.markdown-body :deep(.mermaid){margin-top:14px}
+.markdown-body :deep(.mermaid-diagram){display:flex;justify-content:center;padding:14px 10px;border:1px solid #dbe5ef;border-radius:14px;background:linear-gradient(180deg,#f8fbff 0%,#eef5ff 100%)}
+.markdown-body :deep(.mermaid-chart){display:block;padding:8px 0;border:none;border-radius:0;background:transparent;overflow-x:auto;overflow-y:hidden}
+.markdown-body :deep(.mermaid-diagram svg){max-width:100%;height:auto}
+.markdown-body :deep(.mermaid-chart svg){display:block;max-width:none;width:max-content;min-width:640px;height:auto;margin:0 auto}
 .markdown-body :deep(.mermaid svg .bar){fill:#2563eb !important}
 .markdown-body :deep(.mermaid svg .line){stroke:#2563eb !important}
 .markdown-body :deep(.mermaid svg text){fill:#1e3a8a !important}
 .markdown-body :deep(.mermaid svg .label),.markdown-body :deep(.mermaid svg .title){fill:#0f172a !important}
 .spin{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-@media (max-width:640px){.overlay{padding:12px}.body{padding:16px}}
+@media (max-width:640px){
+  .overlay{padding:12px}
+  .body{padding:16px}
+  .markdown-body :deep(.mermaid-chart svg){min-width:520px}
+}
 </style>
