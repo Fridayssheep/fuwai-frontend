@@ -3,18 +3,31 @@
     <!-- 表格 -->
     <div class="table-wrapper">
       <AutoHeightTransition>
-        <table class="data-table">
+        <table :class="['data-table', { 'export-mode-table': props.isExportMode }]">
+        <colgroup>
+          <col class="select-col" />
+          <col class="building-col" />
+          <col class="meter-col" />
+          <col class="energy-col" />
+          <col class="eui-col" />
+          <col class="carbon-col" />
+          <col class="status-col" />
+          <col class="operation-col" />
+        </colgroup>
         <thead>
           <tr>
             <!-- 导出模式显示全选框 -->
-            <th v-if="props.isExportMode" class="checkbox-column">
-              <input 
-                type="checkbox" 
-                :checked="isAllSelected"
-                :indeterminate="isIndeterminate"
-                @change="toggleSelectAll"
-                class="custom-checkbox"
-              />
+            <th class="checkbox-column">
+              <Transition name="checkbox-pop">
+                <input 
+                  v-if="props.isExportMode"
+                  type="checkbox" 
+                  :checked="isAllSelected"
+                  :indeterminate="isIndeterminate"
+                  @change="toggleSelectAll"
+                  class="custom-checkbox"
+                />
+              </Transition>
             </th>
             <th>建筑标识ID</th>
             <th>设备数量</th>
@@ -28,7 +41,7 @@
         <tbody v-if="loading || !tableData || tableData.length === 0">
           <!-- 加载状态 -->
           <tr v-if="loading" class="loading-row">
-            <td :colspan="props.isExportMode ? 8 : 7" class="loading-cell">
+            <td colspan="8" class="loading-cell">
               <div class="loading-content">
                 <div class="loading-spinner"></div>
                 <span>数据检索中，请稍候...</span>
@@ -38,7 +51,7 @@
           
           <!-- 空状态 -->
           <tr v-else class="empty-row">
-            <td :colspan="props.isExportMode ? 8 : 7" class="empty-cell">
+            <td colspan="8" class="empty-cell">
               <div class="empty-content">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" stroke-width="2">
                   <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -60,14 +73,17 @@
             :style="{ transitionDelay: `${Math.min(index, 8) * 34}ms` }"
           >
             <!-- 导出模式显示多选框 -->
-            <td v-if="props.isExportMode" class="checkbox-column">
-              <input 
-                type="checkbox" 
-                :value="item.building_id"
-                :checked="selectedIds.has(item.building_id)"
-                @change="toggleSelection(item.building_id)"
-                class="custom-checkbox"
-              />
+            <td class="checkbox-column">
+              <Transition name="checkbox-pop">
+                <input 
+                  v-if="props.isExportMode"
+                  type="checkbox" 
+                  :value="item.building_id"
+                  :checked="selectedIds.has(item.building_id)"
+                  @change="toggleSelection(item.building_id)"
+                  class="custom-checkbox"
+                />
+              </Transition>
             </td>
             <td>
               <div class="building-id">{{ item.building_id }}</div>
@@ -95,25 +111,20 @@
             </td>
             <td class="text-right">
               <div class="actions">
-                <button class="action-btn blue" @click="handleView(item)" title="查看详情">
+                <button class="action-btn blue" @click="handleView(item)" title="查看建筑详情">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                     <circle cx="12" cy="12" r="3"></circle>
                   </svg>
+                  <span>详情</span>
                 </button>
-                <button class="action-btn green" @click="handleStats(item)" title="统计数据">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="20" x2="18" y2="10"></line>
-                    <line x1="12" y1="20" x2="12" y2="4"></line>
-                    <line x1="6" y1="20" x2="6" y2="14"></line>
-                  </svg>
-                </button>
-                <button class="action-btn orange" @click="handleFault(item)" title="故障分析">
+                <button class="action-btn orange" @click="handleFault(item)" title="打开故障分析">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
                     <line x1="12" y1="9" x2="12" y2="13"></line>
                     <line x1="12" y1="17" x2="12.01" y2="17"></line>
                   </svg>
+                  <span>故障</span>
                 </button>
               </div>
             </td>
@@ -121,44 +132,44 @@
         </TransitionGroup>
         </table>
       </AutoHeightTransition>
+    </div>
 
-      <!-- 分页栏 -->
-      <div class="pagination-bar">
-        <div class="pagination-info">
-          <template v-if="props.isExportMode">
-            已选择 <strong>{{ selectedIds.size }}</strong> 个建筑
-          </template>
-          <template v-else>
-            共计 {{ paginationInfo.total }} 栋建筑，第 {{ currentPage }} / {{ totalPages }} 页
-          </template>
-        </div>
-        
-        <div class="pagination-right">
-          <div class="pagination-controls">
-            <button 
-              class="page-btn nav-btn" 
-              :disabled="currentPage === 1" 
-              @click="changePage(currentPage - 1)"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="15 18 9 12 15 6"></polyline>
-              </svg>
-              上一页
-            </button>
+    <!-- 分页栏 -->
+    <div class="pagination-bar">
+      <div class="pagination-info">
+        <template v-if="props.isExportMode">
+          已选择 <strong>{{ selectedIds.size }}</strong> 个建筑
+        </template>
+        <template v-else>
+          共计 {{ paginationInfo.total }} 栋建筑，第 {{ currentPage }} / {{ totalPages }} 页
+        </template>
+      </div>
 
-            <span class="page-indicator">第 {{ currentPage }} / {{ totalPages }} 页</span>
+      <div class="pagination-right">
+        <div class="pagination-controls">
+          <button
+            class="page-btn nav-btn"
+            :disabled="currentPage === 1"
+            @click="changePage(currentPage - 1)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            上一页
+          </button>
 
-            <button 
-              class="page-btn nav-btn" 
-              :disabled="currentPage >= totalPages" 
-              @click="changePage(currentPage + 1)"
-            >
-              下一页
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </button>
-          </div>
+          <span class="page-indicator">第 {{ currentPage }} / {{ totalPages }} 页</span>
+
+          <button
+            class="page-btn nav-btn"
+            :disabled="currentPage >= totalPages"
+            @click="changePage(currentPage + 1)"
+          >
+            下一页
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -184,7 +195,6 @@ const props = defineProps<{
 
 const emit = defineEmits([
   'view-detail', 
-  'view-stats', 
   'fault-analysis', 
   'selection-change',
   'page-change'
@@ -394,10 +404,6 @@ const handleView = (item: BuildingRow) => {
   emit('view-detail', { buildingId: item.building_id, ...item })
 }
 
-const handleStats = (item: BuildingRow) => {
-  emit('view-stats', { buildingId: item.building_id, ...item })
-}
-
 const handleFault = (item: BuildingRow) => {
   emit('fault-analysis', { buildingId: item.building_id, ...item })
 }
@@ -462,13 +468,31 @@ defineExpose({
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 .table-wrapper {
+  --select-column-width: 0px;
   overflow-x: auto;
+  transition: padding .34s cubic-bezier(.22, 1, .36, 1);
 }
 .data-table {
   width: 100%;
+  min-width: 980px;
   border-collapse: collapse;
+  table-layout: fixed;
   font-size: 14px;
 }
+.data-table.export-mode-table {
+  --select-column-width: 48px;
+}
+.select-col {
+  width: var(--select-column-width);
+  transition: width .38s cubic-bezier(.22, 1, .36, 1);
+}
+.building-col { width: 178px; }
+.meter-col { width: 108px; }
+.energy-col { width: 168px; }
+.eui-col { width: 170px; }
+.carbon-col { width: 140px; }
+.status-col { width: 132px; }
+.operation-col { width: 188px; }
 th {
   background: #F9FAFB;
   padding: 12px 16px;
@@ -494,8 +518,16 @@ tr:hover {
   background: #EFF6FF !important;
 }
 .checkbox-column {
-  width: 40px;
+  width: var(--select-column-width);
   text-align: center;
+  padding: 12px 0;
+  overflow: hidden;
+  transition:
+    width .38s cubic-bezier(.22, 1, .36, 1),
+    padding .38s cubic-bezier(.22, 1, .36, 1),
+    opacity .22s ease;
+}
+.export-mode-table .checkbox-column {
   padding: 12px 8px;
 }
 .custom-checkbox {
@@ -511,13 +543,16 @@ tr:hover {
   text-align: center;
 }
 .building-id {
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
   color: #111827;
   font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .site {
-  font-family: monospace;
+  font-family: var(--font-mono);
   color: #6B7280;
   font-size: 13px;
 }
@@ -573,21 +608,30 @@ tr:hover {
 }
 .actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   justify-content: flex-end;
   align-items: center;
 }
 .action-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  min-width: 72px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   border: 1px solid;
   background: transparent;
   cursor: pointer;
-  transition: all 0.2s ease;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  transition:
+    transform .22s cubic-bezier(.22, 1, .36, 1),
+    box-shadow .22s ease,
+    background .22s ease,
+    border-color .22s ease;
 }
 .action-btn.blue {
   color: #005BAC;
@@ -595,23 +639,17 @@ tr:hover {
 }
 .action-btn.blue:hover {
   background: #EFF6FF;
-  transform: scale(1.05);
-}
-.action-btn.green {
-  color: #27AE60;
-  border-color: #BBF7D0;
-}
-.action-btn.green:hover {
-  background: #F0FDF4;
-  transform: scale(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(0, 91, 172, .12);
 }
 .action-btn.orange {
-  color: #F39C12;
-  border-color: #FDE68A;
+  color: #c2410c;
+  border-color: #fed7aa;
 }
 .action-btn.orange:hover {
-  background: #FFFBEB;
-  transform: scale(1.05);
+  background: #fff7ed;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(194, 65, 12, .1);
 }
 .loading-row, .empty-row {
   background: transparent !important;
@@ -638,6 +676,17 @@ tr:hover {
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+.checkbox-pop-enter-active,
+.checkbox-pop-leave-active {
+  transition:
+    opacity .22s ease,
+    transform .28s cubic-bezier(.22, 1, .36, 1);
+}
+.checkbox-pop-enter-from,
+.checkbox-pop-leave-to {
+  opacity: 0;
+  transform: translateX(-8px) scale(.82);
 }
 .empty-content {
   display: flex;

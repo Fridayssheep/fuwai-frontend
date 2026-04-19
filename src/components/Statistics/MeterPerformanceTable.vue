@@ -35,6 +35,14 @@
     <div class="table-wrap">
       <AutoHeightTransition>
         <table class="table">
+        <colgroup>
+          <col class="meter-name-col" />
+          <col class="meter-type-col" />
+          <col class="building-id-col" />
+          <col class="status-col" />
+          <col class="last-seen-col" />
+          <col class="action-table-col" />
+        </colgroup>
         <thead>
           <tr>
             <th>设备名称</th>
@@ -61,9 +69,9 @@
             :key="row.meter_id"
             :style="{ transitionDelay: `${Math.min(index, 8) * 34}ms` }"
           >
-            <td class="strong">{{ row.meter_name || row.meter_id }}</td>
+            <td class="strong name-cell" :title="row.meter_name || row.meter_id">{{ row.meter_name || row.meter_id }}</td>
             <td>{{ getMeterTypeLabel(row.meter_type) }}</td>
-            <td>{{ row.building_id }}</td>
+            <td class="id-cell" :title="row.building_id">{{ row.building_id }}</td>
             <td><span class="status" :class="row.status">{{ getStatusText(row.status) }}</span></td>
             <td>{{ formatLastSeen(row.last_seen_at) }}</td>
             <td class="action-cell">
@@ -231,5 +239,5 @@ onMounted(fetchData)
 .panel{background:#fff;border:1px solid #e8ecf1;border-radius:14px;padding:24px;box-shadow:0 1px 3px rgba(15,23,42,.04),0 4px 14px rgba(15,23,42,.03)}
 .head,.head-right,.pager,.pager-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.head{margin-bottom:20px;flex-wrap:wrap}.head h3{margin:0;font-size:16px;color:#0f172a}.head-right{flex-wrap:wrap}
 .head-select{--select-width:auto;--select-min-width:118px;--select-height:36px;--select-padding-x:12px;--select-radius:12px;--select-font-size:13px;--select-font-weight:600;--select-border-color:#cbd5e1;--select-bg:#f8fbff;--select-hover-bg:#eef5fd}
-.update-time{font-size:12px;color:#94a3b8}.icon-btn,.page-btn,.link,.retry-btn{border:none;background:transparent;cursor:pointer}.icon-btn{padding:4px;color:#0b4582}.error-banner{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px 14px;border:1px solid #fecaca;border-radius:10px;background:#fff5f5;color:#b42318;font-size:13px}.retry-btn{color:#b42318;font-weight:700}.table-wrap{overflow:auto}.table{width:100%;min-width:920px;border-collapse:collapse}.table th,.table td{padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px;vertical-align:middle}.table th{font-size:12px;color:#64748b}.action-col,.action-cell{width:132px;min-width:132px;white-space:nowrap}.row-actions{display:inline-flex;align-items:center;justify-content:flex-start;gap:18px;white-space:nowrap}.state{text-align:center;color:#64748b}.strong{font-weight:700}.status{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}.status.online{background:#ecfdf5;color:#059669}.status.warning{background:#fff7ed;color:#c2410c}.status.fault{background:#fef2f2;color:#dc2626}.status.offline{background:#f1f5f9;color:#475569}.link{color:#0b4582;padding:0;line-height:1;white-space:nowrap}.primary-link{font-weight:700}.pager{margin-top:16px}.page-btn{padding:6px 12px;border-radius:8px;background:#eef2f7}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.update-time{font-size:12px;color:#94a3b8}.icon-btn,.page-btn,.link,.retry-btn{border:none;background:transparent;cursor:pointer}.icon-btn{padding:4px;color:#0b4582}.error-banner{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px 14px;border:1px solid #fecaca;border-radius:10px;background:#fff5f5;color:#b42318;font-size:13px}.retry-btn{color:#b42318;font-weight:700}.table-wrap{overflow:auto}.table{width:100%;min-width:940px;border-collapse:collapse;table-layout:fixed}.meter-name-col{width:210px}.meter-type-col{width:112px}.building-id-col{width:168px}.status-col{width:112px}.last-seen-col{width:188px}.action-table-col{width:150px}.table th,.table td{padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.table th{font-size:12px;color:#64748b}.action-col,.action-cell{width:150px;min-width:150px;white-space:nowrap}.row-actions{display:inline-flex;align-items:center;justify-content:flex-start;gap:18px;white-space:nowrap}.state{text-align:center;color:#64748b}.strong{font-weight:700}.name-cell,.id-cell{font-family:var(--font-mono);color:#0f172a}.status{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}.status.online{background:#ecfdf5;color:#059669}.status.warning{background:#fff7ed;color:#c2410c}.status.fault{background:#fef2f2;color:#dc2626}.status.offline{background:#f1f5f9;color:#475569}.link{color:#0b4582;padding:0;line-height:1;white-space:nowrap}.primary-link{font-weight:700}.pager{margin-top:16px}.page-btn{padding:6px 12px;border-radius:8px;background:#eef2f7}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 </style>

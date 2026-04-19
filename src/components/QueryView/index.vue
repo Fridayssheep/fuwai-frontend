@@ -100,24 +100,30 @@
         </div>
 
         <div class="export-section">
-          <button class="btn-refresh" @click="handleRefresh" :disabled="loading">
+          <button class="query-action-btn secondary" @click="handleRefresh" :disabled="loading">
             <span :class="{ 'spin': loading }">↻</span> 刷新数据
           </button>
 
-          <template v-if="isExportMode">
-            <button class="btn-cancel-select" @click="cancelExportMode">取消</button>
-            <button
-              class="btn-confirm-export"
-              :class="{ 'btn-confirm-export-green': selectedBuildings.length > 0 }"
-              @click="handleConfirmExport"
-              :disabled="selectedBuildings.length === 0"
-            >
-              确认导出 ({{ selectedBuildings.length }})
-            </button>
-          </template>
-          <button v-else class="btn-export" @click="enterExportMode" :disabled="loading">
-            导出运行数据
-          </button>
+          <div :class="['export-actions-shell', { selecting: isExportMode }]">
+            <Transition name="export-actions-switch" mode="out-in">
+              <div v-if="isExportMode" key="selecting" class="export-actions">
+                <button class="query-action-btn secondary" @click="cancelExportMode">取消选择</button>
+                <button
+                  class="query-action-btn primary"
+                  :class="{ ready: selectedBuildings.length > 0 }"
+                  @click="handleConfirmExport"
+                  :disabled="selectedBuildings.length === 0"
+                >
+                  确认导出 ({{ selectedBuildings.length }})
+                </button>
+              </div>
+              <div v-else key="idle" class="export-actions single">
+                <button class="query-action-btn primary" @click="enterExportMode" :disabled="loading">
+                  导出运行数据
+                </button>
+              </div>
+            </Transition>
+          </div>
         </div>
       </div>
 
@@ -131,7 +137,6 @@
         :start-time="timeFilterStart"
         :end-time="timeFilterEnd"
         @view-detail="handleViewDetail"
-        @view-stats="handleViewStats"
         @fault-analysis="handleFaultAnalysis"
         @selection-change="handleSelectionChange"
       />
@@ -154,29 +159,41 @@
       @export="handleExportConfirm"
     />
     <BuildingDetailsModal
-      v-if="showStatsModal"
       v-model:visible="showStatsModal"
       :building-id="selectedBuildingId"
       :start-time="timeFilterStart"
       :end-time="timeFilterEnd"
+      @generate-report="handleOpenReportGenerate"
     />
-
+    <ExportModal
+      v-model:visible="showDetailReportModal"
+      :selected-count="1"
+      :start-time="timeFilterStart"
+      :end-time="timeFilterEnd"
+      :target-name="selectedBuildingId"
+      title="生成建筑运行报表"
+      :description="detailReportDescription"
+      confirm-text="提交报表任务"
+      @export="handleDetailReportConfirm"
+    />
     <!-- 任务提交成功自定义浮窗 -->
-    <div v-if="showSuccessModal" class="modal-overlay" @click.self="showSuccessModal = false">
-      <div class="success-modal">
-        <div class="success-icon-wrap">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-        </div>
-        <h3>报表任务已提交</h3>
-        <p>后台正在为您聚合数据并生成分析报告。完成后，您可以在<b>统计报表</b>页面直接下载 Markdown 格式文件。</p>
-        <div class="modal-actions">
-          <button class="btn btn-outline" @click="showSuccessModal = false">留在本页</button>
-          <button class="btn btn-primary-dark" @click="goToReportWorkbench">前往统计工作台</button>
+    <Transition name="success-modal-shell">
+      <div v-if="showSuccessModal" class="modal-overlay" @click.self="showSuccessModal = false">
+        <div class="success-modal">
+          <div class="success-icon-wrap">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+          <h3>报表任务已提交</h3>
+          <p>后台正在为您聚合数据并生成分析报告。完成后，您可以在<b>统计报表</b>页面直接下载 Markdown 格式文件。</p>
+          <div class="modal-actions">
+            <button class="btn btn-outline" @click="showSuccessModal = false">留在本页</button>
+            <button class="btn btn-primary-dark" @click="goToReportWorkbench">前往统计工作台</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
@@ -189,7 +206,8 @@ import ExportModal from './ExportModal.vue';
 import QueryAIAssistant from './QueryAIAssistant.vue';
 import SlidingOptionGroup from '../common/SlidingOptionGroup.vue';
 import ThemedSelect from '../common/ThemedSelect.vue';
-import BuildingDetailsModal from '../../components/Statistics/BuildingDetailsModal.vue';
+import BuildingDetailsModal from '../Statistics/BuildingDetailsModal.vue';
+import type { ReportSourceContext } from '../Statistics/reportWorkbenchTypes';
 import { useTimeManager } from '../../utils/timeManager';
 import {
   generateReport,
@@ -209,6 +227,7 @@ const showAdvanced = ref(false);
 const showExportModal = ref(false);
 const showSuccessModal = ref(false);
 const showStatsModal = ref(false);
+const showDetailReportModal = ref(false);
 const selectedBuildingId = ref('');
 const loading = ref(false);
 const isExportMode = ref(false);
@@ -224,6 +243,7 @@ const filterForm = ref({
 });
 type QueryFilterFormState = typeof filterForm.value;
 type QuerySortState = { field: 'eui' | 'totalEnergy' | 'status' | 'carbonEmission'; order: 'asc' | 'desc' };
+type ReportExportConfig = { includeAiSummary: boolean; reportCategory: 'summary' | 'anomaly' };
 type SortField = QuerySortState['field'];
 type SortOrder = QuerySortState['order'];
 type AdvancedModalTab = 'time' | 'property' | 'energy'
@@ -315,6 +335,9 @@ const calculateTimeRange = (range: string) => {
 
 const timeFilterStart = computed(() => calculateTimeRange(filterForm.value.timeRange).start_time);
 const timeFilterEnd = computed(() => calculateTimeRange(filterForm.value.timeRange).end_time);
+const detailReportDescription = computed(() => selectedBuildingId.value
+  ? `建筑 ${selectedBuildingId.value} 的报表任务会进入统计报表工作台。`
+  : '建筑报表任务会进入统计报表工作台。');
 const assistantCurrentTime = computed(() => getCurrentTimeString());
 const assistantCurrentFilters = computed<AIQueryAssistantFilters>(() => ({
   keyword: advancedFilters.value.keyword || null,
@@ -379,23 +402,22 @@ const handleSelectionChange = (ids: string[]) => {
   selectedBuildings.value = ids;
 };
 
-const handleExportConfirm = async (config: { format: string; includeAiSummary: boolean; reportCategory: 'summary' | 'anomaly' }) => {
+const resolveReportType = (config: ReportExportConfig): ReportType => {
+  if (config.reportCategory === 'anomaly') return 'anomaly_report';
+  const range = filterForm.value.timeRange;
+  if (range === 'today') return 'daily_summary';
+  if (range === 'week') return 'weekly_summary';
+  if (range === 'month') return 'monthly_summary';
+  return 'custom_summary';
+};
+
+const handleExportConfirm = async (config: ReportExportConfig) => {
   loading.value = true;
   try {
     const { start_time, end_time } = calculateTimeRange(filterForm.value.timeRange);
-    let reportType: ReportType = 'custom_summary';
-
-    if (config.reportCategory === 'anomaly') {
-      reportType = 'anomaly_report';
-    } else {
-      const range = filterForm.value.timeRange;
-      if (range === 'today') reportType = 'daily_summary';
-      else if (range === 'week') reportType = 'weekly_summary';
-      else if (range === 'month') reportType = 'monthly_summary';
-    }
 
     await generateReport({
-      report_type: reportType,
+      report_type: resolveReportType(config),
       building_id: selectedBuildings.value.length === 1 ? selectedBuildings.value[0] : undefined,
       time_range: { start: start_time, end: end_time },
       include_ai_summary: config.includeAiSummary
@@ -406,6 +428,29 @@ const handleExportConfirm = async (config: { format: string; includeAiSummary: b
     cancelExportMode();
   } catch (e: any) {
     console.error('任务创建失败:', e);
+    alert('任务队列繁忙，请稍后再试');
+  } finally {
+    loading.value = false;
+  }
+};
+
+const handleDetailReportConfirm = async (config: ReportExportConfig) => {
+  if (!selectedBuildingId.value) return;
+  loading.value = true;
+  try {
+    const { start_time, end_time } = calculateTimeRange(filterForm.value.timeRange);
+
+    await generateReport({
+      report_type: resolveReportType(config),
+      building_id: selectedBuildingId.value,
+      time_range: { start: start_time, end: end_time },
+      include_ai_summary: config.includeAiSummary
+    });
+
+    showDetailReportModal.value = false;
+    showSuccessModal.value = true;
+  } catch (e: any) {
+    console.error('建筑报表任务创建失败:', e);
     alert('任务队列繁忙，请稍后再试');
   } finally {
     loading.value = false;
@@ -645,10 +690,14 @@ const handleAdvancedSave = (f: any) => {
   fetchHighlightsData();
 };
 
-const handleViewDetail = (i: any) => router.push(`/building/${i.building_id}`);
-const handleViewStats = (i: any) => {
-  selectedBuildingId.value = i.building_id;
+const handleViewDetail = (i: any) => {
+  selectedBuildingId.value = i.building_id || i.buildingId;
   showStatsModal.value = true;
+};
+const handleOpenReportGenerate = (context: ReportSourceContext) => {
+  selectedBuildingId.value = context.buildingId;
+  showStatsModal.value = false;
+  showDetailReportModal.value = true;
 };
 const handleFaultAnalysis = (i: any) => {
   router.push({ path: '/fault-analysis', query: { building_id: i.building_id } });
@@ -715,8 +764,8 @@ h1 { font-size: 20px; font-weight: 800; color: #002B54; margin-bottom: 20px; let
   transform: translateY(-1px);
 }
 .data-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.sort-section { display: flex; align-items: center; gap: 12px; }
+.card-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.sort-section { display: flex; align-items: center; gap: 12px; flex: 1 1 560px; min-width: 0; flex-wrap: wrap; }
 .sort-label { font-size: 13px; color: #4B5563; font-weight: 600; }
 .sort-track,
 .sort-order-track {
@@ -747,20 +796,134 @@ h1 { font-size: 20px; font-weight: 800; color: #002B54; margin-bottom: 20px; let
 .sort-order-track :deep(.sliding-option.active) {
   color: white;
 }
-.export-section { display: flex; gap: 10px; }
-.btn-refresh { height: 36px; padding: 0 15px; background: white; border: 1px solid #D1D5DB; border-radius: 18px; cursor: pointer; }
-.btn-export { height: 36px; padding: 0 20px; background: #52C41A; color: white; border: none; border-radius: 18px; cursor: pointer; }
-.btn-confirm-export { height: 36px; padding: 0 20px; background: #9CA3AF; color: white; border: none; border-radius: 18px; }
-.btn-confirm-export-green { background: #52C41A; cursor: pointer; }
-.btn-cancel-select { height: 36px; padding: 0 15px; border: 1px solid #D9D9D9; background: white; border-radius: 18px; cursor: pointer; }
+.export-section {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  max-width: 100%;
+  margin-left: auto;
+  min-height: 40px;
+}
+.export-actions-shell {
+  --export-actions-width: 116px;
+  width: var(--export-actions-width);
+  flex: 0 0 var(--export-actions-width);
+  display: flex;
+  justify-content: flex-end;
+  overflow: visible;
+  transition:
+    width .34s cubic-bezier(.22, 1, .36, 1),
+    flex-basis .34s cubic-bezier(.22, 1, .36, 1);
+}
+.export-actions-shell.selecting {
+  --export-actions-width: 216px;
+}
+.export-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+}
+.export-actions.single {
+  justify-content: flex-end;
+}
+.query-action-btn {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  transition:
+    transform .22s cubic-bezier(.22, 1, .36, 1),
+    box-shadow .22s ease,
+    background .22s ease,
+    border-color .22s ease,
+    color .22s ease,
+    opacity .22s ease;
+}
+.query-action-btn.secondary {
+  background: #ffffff;
+  border-color: #d8e0ea;
+  color: #344054;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, .04);
+}
+.query-action-btn.primary {
+  background: linear-gradient(135deg, #003d75, #0b5faa);
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(11, 69, 130, .16);
+}
+.query-action-btn.primary.ready {
+  background: linear-gradient(135deg, #004d92, #0c6cc1);
+  box-shadow: 0 14px 28px rgba(11, 69, 130, .2);
+}
+.query-action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.query-action-btn:disabled {
+  cursor: not-allowed;
+  opacity: .48;
+  box-shadow: none;
+}
+.export-actions-switch-enter-active,
+.export-actions-switch-leave-active {
+  transition:
+    opacity .24s ease,
+    transform .32s cubic-bezier(.22, 1, .36, 1),
+    filter .32s ease;
+}
+.export-actions-switch-enter-from {
+  opacity: 0;
+  transform: translateY(8px) scale(.97);
+  filter: blur(6px);
+}
+.export-actions-switch-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(.98);
+  filter: blur(6px);
+}
+@media (max-width: 1180px) {
+  .export-section {
+    width: 100%;
+  }
+}
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 20, 50, 0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 3000; }
-.success-modal { background: white; border-radius: 24px; width: 100%; max-width: 420px; padding: 40px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.2); animation: modalSlideUp 0.3s ease-out; }
+.success-modal { background: white; border-radius: 24px; width: 100%; max-width: 420px; padding: 40px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
 .success-icon-wrap { width: 80px; height: 80px; background: #F0FDF4; color: #16A34A; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; }
 .success-modal h3 { margin: 0 0 12px; font-size: 22px; color: #111; font-weight: 800; }
 .success-modal p { margin: 0 0 32px; font-size: 15px; color: #666; line-height: 1.6; }
 .modal-actions { display: flex; gap: 16px; }
 .modal-actions .btn { flex: 1; justify-content: center; height: 48px; font-weight: 700; border-radius: 12px; }
-@keyframes modalSlideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+.success-modal-shell-enter-active,
+.success-modal-shell-leave-active {
+  transition: opacity .26s ease;
+}
+.success-modal-shell-enter-active .success-modal,
+.success-modal-shell-leave-active .success-modal {
+  transition:
+    opacity .28s ease,
+    transform .34s cubic-bezier(.22, 1, .36, 1),
+    filter .34s ease;
+}
+.success-modal-shell-enter-from,
+.success-modal-shell-leave-to {
+  opacity: 0;
+}
+.success-modal-shell-enter-from .success-modal,
+.success-modal-shell-leave-to .success-modal {
+  opacity: 0;
+  transform: translateY(24px) scale(.97);
+  filter: blur(10px);
+}
 .spin { animation: spin 1s linear infinite; display: inline-block; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes assistantPulse {

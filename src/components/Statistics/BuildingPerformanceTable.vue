@@ -13,6 +13,14 @@
     <div class="table-wrap">
       <AutoHeightTransition>
         <table class="table">
+        <colgroup>
+          <col class="building-id-col" />
+          <col class="meter-count-col" />
+          <col class="energy-total-col" />
+          <col class="eui-col" />
+          <col class="status-col" />
+          <col class="action-table-col" />
+        </colgroup>
         <thead>
           <tr>
             <th>建筑ID</th>
@@ -39,7 +47,7 @@
             :key="row.building_id"
             :style="{ transitionDelay: `${Math.min(index, 8) * 34}ms` }"
           >
-            <td class="strong">{{ row.building_id }}</td>
+            <td class="strong id-cell" :title="row.building_id">{{ row.building_id }}</td>
             <td>{{ row.meterCount }}</td>
             <td class="strong">{{ formatNumber(row.energyTotal) }}</td>
             <td>{{ formatNumber(row.eui) }} KWH/m²</td>
@@ -65,7 +73,13 @@
       </div>
     </div>
 
-    <BuildingDetailsModal v-model:visible="modalVisible" :building-id="selectedBuildingId" :start-time="startTime" :end-time="endTime" />
+    <BuildingDetailsModal
+      v-model:visible="modalVisible"
+      :building-id="selectedBuildingId"
+      :start-time="startTime"
+      :end-time="endTime"
+      @generate-report="emit('generate-report', $event)"
+    />
   </div>
 </template>
 
@@ -209,5 +223,5 @@ onMounted(fetchData)
 
 <style scoped>
 .panel{background:#fff;border:1px solid #e8ecf1;border-radius:14px;padding:24px;box-shadow:0 1px 3px rgba(15,23,42,.04),0 4px 14px rgba(15,23,42,.03)}
-.head,.head-right,.pager,.pager-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.head{margin-bottom:20px}.head h3{margin:0;font-size:16px;color:#0f172a}.update-time{font-size:12px;color:#94a3b8}.icon-btn,.page-btn,.link{border:none;background:transparent;cursor:pointer}.icon-btn{padding:4px;color:#0b4582}.table-wrap{overflow:auto}.table{width:100%;min-width:760px;border-collapse:collapse}.table th,.table td{padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px;vertical-align:middle}.table th{font-size:12px;color:#64748b}.action-col,.action-cell{width:132px;min-width:132px;white-space:nowrap}.row-actions{display:inline-flex;align-items:center;justify-content:flex-start;gap:18px;white-space:nowrap}.state{text-align:center;color:#64748b}.strong{font-weight:700}.status{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}.status.normal{background:#ecfdf5;color:#059669}.status.warning{background:#fff7ed;color:#c2410c}.status.fault{background:#fef2f2;color:#dc2626}.link{color:#0b4582;padding:0;line-height:1;white-space:nowrap}.primary-link{font-weight:700}.pager{margin-top:16px}.page-btn{padding:6px 12px;border-radius:8px;background:#eef2f7}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.head,.head-right,.pager,.pager-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.head{margin-bottom:20px}.head h3{margin:0;font-size:16px;color:#0f172a}.update-time{font-size:12px;color:#94a3b8}.icon-btn,.page-btn,.link{border:none;background:transparent;cursor:pointer}.icon-btn{padding:4px;color:#0b4582}.table-wrap{overflow:auto}.table{width:100%;min-width:800px;border-collapse:collapse;table-layout:fixed}.building-id-col{width:170px}.meter-count-col{width:104px}.energy-total-col{width:158px}.eui-col{width:150px}.status-col{width:120px}.action-table-col{width:150px}.table th,.table td{padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.table th{font-size:12px;color:#64748b}.action-col,.action-cell{width:150px;min-width:150px;white-space:nowrap}.row-actions{display:inline-flex;align-items:center;justify-content:flex-start;gap:18px;white-space:nowrap}.state{text-align:center;color:#64748b}.strong{font-weight:700}.id-cell{font-family:var(--font-mono);color:#0f172a}.status{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}.status.normal{background:#ecfdf5;color:#059669}.status.warning{background:#fff7ed;color:#c2410c}.status.fault{background:#fef2f2;color:#dc2626}.link{color:#0b4582;padding:0;line-height:1;white-space:nowrap}.primary-link{font-weight:700}.pager{margin-top:16px}.page-btn{padding:6px 12px;border-radius:8px;background:#eef2f7}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 </style>
