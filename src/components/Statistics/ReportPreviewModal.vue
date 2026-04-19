@@ -21,7 +21,7 @@
             <Icon icon="lucide:alert-circle" />
             <span>{{ error }}</span>
           </div>
-          <article v-else class="markdown-body" v-html="renderedHtml"></article>
+          <article v-else ref="articleRef" class="markdown-body" v-html="renderedHtml"></article>
         </div>
 
         <div class="footer">
@@ -33,8 +33,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, Teleport } from 'vue'
+import { computed, nextTick, ref, Teleport, watch } from 'vue'
 import { Icon } from '@iconify/vue'
+import mermaid from 'mermaid'
 
 const props = defineProps<{
   visible: boolean
@@ -45,8 +46,20 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ (e: 'update:visible', value: boolean): void }>()
+const articleRef = ref<HTMLElement | null>(null)
+let mermaidInitialized = false
 
 const close = () => emit('update:visible', false)
+
+const ensureMermaid = () => {
+  if (mermaidInitialized) return
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'loose',
+    theme: 'default'
+  })
+  mermaidInitialized = true
+}
 
 const escapeHtml = (value: string) => {
   return value
@@ -160,6 +173,44 @@ const renderMarkdown = (source: string) => {
 }
 
 const renderedHtml = computed(() => renderMarkdown(props.content || ''))
+
+const renderMermaidDiagrams = async () => {
+  if (!props.visible || props.loading || props.error || !props.content) return
+
+  await nextTick()
+  const root = articleRef.value
+  if (!root) return
+
+  ensureMermaid()
+
+  const mermaidBlocks = Array.from(root.querySelectorAll('pre > code.language-mermaid'))
+  mermaidBlocks.forEach(block => {
+    const pre = block.parentElement
+    if (!pre) return
+
+    const wrapper = document.createElement('div')
+    wrapper.className = 'mermaid'
+    wrapper.textContent = block.textContent || ''
+    pre.replaceWith(wrapper)
+  })
+
+  const nodes = Array.from(root.querySelectorAll<HTMLElement>('.mermaid'))
+  if (!nodes.length) return
+
+  try {
+    await mermaid.run({ nodes })
+  } catch (error) {
+    console.error('Mermaid render failed:', error)
+  }
+}
+
+watch(
+  () => [props.visible, props.loading, props.error, props.content],
+  async () => {
+    await renderMermaidDiagrams()
+  },
+  { immediate: true }
+)
 </script>
 
 <style scoped>
