@@ -192,7 +192,7 @@ export const askAIQuestion = (payload: AIQARequest) => {
 
 export const parseAIQueryAssistant = (payload: AIQueryAssistantRequest) => {
   return request.post<AIQueryAssistantResponse, AIQueryAssistantResponse>('/ai/query-assistant', payload, {
-    timeout: 45000
+    timeout: 120000
   })
 }
 
