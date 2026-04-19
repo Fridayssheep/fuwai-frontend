@@ -16,31 +16,33 @@
           <div class="grid">
             <label>
               <span>报表类型</span>
-              <select v-model="form.report_type" @change="handleReportTypeChange">
-                <option v-for="item in reportTypeOptions" :key="item.value" :value="item.value">
-                  {{ item.label }}
-                </option>
-              </select>
+              <ThemedSelect
+                v-model="form.report_type"
+                class="field-select"
+                aria-label="报表类型"
+                :options="reportTypeOptions"
+                @change="handleReportTypeChange"
+              />
             </label>
 
             <label>
               <span>所属建筑</span>
-              <input :value="context?.buildingId || '-'" disabled />
+              <input class="themed-input field-input" :value="context?.buildingId || '-'" disabled />
             </label>
 
             <label>
               <span>{{ context?.sourceType === 'meter' ? '设备' : '对象' }}</span>
-              <input :value="context?.sourceLabel || '-'" disabled />
+              <input class="themed-input field-input" :value="context?.sourceLabel || '-'" disabled />
             </label>
 
             <label>
               <span>开始时间</span>
-              <input v-model="form.start" type="datetime-local" @input="handleManualTimeChange" />
+              <input class="themed-input field-input" v-model="form.start" type="datetime-local" @input="handleManualTimeChange" />
             </label>
 
             <label>
               <span>结束时间</span>
-              <input v-model="form.end" type="datetime-local" @input="handleManualTimeChange" />
+              <input class="themed-input field-input" v-model="form.end" type="datetime-local" @input="handleManualTimeChange" />
             </label>
           </div>
 
@@ -78,6 +80,7 @@ import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { generateReport, type GenerateReportRequest } from '../../api/statistics'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
+import ThemedSelect from '../common/ThemedSelect.vue'
 
 type ReportType = GenerateReportRequest['report_type']
 
@@ -253,9 +256,8 @@ watch(() => [props.visible, props.context, props.startTime, props.endTime], rese
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 label{display:flex;flex-direction:column;gap:6px}
 label span{font-size:12px;font-weight:700;color:#475569}
-input,select{min-height:42px;border:1px solid #cbd5e1;border-radius:10px;padding:0 12px;font-size:13px;background:#fff;outline:none}
-input:focus,select:focus{border-color:#0b4582;box-shadow:0 0 0 3px rgba(11,69,130,.08)}
-input:disabled{background:#f8fafc;color:#64748b}
+.field-input{--themed-input-height:42px;--themed-input-padding-x:12px;--themed-input-radius:10px;--themed-input-font-size:13px;--themed-input-font-weight:500;--themed-input-border:#cbd5e1;--themed-input-bg:#fff;--themed-input-hover-bg:#f8fbff}
+.field-select{--select-width:100%;--select-height:42px;--select-padding-x:12px;--select-radius:10px;--select-font-size:13px;--select-font-weight:500;--select-border-color:#cbd5e1;--select-bg:#fff;--select-hover-bg:#f8fbff}
 .toggle-row{padding:16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .toggle-row strong{display:block;font-size:13px;color:#0f172a}
 .toggle-row small{display:block;margin-top:4px;font-size:12px;color:#64748b;line-height:1.6}

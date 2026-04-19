@@ -141,7 +141,7 @@
               <textarea
                 v-if="result.feedback_prompt.allow_comment"
                 v-model="localComment"
-                class="feedback-textarea"
+                class="themed-textarea feedback-textarea"
                 placeholder="补充说明（可选）…"
                 rows="2"
               ></textarea>
@@ -504,18 +504,16 @@ const eviTypeLabel = (t: string) => {
 
 .feedback-textarea {
   width: 100%;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 13px;
-  resize: vertical;
-  font-family: inherit;
-  transition: border-color 0.2s;
+  --themed-input-height: 88px;
+  --themed-input-padding-x: 14px;
+  --themed-input-padding-y: 10px;
+  --themed-input-radius: 12px;
+  --themed-input-font-size: 13px;
+  --themed-input-font-weight: 500;
+  --themed-input-border: #dbe5ef;
+  --themed-input-bg: #f8fbff;
+  --themed-input-hover-bg: #eef5fd;
   box-sizing: border-box;
-}
-.feedback-textarea:focus {
-  outline: none;
-  border-color: #0b4582;
 }
 
 .confirm-btn {

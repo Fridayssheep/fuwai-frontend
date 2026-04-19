@@ -104,17 +104,17 @@
             <div class="time-controls">
               <div class="input-group">
                 <label>目标时间设置（数据集时间范围：2015-2016）</label>
-                <input type="datetime-local" v-model="targetTime" class="datetime-input" />
+                <input type="datetime-local" v-model="targetTime" class="themed-input datetime-input" />
               </div>
 
               <div class="input-group">
                 <label>时区设置</label>
-                <select v-model="timezone">
-                  <option value="GMT+08:00">(GMT+08:00) 北京、上海、香港</option>
-                  <option value="GMT+09:00">(GMT+09:00) 东京、首尔</option>
-                  <option value="GMT+00:00">(GMT+00:00) 伦敦、都柏林</option>
-                  <option value="GMT-05:00">(GMT-05:00) 纽约、华盛顿</option>
-                </select>
+                <ThemedSelect
+                  v-model="timezone"
+                  class="setting-select"
+                  aria-label="时区设置"
+                  :options="timezoneOptions"
+                />
               </div>
 
               <div class="time-actions">
@@ -159,13 +159,14 @@
               <div class="ai-accordion-inner">
                 <div class="input-group">
                   <label>服务地址 (Base URL)</label>
-                  <input type="text" v-model="aiSettings.llm.base_url" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+                  <input class="themed-input settings-field" type="text" v-model="aiSettings.llm.base_url" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
                 </div>
 
                 <div class="input-group">
                   <label>API KEY</label>
                   <div class="input-with-icon">
                     <input
+                      class="themed-input settings-field"
                       :type="showApiKey ? 'text' : 'password'"
                       :value="aiSettings.llm.api_key || (aiSettings.llm.api_key_configured ? '********************' : '')"
                       @input="onApiKeyInput"
@@ -178,21 +179,21 @@
 
                 <div class="input-group">
                   <label>模型名称 (Model)</label>
-                  <input type="text" v-model="aiSettings.llm.model" placeholder="qwen3.5-plus" />
+                  <input class="themed-input settings-field" type="text" v-model="aiSettings.llm.model" placeholder="qwen3.5-plus" />
                 </div>
 
                 <div class="ai-params-row">
                   <div class="input-group half">
                     <label>温度 (Temperature)</label>
-                    <input type="number" step="0.1" min="0" max="2" v-model.number="aiSettings.llm.temperature" />
+                    <input class="themed-input settings-field" type="number" step="0.1" min="0" max="2" v-model.number="aiSettings.llm.temperature" />
                   </div>
                   <div class="input-group half">
                     <label>Top-P</label>
-                    <input type="number" step="0.1" min="0" max="1" v-model.number="aiSettings.llm.top_p" />
+                    <input class="themed-input settings-field" type="number" step="0.1" min="0" max="1" v-model.number="aiSettings.llm.top_p" />
                   </div>
                   <div class="input-group half">
                     <label>超时 (秒)</label>
-                    <input type="number" min="10" v-model.number="aiSettings.llm.timeout_seconds" />
+                    <input class="themed-input settings-field" type="number" min="10" v-model.number="aiSettings.llm.timeout_seconds" />
                   </div>
                 </div>
 
@@ -217,13 +218,14 @@
               <div class="ai-accordion-inner">
                 <div class="input-group">
                   <label>RAGFlow API 地址</label>
-                  <input type="text" v-model="aiSettings.ragflow.api_url" placeholder="http://127.0.0.1:8450/api/v1" />
+                  <input class="themed-input settings-field" type="text" v-model="aiSettings.ragflow.api_url" placeholder="http://127.0.0.1:8450/api/v1" />
                 </div>
 
                 <div class="input-group">
                   <label>RAGFlow API KEY</label>
                   <div class="input-with-icon">
                     <input
+                      class="themed-input settings-field"
                       :type="showRagflowKey ? 'text' : 'password'"
                       :value="aiSettings.ragflow.api_key || (aiSettings.ragflow.api_key_configured ? '********************' : '')"
                       @input="onRagflowKeyInput"
@@ -237,17 +239,17 @@
                 <div class="ai-params-row">
                   <div class="input-group half">
                     <label>Chat Model</label>
-                    <input type="text" v-model="aiSettings.ragflow.chat_model" placeholder="ragflow-chat" />
+                    <input class="themed-input settings-field" type="text" v-model="aiSettings.ragflow.chat_model" placeholder="ragflow-chat" />
                   </div>
                   <div class="input-group half">
                     <label>Default Chat ID</label>
-                    <input type="text" v-model="aiSettings.ragflow.default_chat_id" placeholder="" />
+                    <input class="themed-input settings-field" type="text" v-model="aiSettings.ragflow.default_chat_id" placeholder="" />
                   </div>
                 </div>
 
                 <div class="input-group">
                   <label>数据集 ID (dataset_ids，逗号分隔)</label>
-                  <input type="text" :value="aiSettings.ragflow.dataset_ids?.join(', ')" @input="onDatasetIdsInput" placeholder="dataset_001, dataset_002" />
+                  <input class="themed-input settings-field" type="text" :value="aiSettings.ragflow.dataset_ids?.join(', ')" @input="onDatasetIdsInput" placeholder="dataset_001, dataset_002" />
                 </div>
 
                 <div class="toggle-row">
@@ -324,10 +326,13 @@
           <template v-if="activeTab === 'raw'">
             <div class="sub-type-section">
               <label class="sub-label">子数据类型（按表计类别）</label>
-              <select v-model="selectedMeterType" class="meter-select">
-                <option disabled value="">请选择表计类型</option>
-                <option v-for="m in meterTypes" :key="m.value" :value="m.value">{{ m.label }}</option>
-              </select>
+              <ThemedSelect
+                v-model="selectedMeterType"
+                class="meter-select"
+                aria-label="子数据类型"
+                placeholder="请选择表计类型"
+                :options="meterTypes"
+              />
             </div>
           </template>
 
@@ -365,6 +370,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { getRuntimeAISettings, type RuntimeAISettingsResponse, uploadMetadataDataset, uploadWeatherDataset, uploadRawMeterDataset } from '../api/system'
 import { useTimeManager } from '../utils/timeManager'
 import { Icon } from '@iconify/vue'
+import ThemedSelect from './common/ThemedSelect.vue'
 
 // AI 配置折叠面板状态
 const expandedSections = reactive<Record<string, boolean>>({
@@ -506,6 +512,12 @@ const timezoneMap: Record<string, string> = {
   'GMT+00:00': 'Europe/London',
   'GMT-05:00': 'America/New_York'
 }
+const timezoneOptions = [
+  { value: 'GMT+08:00', label: '(GMT+08:00) 北京、上海、香港' },
+  { value: 'GMT+09:00', label: '(GMT+09:00) 东京、首尔' },
+  { value: 'GMT+00:00', label: '(GMT+00:00) 伦敦、都柏林' },
+  { value: 'GMT-05:00', label: '(GMT-05:00) 纽约、华盛顿' }
+]
 
 const getTimezoneOffset = (tz: string): string => {
   const map: Record<string, string> = {
@@ -829,24 +841,28 @@ input:checked + .slider:before { transform: translateX(20px); }
 
 .input-group { margin-bottom: 20px; }
 .input-group label { display: block; font-size: 12px; color: #666; margin-bottom: 8px; font-weight: 500; }
-.input-group input[type="text"], .input-group input[type="password"] {
-  width: 100%;
-  border: none; border-bottom: 1.5px solid #e2e8f0;
-  padding: 10px 0;
-  font-size: 15px; color: #0b4582; font-weight: 600;
-  outline: none; background: transparent;
-  transition: border-color 0.2s;
-  box-sizing: border-box;
+.settings-field {
+  --themed-input-height: 44px;
+  --themed-input-padding-x: 14px;
+  --themed-input-radius: 14px;
+  --themed-input-font-size: 14px;
+  --themed-input-font-weight: 600;
+  --themed-input-border: #dbe5ef;
+  --themed-input-bg: #f8fbff;
+  --themed-input-hover-bg: #eef5fd;
 }
-.input-group input:focus { border-bottom-color: #0b4582; }
 
-.input-group select {
-  width: 100%;
-  border: none; border-bottom: 1.5px solid #e2e8f0;
-  padding: 10px 0;
-  font-size: 14px; color: #333;
-  outline: none; background: transparent;
-  cursor: pointer;
+.setting-select {
+  --select-width: 100%;
+  --select-height: 42px;
+  --select-padding-x: 14px;
+  --select-radius: 14px;
+  --select-font-size: 14px;
+  --select-font-weight: 500;
+  --select-border-color: #dbe5ef;
+  --select-bg: #f8fbff;
+  --select-hover-bg: #eef5fd;
+  --select-option-active-bg: #0b4582;
 }
 
 .input-with-icon { position: relative; display: flex; align-items: center; }
@@ -937,14 +953,6 @@ input:checked + .slider:before { transform: translateX(20px); }
 
 .ai-params-row { display: flex; gap: 16px; }
 .input-group.half { flex: 1; }
-.input-group input[type="number"] {
-  width: 100%;
-  border: none; border-bottom: 1.5px solid #e2e8f0;
-  padding: 10px 0; font-size: 15px; color: #0b4582;
-  font-weight: 600; outline: none; background: transparent;
-  box-sizing: border-box;
-}
-.input-group input[type="number"]:focus { border-bottom-color: #0b4582; }
 
 .save-ai-btn {
   width: 100%; padding: 12px; margin-top: 20px;
@@ -992,15 +1000,15 @@ input:checked + .slider:before { transform: translateX(20px); }
 .time-btn.secondary:hover { background: #f0f4f8; }
 
 .datetime-input {
-  width: 100%;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 14px; color: #333;
-  outline: none; background: #fafbfc;
-  box-sizing: border-box;
+  --themed-input-height: 42px;
+  --themed-input-padding-x: 14px;
+  --themed-input-radius: 12px;
+  --themed-input-font-size: 14px;
+  --themed-input-font-weight: 600;
+  --themed-input-border: #dbe5ef;
+  --themed-input-bg: #f8fbff;
+  --themed-input-hover-bg: #eef5fd;
 }
-.datetime-input:focus { border-color: #0b4582; background: white; }
 
 @media (max-width: 1200px) {
   .settings-grid { grid-template-columns: 1fr; }
@@ -1178,12 +1186,16 @@ input:checked + .slider:before { transform: translateX(20px); }
 .sub-type-section { margin-bottom: 18px; }
 .sub-label { display: block; font-size: 12px; color: #666; font-weight: 500; margin-bottom: 6px; }
 .meter-select {
-  width: 100%; padding: 10px 14px;
-  border: 1.5px solid #e2e8f0; border-radius: 8px;
-  font-size: 13px; color: #333; outline: none;
-  background: #fff; cursor: pointer;
+  --select-width: 100%;
+  --select-height: 42px;
+  --select-padding-x: 14px;
+  --select-radius: 10px;
+  --select-font-size: 13px;
+  --select-font-weight: 500;
+  --select-border-color: #e2e8f0;
+  --select-bg: #ffffff;
+  --select-hover-bg: #f8fbff;
 }
-.meter-select:focus { border-color: #0b4582; }
 
 .hint-bar {
   display: flex; align-items: flex-start; gap: 8px;

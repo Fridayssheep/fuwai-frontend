@@ -502,21 +502,23 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  border: 1px solid var(--color-border);
+  border: 1px solid #083763;
   border-radius: 10px;
-  background: var(--color-surface);
-  color: var(--color-primary);
+  background: linear-gradient(135deg, #0b4582, #1565c0);
+  color: #ffffff;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
   font-family: var(--font);
+  box-shadow: 0 10px 24px rgba(11, 69, 130, 0.18);
 }
 
 .time-edit-btn:hover {
-  background: #eff6ff;
-  border-color: var(--color-primary);
-  box-shadow: 0 2px 8px rgba(11, 69, 130, 0.1);
+  background: linear-gradient(135deg, #083763, #0f4d93);
+  border-color: #062b4c;
+  box-shadow: 0 14px 28px rgba(11, 69, 130, 0.24);
+  transform: translateY(-1px);
 }
 
 .btn-icon {

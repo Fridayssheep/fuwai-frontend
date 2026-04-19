@@ -31,3 +31,91 @@ textarea,
 select {
   font: inherit;
 }
+
+.themed-input,
+.themed-textarea {
+  --themed-input-width: 100%;
+  --themed-input-min-width: 0;
+  --themed-input-height: 42px;
+  --themed-input-padding-x: 14px;
+  --themed-input-padding-y: 12px;
+  --themed-input-radius: 16px;
+  --themed-input-font-size: 14px;
+  --themed-input-font-weight: 500;
+  --themed-input-border: #dbe5ef;
+  --themed-input-bg: #f8fbff;
+  --themed-input-hover-bg: #eef5fd;
+  --themed-input-focus-bg: #fdfefe;
+  --themed-input-color: #16304d;
+  --themed-input-placeholder: #7d91a8;
+  --themed-input-shadow: 0 0 0 0 rgba(11, 69, 130, 0);
+  --themed-input-focus-shadow: 0 0 0 4px rgba(11, 69, 130, 0.08);
+  --themed-input-disabled-bg: #f3f6fa;
+  --themed-input-disabled-color: #8ea0b4;
+
+  width: var(--themed-input-width);
+  min-width: var(--themed-input-min-width);
+  box-sizing: border-box;
+  border: 1.5px solid var(--themed-input-border);
+  border-radius: var(--themed-input-radius);
+  background: var(--themed-input-bg);
+  color: var(--themed-input-color);
+  font-size: var(--themed-input-font-size);
+  font-weight: var(--themed-input-font-weight);
+  transition:
+    border-color 0.22s ease,
+    background 0.22s ease,
+    box-shadow 0.22s ease,
+    transform 0.22s ease;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.themed-input {
+  min-height: var(--themed-input-height);
+  padding: 0 var(--themed-input-padding-x);
+}
+
+.themed-textarea {
+  min-height: var(--themed-input-height, 108px);
+  padding: var(--themed-input-padding-y) var(--themed-input-padding-x);
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.themed-input::placeholder,
+.themed-textarea::placeholder {
+  color: var(--themed-input-placeholder);
+}
+
+.themed-input:hover:not(:disabled):not(:focus),
+.themed-textarea:hover:not(:disabled):not(:focus) {
+  background: var(--themed-input-hover-bg);
+  border-color: #0b4582;
+}
+
+.themed-input:focus,
+.themed-textarea:focus {
+  background: var(--themed-input-focus-bg);
+  border-color: #0b4582;
+  box-shadow: var(--themed-input-focus-shadow), var(--themed-input-shadow);
+}
+
+.themed-input:disabled,
+.themed-textarea:disabled {
+  background: var(--themed-input-disabled-bg);
+  color: var(--themed-input-disabled-color);
+  cursor: not-allowed;
+}
+
+.themed-input[type='date'],
+.themed-input[type='datetime-local'] {
+  color-scheme: light;
+}
+
+.themed-input[type='date']::-webkit-calendar-picker-indicator,
+.themed-input[type='datetime-local']::-webkit-calendar-picker-indicator {
+  opacity: 0.72;
+  cursor: pointer;
+}

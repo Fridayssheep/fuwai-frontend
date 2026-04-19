@@ -2,7 +2,13 @@
   <div class="app-layout">
     <Sidebar class="sidebar-area" />
     <Header class="header-area" />
-    <router-view class="main-area" />
+    <section class="main-area">
+      <router-view v-slot="{ Component, route }">
+        <Transition name="page-swap" mode="out-in">
+          <component :is="Component" :key="route.fullPath" class="route-panel" />
+        </Transition>
+      </router-view>
+    </section>
     <GlobalAIAssistant />
   </div>
 </template>
@@ -47,5 +53,28 @@ html, body, #app {
   grid-column: 2 / 3;
   grid-row: 2 / 3;
   overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.route-panel {
+  min-height: 100%;
+}
+
+.page-swap-enter-active,
+.page-swap-leave-active {
+  transition: opacity 0.24s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), filter 0.24s ease;
+}
+
+.page-swap-enter-from {
+  opacity: 0;
+  transform: translateY(14px) scale(0.992);
+  filter: blur(4px);
+}
+
+.page-swap-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.996);
+  filter: blur(3px);
 }
 </style>

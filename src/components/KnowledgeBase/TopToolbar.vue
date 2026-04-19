@@ -3,6 +3,7 @@
     <div class="search-box">
       <Icon icon="lucide:search" class="search-icon" />
       <input
+        class="themed-input toolbar-input"
         v-model.trim="localKeyword"
         type="text"
         placeholder="搜索当前数据集下的文件..."
@@ -70,13 +71,22 @@ const resetFilters = () => emit('reset')
   color: #6a8098;
   font-size: 18px;
 }
-.search-box input {
+.toolbar-input {
   flex: 1;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: #16304d;
-  font-size: 14px;
+  --themed-input-width: auto;
+  --themed-input-height: 100%;
+  --themed-input-padding-x: 0;
+  --themed-input-radius: 0;
+  --themed-input-border: transparent;
+  --themed-input-bg: transparent;
+  --themed-input-hover-bg: transparent;
+  --themed-input-focus-bg: transparent;
+  --themed-input-focus-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+}
+
+.toolbar-input:hover,
+.toolbar-input:focus {
+  border-color: transparent;
 }
 
 .primary-btn, .ghost-btn {

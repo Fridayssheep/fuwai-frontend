@@ -66,7 +66,7 @@
                     </div>
                   </div>
 
-                  <div v-else class="history-list">
+                  <TransitionGroup v-else name="history-card-motion" tag="div" class="history-list">
                     <article
                       v-for="session in sessions"
                       :key="session.session_id"
@@ -113,50 +113,59 @@
                         </div>
                       </Transition>
                     </article>
-                  </div>
+                  </TransitionGroup>
                 </section>
               </Transition>
 
-              <div v-if="sessionLoading" class="loading-state">
-                <Icon icon="lucide:loader-circle" class="spin" />
-                <span>正在载入历史会话…</span>
-              </div>
-
-              <template v-else-if="showWelcomeState">
-                <div class="welcome-card">
-                  <div class="welcome-media">
-                    <img src="/character.png" alt="" class="welcome-avatar" />
-                    <div class="welcome-glow"></div>
-                  </div>
-                  <div class="welcome-copy">
-                    <p class="welcome-kicker">SMART OPS</p>
-                    <h3>可以直接问我设备维保、能耗分析或异常排查。</h3>
-                    <p>
-                      我会自动在知识库、数据查询和故障分析之间选择合适能力，并尽量带上你当前页面的业务上下文。
-                    </p>
+              <Transition name="conversation-swap" mode="out-in">
+                <div v-if="sessionLoading" :key="`loading-${conversationMotionKey}`" class="conversation-frame loading-frame">
+                  <div class="loading-state">
+                    <Icon icon="lucide:loader-circle" class="spin" />
+                    <span>正在载入历史会话…</span>
                   </div>
                 </div>
 
-                <div class="prompt-grid">
-                  <button
-                    v-for="promptItem in promptSuggestions"
-                    :key="promptItem"
-                    class="prompt-card"
-                    type="button"
-                    @click="sendQuestion(promptItem)"
-                  >
-                    <Icon icon="lucide:sparkles" />
-                    <span>{{ promptItem }}</span>
-                  </button>
-                </div>
-              </template>
+                <div v-else-if="showWelcomeState" :key="`welcome-${conversationMotionKey}`" class="conversation-frame welcome-frame">
+                  <div class="welcome-card">
+                    <div class="welcome-media">
+                      <img src="/character.png" alt="" class="welcome-avatar" />
+                      <div class="welcome-glow"></div>
+                    </div>
+                    <div class="welcome-copy">
+                      <p class="welcome-kicker">SMART OPS</p>
+                      <h3>可以直接问我设备维保、能耗分析或异常排查。</h3>
+                      <p>
+                        我会自动在知识库、数据查询和故障分析之间选择合适能力，并尽量带上你当前页面的业务上下文。
+                      </p>
+                    </div>
+                  </div>
 
-              <template v-else-if="messages.length > 0">
+                  <div class="prompt-grid">
+                    <button
+                      v-for="promptItem in promptSuggestions"
+                      :key="promptItem"
+                      class="prompt-card"
+                      type="button"
+                      @click="sendQuestion(promptItem)"
+                    >
+                      <Icon icon="lucide:sparkles" />
+                      <span>{{ promptItem }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <TransitionGroup
+                  v-else-if="messages.length > 0"
+                  :key="`chat-${activeSessionId || 'draft'}-${conversationMotionKey}`"
+                  name="chat-message"
+                  tag="div"
+                  class="conversation-frame chat-thread"
+                >
                 <article
                   v-for="message in messages"
                   :key="message.message_id"
                   class="chat-row"
-                  :class="message.role"
+                  :class="[message.role, { 'from-composer': message.message_id === outgoingMessageId }]"
                 >
                   <div v-if="message.role === 'assistant'" class="avatar-bubble">
                     <img src="/character+mini.png" alt="" />
@@ -250,7 +259,10 @@
                     </div>
                   </div>
                 </article>
-              </template>
+                </TransitionGroup>
+
+                <div v-else :key="`idle-${conversationMotionKey}`" class="conversation-frame"></div>
+              </Transition>
 
               <Transition name="status-card">
                 <article v-if="isSending" class="chat-row assistant tool-stream-row">
@@ -302,7 +314,7 @@
                 <input
                   ref="inputRef"
                   v-model="draftQuestion"
-                  class="composer-input"
+                  class="themed-input composer-input"
                   type="text"
                   placeholder="输入您的问题…"
                   :disabled="isSending"
@@ -381,6 +393,8 @@ const menuSessionId = ref<string | null>(null)
 const deletingSessionId = ref<string | null>(null)
 const highlightedMessageId = ref<string | null>(null)
 const referencePulseMessageId = ref<string | null>(null)
+const outgoingMessageId = ref<string | null>(null)
+const conversationMotionKey = ref(0)
 
 const sessions = ref<AIQASessionSummary[]>([])
 const messages = ref<ChatMessage[]>([])
@@ -833,6 +847,7 @@ const selectSession = async (sessionId: string) => {
   }
 
   sessionLoading.value = true
+  conversationMotionKey.value += 1
   actionError.value = ''
   highlightedMessageId.value = null
 
@@ -840,6 +855,7 @@ const selectSession = async (sessionId: string) => {
     const data = await getAIQASessionDetail(sessionId)
     activeSessionId.value = data.session.session_id
     messages.value = data.messages.map(mapSessionMessage)
+    conversationMotionKey.value += 1
     showHistory.value = false
     notificationCount.value = 0
     scrollToBottom()
@@ -858,6 +874,8 @@ const startFreshChat = () => {
   liveStatuses.value = []
   actionError.value = ''
   highlightedMessageId.value = null
+  outgoingMessageId.value = null
+  conversationMotionKey.value += 1
   notificationCount.value = 0
   showHistory.value = false
   focusInput()
@@ -911,7 +929,14 @@ const sendQuestion = async (quickQuestion?: string) => {
     draftQuestion.value = ''
   }
 
-  messages.value = [...messages.value, makeUserMessage(question)]
+  const userMessage = makeUserMessage(question)
+  outgoingMessageId.value = userMessage.message_id
+  messages.value = [...messages.value, userMessage]
+  window.setTimeout(() => {
+    if (outgoingMessageId.value === userMessage.message_id) {
+      outgoingMessageId.value = null
+    }
+  }, 720)
   isSending.value = true
   openStatusStream()
   scrollToBottom()
@@ -1124,14 +1149,15 @@ onBeforeUnmount(() => {
   --ai-text: #17324d;
   --ai-text-soft: #67809a;
   --ai-soft-line: rgba(32, 94, 156, 0.09);
-  --ai-title-font: 'Iowan Old Style', 'Palatino Linotype', 'Source Han Serif SC', 'Songti SC', serif;
-  --ai-body-font: 'Avenir Next', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --ai-title-font: var(--font-sans);
+  --ai-body-font: var(--font-sans);
 
   position: fixed;
   right: 28px;
   bottom: 26px;
   z-index: 1200;
   font-family: var(--ai-body-font);
+  font-size: 14px;
   transition: transform 260ms ease, opacity 260ms ease;
 }
 
@@ -1221,6 +1247,7 @@ onBeforeUnmount(() => {
     radial-gradient(circle at top left, rgba(81, 148, 220, 0.08), transparent 36%);
   box-shadow: var(--ai-shadow);
   backdrop-filter: blur(20px);
+  transform-origin: 86% 100%;
 }
 
 .assistant-panel::before {
@@ -1273,6 +1300,22 @@ onBeforeUnmount(() => {
   gap: 10px;
   max-height: 186px;
   overflow-y: auto;
+}
+
+.history-card-motion-enter-active,
+.history-card-motion-leave-active,
+.history-card-motion-move {
+  transition:
+    opacity 0.24s ease,
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.32s ease;
+}
+
+.history-card-motion-enter-from,
+.history-card-motion-leave-to {
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+  filter: blur(6px);
 }
 
 .history-card {
@@ -1471,8 +1514,9 @@ onBeforeUnmount(() => {
 .assistant-brand-copy h2 {
   margin: 0;
   font-family: var(--ai-title-font);
-  font-size: 22px;
-  letter-spacing: 0.02em;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
 }
 
 .assistant-actions {
@@ -1521,6 +1565,15 @@ onBeforeUnmount(() => {
   background:
     radial-gradient(circle at top left, rgba(81, 148, 220, 0.06), transparent 34%),
     linear-gradient(180deg, rgba(251, 253, 255, 0.94), rgba(247, 251, 255, 0.98));
+}
+
+.conversation-frame {
+  min-width: 0;
+}
+
+.chat-thread {
+  display: flex;
+  flex-direction: column;
 }
 
 .welcome-card {
@@ -1573,6 +1626,8 @@ onBeforeUnmount(() => {
   line-height: 1.25;
   color: var(--ai-text);
   font-family: var(--ai-title-font);
+  font-weight: 900;
+  letter-spacing: -0.03em;
 }
 
 .welcome-copy p {
@@ -1616,6 +1671,7 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 10px;
   margin-bottom: 14px;
+  will-change: transform, opacity;
 }
 
 .chat-row.user {
@@ -1648,6 +1704,7 @@ onBeforeUnmount(() => {
   border-radius: 18px;
   padding: 12px 14px;
   box-shadow: 0 12px 24px rgba(17, 78, 140, 0.06);
+  transform-origin: inherit;
 }
 
 .message-bubble.assistant {
@@ -1659,6 +1716,7 @@ onBeforeUnmount(() => {
   background: linear-gradient(180deg, #1972cd, #0957a7);
   color: white;
   border-bottom-right-radius: 10px;
+  transform-origin: right bottom;
 }
 
 .bubble-topline {
@@ -1714,6 +1772,7 @@ onBeforeUnmount(() => {
 .markdown-body :deep(h6) {
   margin: 0 0 8px;
   font-family: var(--ai-title-font);
+  font-weight: 900;
   color: var(--ai-text);
   line-height: 1.35;
 }
@@ -1738,7 +1797,7 @@ onBeforeUnmount(() => {
   background: rgba(16, 90, 167, 0.08);
   color: var(--ai-blue-900);
   font-size: 12px;
-  font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
+  font-family: var(--font-mono);
 }
 
 .markdown-body :deep(pre) {
@@ -1996,7 +2055,7 @@ onBeforeUnmount(() => {
   background: rgba(15, 92, 171, 0.06);
   color: #6a7c8f;
   font-size: 10px;
-  font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
+  font-family: var(--font-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2037,20 +2096,18 @@ onBeforeUnmount(() => {
 }
 
 .composer-input {
-  height: 46px;
-  border-radius: 15px;
-  border: 1px solid rgba(17, 78, 140, 0.1);
-  background: linear-gradient(180deg, rgba(247, 250, 253, 0.98), rgba(240, 245, 250, 0.92));
-  padding: 0 14px;
-  font-size: 13px;
-  color: var(--ai-text);
-  outline: none;
-  transition: border-color 220ms ease, box-shadow 220ms ease;
-}
-
-.composer-input:focus {
-  border-color: rgba(24, 114, 205, 0.3);
-  box-shadow: 0 0 0 4px rgba(24, 114, 205, 0.1);
+  --themed-input-height: 46px;
+  --themed-input-radius: 15px;
+  --themed-input-padding-x: 14px;
+  --themed-input-font-size: 13px;
+  --themed-input-font-weight: 500;
+  --themed-input-border: #dbe5ef;
+  --themed-input-bg: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(241, 246, 251, 0.92));
+  --themed-input-hover-bg: linear-gradient(180deg, rgba(243, 249, 255, 1), rgba(236, 244, 251, 0.96));
+  --themed-input-focus-bg: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(247, 251, 255, 0.96));
+  --themed-input-color: var(--ai-text);
+  --themed-input-placeholder: #7d91a8;
+  --themed-input-focus-shadow: 0 0 0 4px rgba(11, 69, 130, 0.1);
 }
 
 .composer-send {
@@ -2092,11 +2149,20 @@ onBeforeUnmount(() => {
   transition: all 260ms ease;
 }
 
+.assistant-shell-enter-active {
+  transition-duration: 360ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.assistant-shell-enter-active .assistant-panel {
+  animation: panelFloatUp 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .assistant-shell-enter-from,
 .assistant-shell-leave-to {
   opacity: 0;
-  transform: translateY(18px) scale(0.96);
-  filter: blur(10px);
+  transform: translateY(30px) scale(0.94);
+  filter: blur(12px);
 }
 
 .history-sheet-enter-from,
@@ -2113,9 +2179,127 @@ onBeforeUnmount(() => {
   transform: translateY(8px);
 }
 
+.conversation-swap-enter-active,
+.conversation-swap-leave-active {
+  transition:
+    opacity 0.26s ease,
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.34s ease;
+}
+
+.conversation-swap-enter-from {
+  opacity: 0;
+  transform: translateY(18px) scale(0.985);
+  filter: blur(8px);
+}
+
+.conversation-swap-leave-to {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.99);
+  filter: blur(8px);
+}
+
+.chat-message-enter-active,
+.chat-message-leave-active,
+.chat-message-move {
+  transition:
+    opacity 0.28s ease,
+    transform 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.38s ease;
+}
+
+.chat-message-enter-from {
+  opacity: 0;
+  transform: translateY(16px) scale(0.985);
+  filter: blur(7px);
+}
+
+.chat-message-leave-to {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.985);
+  filter: blur(7px);
+}
+
+.chat-row.user.from-composer {
+  animation: messageLiftFromComposer 580ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: right bottom;
+}
+
+.chat-row.user.from-composer .message-bubble {
+  animation: sentBubbleSettle 580ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chat-row.user.from-composer .bubble-text {
+  animation: sentTextLift 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes panelFloatUp {
+  0% {
+    transform: translateY(20px) scale(0.96);
+    box-shadow: 0 18px 54px rgba(10, 62, 118, 0.18);
+  }
+  64% {
+    transform: translateY(-4px) scale(1.006);
+    box-shadow: 0 34px 88px rgba(10, 62, 118, 0.25);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: var(--ai-shadow);
+  }
+}
+
+@keyframes messageLiftFromComposer {
+  0% {
+    opacity: 0.72;
+    transform: translate3d(0, 58px, 0) scale(0.92);
+    filter: blur(4px);
+  }
+  58% {
+    opacity: 1;
+    transform: translate3d(0, -3px, 0) scale(1.015);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes sentBubbleSettle {
+  0% {
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(9, 87, 167, 0.1);
+  }
+  58% {
+    border-radius: 20px;
+    box-shadow: 0 18px 30px rgba(9, 87, 167, 0.22);
+  }
+  100% {
+    border-radius: 18px;
+    border-bottom-right-radius: 10px;
+    box-shadow: 0 12px 24px rgba(17, 78, 140, 0.06);
+  }
+}
+
+@keyframes sentTextLift {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  42% {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

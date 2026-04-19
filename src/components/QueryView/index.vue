@@ -25,30 +25,35 @@
       </div>
 
       <div class="filter-row">
-        <div class="filter-item">
+        <div :class="['filter-item', { 'ai-field-glow': isAssistantHighlightActive('status') }]">
           <label>建筑状态</label>
-          <select v-model="filterForm.status" class="select-box" @change="handleStatusChange">
-            <option value="">全部状态</option>
-            <option value="normal">正常运行</option>
-            <option value="fault">故障停机</option>
-            <option value="warning">告警状态</option>
-            <option value="offline">离线</option>
-          </select>
+          <ThemedSelect
+            v-model="filterForm.status"
+            class="select-box"
+            size="sm"
+            aria-label="建筑状态"
+            :options="statusOptions"
+            @change="handleStatusChange"
+          />
         </div>
 
-        <div class="filter-item">
+        <div :class="['filter-item', { 'ai-field-glow': isAssistantHighlightActive('timeRange') }]">
           <label>统计周期</label>
-          <select v-model="filterForm.timeRange" class="select-box" @change="handleTimeRangeChange">
-            <option value="today">今日</option>
-            <option value="week">本周</option>
-            <option value="month">本月</option>
-            <option value="year">本年</option>
-            <option value="custom" disabled>自定义时间 (请通过高级筛选设置)</option>
-          </select>
+          <ThemedSelect
+            v-model="filterForm.timeRange"
+            class="select-box"
+            size="sm"
+            aria-label="统计周期"
+            :options="timeRangeOptions"
+            @change="handleTimeRangeChange"
+          />
         </div>
 
         <div class="button-group">
-          <button class="btn btn-primary-dark" @click="showAdvanced = true">
+          <button
+            :class="['btn', 'btn-primary-dark', { 'ai-field-glow': isAssistantHighlightActive('advancedButton') }]"
+            @click="showAdvanced = true"
+          >
             <svg class="btn-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none">
               <path d="M3 5h18"></path>
               <path d="M7 12h10"></path>
@@ -74,15 +79,24 @@
       <div class="card-header">
         <div class="sort-section">
           <span class="sort-label">排序：</span>
-          <div class="sort-tags">
-            <button :class="['sort-tag', { active: sortConfig.field === 'eui' }]" @click="handleSort('eui')">EUI 指数</button>
-            <button :class="['sort-tag', { active: sortConfig.field === 'totalEnergy' }]" @click="handleSort('totalEnergy')">总能耗</button>
-            <button :class="['sort-tag', { active: sortConfig.field === 'status' }]" @click="handleSort('status')">系统状态</button>
-            <button :class="['sort-tag', { active: sortConfig.field === 'carbonEmission' }]" @click="handleSort('carbonEmission')">碳排放</button>
+          <div :class="['sort-track', { 'ai-field-glow': activeSortHighlights.length > 0 }]">
+            <SlidingOptionGroup
+              :model-value="sortConfig.field"
+              :options="sortFieldOptions"
+              :highlighted-values="activeSortHighlights"
+              aria-label="查询排序字段"
+              @update:model-value="handleSortFieldChange"
+            />
           </div>
-          <span class="sort-order-icon" @click="toggleSortOrder">
-            {{ sortConfig.order === 'asc' ? '↑ 升序' : '↓ 降序' }}
-          </span>
+          <div :class="['sort-order-track', { 'ai-field-glow': activeSortOrderHighlights.length > 0 }]">
+            <SlidingOptionGroup
+              :model-value="sortConfig.order"
+              :options="sortOrderOptions"
+              :highlighted-values="activeSortOrderHighlights"
+              aria-label="查询排序方向"
+              @update:model-value="handleSortOrderChange"
+            />
+          </div>
         </div>
 
         <div class="export-section">
@@ -124,7 +138,14 @@
     </div>
 
     <!-- 弹窗组件 -->
-    <FilterModal v-model:visible="showAdvanced" @save="handleAdvancedSave" />
+    <FilterModal
+      v-model:visible="showAdvanced"
+      :seed-values="advancedModalSeed"
+      :highlighted-fields="advancedModalHighlights"
+      :initial-tab="advancedModalInitialTab"
+      :highlight-pulse-id="advancedModalPulseId"
+      @save="handleAdvancedSave"
+    />
     <ExportModal
       v-model:visible="showExportModal"
       :selected-count="selectedBuildings.length"
@@ -160,12 +181,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import FilterModal from './FilterModal.vue';
 import BuildingTable from './BuildingTable.vue';
 import ExportModal from './ExportModal.vue';
 import QueryAIAssistant from './QueryAIAssistant.vue';
+import SlidingOptionGroup from '../common/SlidingOptionGroup.vue';
+import ThemedSelect from '../common/ThemedSelect.vue';
 import BuildingDetailsModal from '../../components/Statistics/BuildingDetailsModal.vue';
 import { useTimeManager } from '../../utils/timeManager';
 import {
@@ -201,6 +224,22 @@ const filterForm = ref({
 });
 type QueryFilterFormState = typeof filterForm.value;
 type QuerySortState = { field: 'eui' | 'totalEnergy' | 'status' | 'carbonEmission'; order: 'asc' | 'desc' };
+type SortField = QuerySortState['field'];
+type SortOrder = QuerySortState['order'];
+type AdvancedModalTab = 'time' | 'property' | 'energy'
+type AdvancedModalSeed = {
+  startTime: string
+  endTime: string
+  keyword: string
+  site_id: string
+  primaryspaceusage: string
+  min_energy: number | null
+  max_energy: number | null
+  min_eui: number | null
+  max_eui: number | null
+  min_carbon: number | null
+  max_carbon: number | null
+}
 
 // 高级筛选结果
 const advancedFilters = ref<Record<string, any>>({});
@@ -211,11 +250,42 @@ const lastAssistantSnapshot = ref<null | {
   customTimeRange: { start: string; end: string } | null
   sortConfig: QuerySortState
 }>(null);
+const assistantHighlightKeys = ref<string[]>([]);
+const advancedModalHighlights = ref<string[]>([]);
+const advancedModalInitialTab = ref<AdvancedModalTab>('time');
+const advancedModalPulseId = ref(0);
+let assistantHighlightTimer: ReturnType<typeof setTimeout> | null = null;
+let advancedModalHighlightTimer: ReturnType<typeof setTimeout> | null = null;
+let advancedModalOpenTimer: ReturnType<typeof setTimeout> | null = null;
 
 const sortConfig = ref<QuerySortState>({
   field: 'eui' as 'eui' | 'totalEnergy' | 'status' | 'carbonEmission',
   order: 'desc' as 'asc' | 'desc'
 });
+const sortFieldOptions: Array<{ value: SortField; label: string }> = [
+  { value: 'eui', label: 'EUI 指数' },
+  { value: 'totalEnergy', label: '总能耗' },
+  { value: 'status', label: '系统状态' },
+  { value: 'carbonEmission', label: '碳排放' }
+];
+const sortOrderOptions: Array<{ value: SortOrder; label: string }> = [
+  { value: 'desc', label: '↓ 降序' },
+  { value: 'asc', label: '↑ 升序' }
+];
+const statusOptions = [
+  { value: '', label: '全部状态' },
+  { value: 'normal', label: '正常运行' },
+  { value: 'fault', label: '故障停机' },
+  { value: 'warning', label: '告警状态' },
+  { value: 'offline', label: '离线' }
+];
+const timeRangeOptions = [
+  { value: 'today', label: '今日' },
+  { value: 'week', label: '本周' },
+  { value: 'month', label: '本月' },
+  { value: 'year', label: '本年' },
+  { value: 'custom', label: '自定义时间 (请通过高级筛选设置)', disabled: true }
+];
 
 // ===== 时间逻辑 =====
 const calculateTimeRange = (range: string) => {
@@ -379,6 +449,104 @@ const normalizeRangeValue = (value: unknown) => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
+const isAssistantHighlightActive = (key: string) => assistantHighlightKeys.value.includes(key);
+const activeSortHighlights = computed<SortField[]>(() => sortFieldOptions
+  .filter((option) => isAssistantHighlightActive(`sort:${option.value}`))
+  .map((option) => option.value));
+const activeSortOrderHighlights = computed<SortOrder[]>(() => isAssistantHighlightActive('sortOrder') ? [sortConfig.value.order] : []);
+
+const advancedModalSeed = computed<AdvancedModalSeed>(() => ({
+  startTime: customTimeRange.value?.start || '',
+  endTime: customTimeRange.value?.end || '',
+  keyword: advancedFilters.value.keyword || '',
+  site_id: advancedFilters.value.site_id || '',
+  primaryspaceusage: advancedFilters.value.primaryspaceusage || '',
+  min_energy: normalizeRangeValue(advancedFilters.value.min_energy),
+  max_energy: normalizeRangeValue(advancedFilters.value.max_energy),
+  min_eui: normalizeRangeValue(advancedFilters.value.min_eui),
+  max_eui: normalizeRangeValue(advancedFilters.value.max_eui),
+  min_carbon: normalizeRangeValue(advancedFilters.value.min_carbon),
+  max_carbon: normalizeRangeValue(advancedFilters.value.max_carbon)
+}));
+
+const triggerAssistantHighlights = (keys: string[]) => {
+  assistantHighlightKeys.value = [];
+  if (assistantHighlightTimer) clearTimeout(assistantHighlightTimer);
+  if (!keys.length) return;
+
+  assistantHighlightKeys.value = [...new Set(keys)];
+  assistantHighlightTimer = setTimeout(() => {
+    assistantHighlightKeys.value = [];
+    assistantHighlightTimer = null;
+  }, 1700);
+};
+
+const triggerAdvancedModalHighlights = (fields: string[]) => {
+  advancedModalHighlights.value = [];
+  if (advancedModalHighlightTimer) clearTimeout(advancedModalHighlightTimer);
+  if (!fields.length) return;
+
+  advancedModalHighlights.value = [...new Set(fields)];
+  advancedModalHighlightTimer = setTimeout(() => {
+    advancedModalHighlights.value = [];
+    advancedModalHighlightTimer = null;
+  }, 2400);
+};
+
+const buildAssistantVisualState = (filters: AIQueryAssistantFilters) => {
+  const panelKeys = new Set<string>();
+  const modalFields = new Set<string>();
+
+  if (filters.status) panelKeys.add('status');
+
+  if (filters.time_range?.start && filters.time_range?.end) {
+    panelKeys.add('timeRange');
+    modalFields.add('startTime');
+    modalFields.add('endTime');
+  }
+
+  if (filters.keyword) modalFields.add('keyword');
+  if (filters.site_id) modalFields.add('site_id');
+  if (filters.primaryspaceusage) modalFields.add('primaryspaceusage');
+  if (filters.min_energy != null || filters.max_energy != null) {
+    modalFields.add('min_energy');
+    modalFields.add('max_energy');
+  }
+  if (filters.min_eui != null || filters.max_eui != null) {
+    modalFields.add('min_eui');
+    modalFields.add('max_eui');
+  }
+  if (filters.min_carbon != null || filters.max_carbon != null) {
+    modalFields.add('min_carbon');
+    modalFields.add('max_carbon');
+  }
+
+  if (modalFields.size > 0) panelKeys.add('advancedButton');
+
+  if (filters.sort_by && ['eui', 'totalEnergy', 'status', 'carbonEmission'].includes(filters.sort_by)) {
+    panelKeys.add(`sort:${filters.sort_by}`);
+  }
+  if (filters.sort_order === 'asc' || filters.sort_order === 'desc') {
+    panelKeys.add('sortOrder');
+  }
+
+  let initialTab: AdvancedModalTab = 'time';
+  if (['min_energy', 'max_energy', 'min_eui', 'max_eui', 'min_carbon', 'max_carbon'].some((item) => modalFields.has(item))) {
+    initialTab = 'energy';
+  } else if (['keyword', 'site_id', 'primaryspaceusage'].some((item) => modalFields.has(item))) {
+    initialTab = 'property';
+  } else if (['startTime', 'endTime'].some((item) => modalFields.has(item))) {
+    initialTab = 'time';
+  }
+
+  return {
+    panelKeys: Array.from(panelKeys),
+    modalFields: Array.from(modalFields),
+    initialTab,
+    shouldOpenAdvanced: modalFields.size > 0
+  };
+};
+
 const applyAssistantFilters = (filters: AIQueryAssistantFilters) => {
   filterForm.value.status = (filters.status as any) || '';
 
@@ -424,6 +592,20 @@ const handleAssistantApply = (response: AIQueryAssistantResponse) => {
     sortConfig: cloneJson(sortConfig.value)
   };
   applyAssistantFilters(response.applied_filters);
+  const visualState = buildAssistantVisualState(response.applied_filters);
+  triggerAdvancedModalHighlights(visualState.modalFields);
+  advancedModalInitialTab.value = visualState.initialTab;
+  triggerAssistantHighlights(visualState.panelKeys);
+  if (visualState.shouldOpenAdvanced) {
+    if (advancedModalOpenTimer) clearTimeout(advancedModalOpenTimer);
+    advancedModalOpenTimer = setTimeout(() => {
+      nextTick(() => {
+        showAdvanced.value = true;
+        advancedModalPulseId.value += 1;
+      });
+      advancedModalOpenTimer = null;
+    }, 240);
+  }
   fetchHighlightsData();
 };
 
@@ -446,17 +628,12 @@ const handleReset = () => {
   handleRefresh();
 };
 
-const handleSort = (field: any) => {
-  if (sortConfig.value.field === field) {
-    sortConfig.value.order = sortConfig.value.order === 'asc' ? 'desc' : 'asc';
-  } else {
-    sortConfig.value.field = field;
-    sortConfig.value.order = 'desc';
-  }
+const handleSortFieldChange = (value: string | number) => {
+  sortConfig.value.field = value as SortField;
 };
 
-const toggleSortOrder = () => {
-  sortConfig.value.order = sortConfig.value.order === 'asc' ? 'desc' : 'asc';
+const handleSortOrderChange = (value: string | number) => {
+  sortConfig.value.order = value as SortOrder;
 };
 
 const handleAdvancedSave = (f: any) => {
@@ -480,6 +657,12 @@ const handleFaultAnalysis = (i: any) => {
 onMounted(() => {
   fetchHighlightsData();
 });
+
+onBeforeUnmount(() => {
+  if (assistantHighlightTimer) clearTimeout(assistantHighlightTimer);
+  if (advancedModalHighlightTimer) clearTimeout(advancedModalHighlightTimer);
+  if (advancedModalOpenTimer) clearTimeout(advancedModalOpenTimer);
+});
 </script>
 
 <style scoped>
@@ -495,18 +678,75 @@ h1 { font-size: 20px; font-weight: 800; color: #002B54; margin-bottom: 20px; let
 .filter-row { display: flex; align-items: center; gap: 24px; }
 .filter-item { display: flex; align-items: center; gap: 12px; }
 .filter-item label { font-size: 14px; color: #4B5563; font-weight: 500; }
-.select-box { width: 180px; height: 36px; border: 1px solid #D1D5DB; border-radius: 8px; padding: 0 10px; font-size: 14px; background: white; }
+.select-box {
+  --select-width: 180px;
+  --select-height: 36px;
+  --select-padding-x: 12px;
+  --select-radius: 12px;
+  --select-font-size: 13px;
+  --select-font-weight: 600;
+  --select-border-color: #d1d5db;
+  --select-bg: #ffffff;
+  --select-hover-bg: #f8fbff;
+  --select-option-active-bg: #0b4582;
+  --select-option-active-color: #ffffff;
+}
 .button-group { margin-left: auto; display: flex; gap: 12px; }
 .btn { height: 36px; padding: 0 16px; border-radius: 8px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; border: none; }
 .btn-icon { flex: 0 0 auto; }
 .btn-primary-dark { background: #002B54; color: white; }
 .btn-outline { background: white; border: 1px solid #D1D5DB; }
+.ai-field-glow { animation: assistantPulse 1.2s ease; position: relative; }
+.filter-item.ai-field-glow .select-box,
+.btn.ai-field-glow,
+.sort-track.ai-field-glow :deep(.sliding-group.track),
+.sort-order-track.ai-field-glow :deep(.sliding-group.track) {
+  --select-border-color: #60A5FA;
+  --select-open-border: #60A5FA;
+  --select-hover-border: #60A5FA;
+  --select-shadow: 0 0 0 4px rgba(96, 165, 250, 0.18), 0 10px 24px rgba(0, 91, 172, 0.1);
+  --select-bg: linear-gradient(180deg, #ffffff, #f5faff);
+  --select-hover-bg: linear-gradient(180deg, #ffffff, #f5faff);
+  box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.18), 0 10px 24px rgba(0, 91, 172, 0.1);
+}
+.btn.ai-field-glow,
+.sort-track.ai-field-glow,
+.sort-order-track.ai-field-glow {
+  transform: translateY(-1px);
+}
 .data-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .sort-section { display: flex; align-items: center; gap: 12px; }
-.sort-tag { padding: 6px 14px; border: none; background: #F3F4F6; border-radius: 20px; cursor: pointer; font-size: 13px; }
-.sort-tag.active { background: #005BAC; color: white; }
-.sort-order-icon { font-size: 13px; color: #666; cursor: pointer; }
+.sort-label { font-size: 13px; color: #4B5563; font-weight: 600; }
+.sort-track,
+.sort-order-track {
+  transition: transform .22s ease;
+}
+.sort-track :deep(.sliding-group.track),
+.sort-order-track :deep(.sliding-group.track) {
+  padding: 4px;
+  border-radius: 14px;
+  background: #F3F4F6;
+}
+.sort-track :deep(.sliding-indicator) {
+  background: linear-gradient(135deg, #005BAC, #003D73);
+  box-shadow: 0 10px 22px rgba(0, 91, 172, 0.18);
+}
+.sort-order-track :deep(.sliding-indicator) {
+  background: linear-gradient(135deg, #0F172A, #334155);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.18);
+}
+.sort-track :deep(.sliding-option),
+.sort-order-track :deep(.sliding-option) {
+  min-height: 34px;
+  padding: 6px 14px;
+  justify-content: center;
+  white-space: nowrap;
+}
+.sort-track :deep(.sliding-option.active),
+.sort-order-track :deep(.sliding-option.active) {
+  color: white;
+}
 .export-section { display: flex; gap: 10px; }
 .btn-refresh { height: 36px; padding: 0 15px; background: white; border: 1px solid #D1D5DB; border-radius: 18px; cursor: pointer; }
 .btn-export { height: 36px; padding: 0 20px; background: #52C41A; color: white; border: none; border-radius: 18px; cursor: pointer; }
@@ -523,4 +763,10 @@ h1 { font-size: 20px; font-weight: 800; color: #002B54; margin-bottom: 20px; let
 @keyframes modalSlideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 .spin { animation: spin 1s linear infinite; display: inline-block; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes assistantPulse {
+  0% { opacity: .65; transform: translateY(8px) scale(.98); }
+  30% { opacity: 1; transform: translateY(0) scale(1); }
+  65% { box-shadow: 0 0 0 8px rgba(96, 165, 250, 0.08); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
 </style>

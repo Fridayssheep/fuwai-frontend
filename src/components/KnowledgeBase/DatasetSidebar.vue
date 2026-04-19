@@ -4,23 +4,29 @@
       <span class="header-icon"><Icon icon="lucide:database" /></span>
       <h3>数据集检索</h3>
     </div>
-    <ul class="dataset-list">
-      <li :class="{ active: selectedCategory === '' }" @click="emit('select', '')">
-        <Icon icon="lucide:layout-grid" class="icon" /> 全部数据
-      </li>
-      <li v-for="category in categories" :key="category" 
-          :class="{ active: selectedCategory === category }" 
-          @click="emit('select', category)">
-        <Icon icon="lucide:folder" class="icon" /> {{ category }}
-      </li>
-    </ul>
+    <SlidingOptionGroup
+      :model-value="selectedCategory"
+      :options="datasetOptions"
+      orientation="vertical"
+      variant="list"
+      aria-label="数据集范围"
+      class="dataset-list"
+      @update:model-value="(value) => emit('select', String(value))"
+    >
+      <template #option="{ option, active }">
+        <Icon :icon="String(option.icon)" :class="['icon', { active }]" />
+        <span>{{ option.label }}</span>
+      </template>
+    </SlidingOptionGroup>
   </aside>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
+import SlidingOptionGroup from '../common/SlidingOptionGroup.vue'
 
-defineProps<{
+const props = defineProps<{
   categories: string[]
   selectedCategory: string
 }>()
@@ -28,6 +34,15 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'select', category: string): void
 }>()
+
+const datasetOptions = computed(() => ([
+  { value: '', label: '全部数据', icon: 'lucide:layout-grid' },
+  ...props.categories.map((category) => ({
+    value: category,
+    label: category,
+    icon: 'lucide:folder'
+  }))
+]))
 </script>
 
 <style scoped>
@@ -69,40 +84,20 @@ const emit = defineEmits<{
 }
 
 .dataset-list {
-  list-style: none;
-  padding: 0;
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
-.dataset-list li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+.dataset-list :deep(.sliding-option) {
   font-size: 14px;
-  color: #56708e;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.2s;
 }
-.dataset-list li .icon {
+
+.dataset-list :deep(.icon) {
   font-size: 16px;
   color: #92a5b8;
+  transition: color .22s ease;
 }
 
-.dataset-list li:hover {
-  background: #f5f8fc;
-  color: #12233d;
-}
-.dataset-list li.active {
-  background: #0b4582;
-  color: white;
-  font-weight: 600;
-}
-.dataset-list li.active .icon {
+.dataset-list :deep(.icon.active) {
   color: white;
 }
 

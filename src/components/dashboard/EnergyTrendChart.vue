@@ -6,14 +6,12 @@
         能耗趋势
       </h3>
       <div class="range-tabs">
-        <button
-          v-for="r in rangeOptions"
-          :key="r.value"
-          :class="{ active: currentRange === r.value }"
-          @click="switchRange(r.value)"
-        >
-          {{ r.label }}
-        </button>
+        <SlidingOptionGroup
+          v-model="currentRange"
+          :options="rangeOptions"
+          aria-label="仪表盘能耗趋势时间粒度"
+          @change="handleRangeChange"
+        />
       </div>
     </div>
     <!-- Loading overlay inside chart area -->
@@ -32,6 +30,7 @@ import { Icon } from '@iconify/vue'
 import * as echarts from 'echarts'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import { getEnergyTrend, type EnergySeries } from '../../api/dashboard'
+import SlidingOptionGroup from '../common/SlidingOptionGroup.vue'
 
 const trendLoading = ref(false)
 const chartRef = ref<HTMLElement | null>(null)
@@ -93,9 +92,9 @@ const fetchTrend = async (range: RangeKey) => {
   }
 }
 
-const switchRange = (range: RangeKey) => {
-  currentRange.value = range
-  fetchTrend(range)
+const handleRangeChange = (range: string | number) => {
+  currentRange.value = range as RangeKey
+  fetchTrend(currentRange.value)
 }
 
 // ─── ECharts rendering ──────────────────────────────────────────
@@ -259,32 +258,22 @@ onUnmounted(() => {
 
 .range-tabs {
   display: flex;
-  background: #f1f5f9;
+}
+
+.range-tabs :deep(.sliding-group.track) {
   padding: 3px;
   border-radius: 8px;
 }
 
-.range-tabs button {
-  border: none;
-  background: transparent;
+.range-tabs :deep(.sliding-option) {
+  min-width: 46px;
   padding: 4px 14px;
-  border-radius: 6px;
+  justify-content: center;
   font-size: 12px;
-  font-weight: 600;
-  color: var(--color-text-secondary, #64748b);
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: var(--font, sans-serif);
 }
 
-.range-tabs button:hover {
-  color: var(--color-text, #0f172a);
-}
-
-.range-tabs button.active {
-  background: white;
+.range-tabs :deep(.sliding-option.active) {
   color: var(--color-primary, #0b4582);
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
 }
 
 .chart-wrapper {

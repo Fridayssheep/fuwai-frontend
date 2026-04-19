@@ -43,26 +43,27 @@
                   <div class="grid">
                     <label>
                       <span>报表类型</span>
-                      <select v-model="form.report_type">
-                        <option v-for="item in reportTypeOptions" :key="item.value" :value="item.value">
-                          {{ item.label }}
-                        </option>
-                      </select>
+                      <ThemedSelect
+                        v-model="form.report_type"
+                        class="ops-select"
+                        aria-label="报表类型"
+                        :options="reportTypeOptions"
+                      />
                     </label>
 
                     <label>
                       <span>建筑 ID</span>
-                      <input :value="buildingId" disabled />
+                      <input class="themed-input ops-input" :value="buildingId" disabled />
                     </label>
 
                     <label>
                       <span>开始时间</span>
-                      <input v-model="form.start" type="datetime-local" />
+                      <input class="themed-input ops-input" v-model="form.start" type="datetime-local" />
                     </label>
 
                     <label>
                       <span>结束时间</span>
-                      <input v-model="form.end" type="datetime-local" />
+                      <input class="themed-input ops-input" v-model="form.end" type="datetime-local" />
                     </label>
                   </div>
 
@@ -106,31 +107,35 @@
                   <div class="filters">
                     <label>
                       <span>类型</span>
-                      <select v-model="reportFilters.report_type" @change="applyFilters">
-                        <option value="">全部</option>
-                        <option v-for="item in reportTypeOptions" :key="item.value" :value="item.value">
-                          {{ item.label }}
-                        </option>
-                      </select>
+                      <ThemedSelect
+                        v-model="reportFilters.report_type"
+                        class="ops-select"
+                        aria-label="报表类型筛选"
+                        :options="allReportTypeOptions"
+                        @change="applyFilters"
+                      />
                     </label>
 
                     <label>
                       <span>状态</span>
-                      <select v-model="reportFilters.status" @change="applyFilters">
-                        <option value="">全部</option>
-                        <option v-for="item in reportStatusOptions" :key="item.value" :value="item.value">
-                          {{ item.label }}
-                        </option>
-                      </select>
+                      <ThemedSelect
+                        v-model="reportFilters.status"
+                        class="ops-select"
+                        aria-label="报表状态筛选"
+                        :options="allReportStatusOptions"
+                        @change="applyFilters"
+                      />
                     </label>
 
                     <label>
                       <span>每页数量</span>
-                      <select v-model.number="reportFilters.page_size" @change="applyFilters">
-                        <option :value="5">5</option>
-                        <option :value="10">10</option>
-                        <option :value="20">20</option>
-                      </select>
+                      <ThemedSelect
+                        v-model="reportFilters.page_size"
+                        class="ops-select"
+                        aria-label="每页数量"
+                        :options="pageSizeOptions"
+                        @change="applyFilters"
+                      />
                     </label>
                   </div>
 
@@ -302,6 +307,7 @@
                   <label>
                     <span>提问内容</span>
                     <textarea
+                      class="themed-textarea ops-textarea"
                       v-model="reportQuestion"
                       rows="3"
                       placeholder="例如：这份报表最值得关注的风险是什么？接下来建议做哪些排查？"
@@ -503,6 +509,7 @@ import {
   type ReportStatus,
   type ReportSummaryResponse
 } from '../../api/statistics'
+import ThemedSelect from '../common/ThemedSelect.vue'
 
 type ReportType = GenerateReportRequest['report_type']
 
@@ -520,6 +527,9 @@ const reportStatusOptions: { value: ReportStatus; label: string }[] = [
   { value: 'ready', label: '已完成' },
   { value: 'failed', label: '失败' }
 ]
+const allReportTypeOptions = [{ value: '', label: '全部' }, ...reportTypeOptions]
+const allReportStatusOptions = [{ value: '', label: '全部' }, ...reportStatusOptions]
+const pageSizeOptions = [{ value: 5, label: '5' }, { value: 10, label: '10' }, { value: 20, label: '20' }]
 
 const props = defineProps<{ visible: boolean; buildingId: string; selectedDay: string }>()
 const emit = defineEmits<{ (e: 'update:visible', val: boolean): void }>()
@@ -1087,10 +1097,9 @@ onUnmounted(cancelOpsGuide)
 .filters{grid-template-columns:repeat(3,minmax(0,1fr))}
 label{display:flex;flex-direction:column;gap:6px}
 label span{font-size:12px;font-weight:700;color:#475569}
-input,select,textarea{min-height:42px;border:1px solid #cbd5e1;border-radius:10px;padding:0 12px;font-size:13px;outline:none;background:#fff}
-textarea{min-height:auto;padding:12px;resize:vertical}
-input:focus,select:focus,textarea:focus{border-color:#0b4582;box-shadow:0 0 0 3px rgba(11,69,130,.08)}
-input:disabled{background:#f8fafc;color:#64748b}
+.ops-input{--themed-input-height:42px;--themed-input-padding-x:12px;--themed-input-radius:10px;--themed-input-font-size:13px;--themed-input-font-weight:500;--themed-input-border:#cbd5e1;--themed-input-bg:#fff;--themed-input-hover-bg:#f8fbff}
+.ops-textarea{--themed-input-height:108px;--themed-input-padding-x:12px;--themed-input-padding-y:12px;--themed-input-radius:10px;--themed-input-font-size:13px;--themed-input-font-weight:500;--themed-input-border:#cbd5e1;--themed-input-bg:#fff;--themed-input-hover-bg:#f8fbff}
+.ops-select{--select-width:100%;--select-height:42px;--select-padding-x:12px;--select-radius:10px;--select-font-size:13px;--select-font-weight:500;--select-border-color:#cbd5e1;--select-bg:#fff;--select-hover-bg:#f8fbff}
 .toggle-row{padding:16px 18px;border:1.5px solid #e8ecf1;border-radius:12px;background:#fff;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .toggle-row:has(input:checked){border-color:#c7d2fe;background:#fafbff}
 .ai-toggle-info{display:flex;align-items:center;gap:12px}

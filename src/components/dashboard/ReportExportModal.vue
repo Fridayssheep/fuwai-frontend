@@ -38,16 +38,16 @@
               <div v-if="selectedType === 'anomaly_report'" class="rpt-granularity-section">
                 <label class="rpt-field-label">分析跨度</label>
                 <div class="rpt-granularity-tabs">
-                  <button
-                    v-for="g in granularityOptions"
-                    :key="g.value"
-                    class="rpt-gran-btn"
-                    :class="{ active: anomalyGranularity === g.value }"
-                    @click="anomalyGranularity = g.value"
+                  <SlidingOptionGroup
+                    v-model="anomalyGranularity"
+                    :options="granularityOptions"
+                    aria-label="异常分析跨度"
                   >
-                    <Icon :icon="g.icon" class="rpt-gran-icon" />
-                    {{ g.label }}
-                  </button>
+                    <template #option="{ option, active }">
+                      <Icon :icon="String(option.icon)" :class="['rpt-gran-icon', { active }]" />
+                      {{ option.label }}
+                    </template>
+                  </SlidingOptionGroup>
                 </div>
               </div>
             </Transition>
@@ -124,6 +124,7 @@ import { ref, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import { generateReport, getReportDetail, type ReportType } from '../../api/dashboard'
+import SlidingOptionGroup from '../common/SlidingOptionGroup.vue'
 
 // ─── Options ─────────────────────────────────────────────────────
 const reportTypeOptions: { value: ReportType; label: string; desc: string; icon: string }[] = [
@@ -464,42 +465,42 @@ const handleDownload = () => {
 
 .rpt-granularity-tabs {
   display: flex;
-  gap: 8px;
 }
 
-.rpt-gran-btn {
+.rpt-granularity-tabs .sliding-group.track {
+  width: 100%;
+  padding: 4px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1.5px solid #e8ecf1;
+}
+
+.rpt-granularity-tabs .sliding-indicator {
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  box-shadow: 0 10px 20px rgba(11, 69, 130, 0.1);
+}
+
+.rpt-granularity-tabs .sliding-option {
   flex: 1;
-  display: flex;
-  align-items: center;
   justify-content: center;
   gap: 6px;
+  min-height: 40px;
   padding: 10px 14px;
-  border: 1.5px solid #e8ecf1;
-  border-radius: 10px;
-  background: #ffffff;
   font-size: 13px;
   font-weight: 600;
-  color: #64748b;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.2s ease;
 }
 
-.rpt-gran-btn:hover {
-  border-color: #c7d2fe;
-  color: #0f172a;
-}
-
-.rpt-gran-btn.active {
-  border-color: #0b4582;
-  background: #eff6ff;
+.rpt-granularity-tabs .sliding-option.active {
   color: #0b4582;
-  box-shadow: 0 0 0 3px rgba(11, 69, 130, 0.06);
 }
 
 .rpt-gran-icon {
   font-size: 15px;
   display: flex;
+}
+
+.rpt-gran-icon.active {
+  color: #0b4582;
 }
 
 .slide-fade-enter-active {

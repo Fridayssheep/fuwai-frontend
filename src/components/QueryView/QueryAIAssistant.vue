@@ -73,7 +73,7 @@
         <div class="prompt-mark">AI</div>
         <textarea
           v-model="prompt"
-          class="prompt-input"
+          class="themed-textarea prompt-input"
           rows="3"
           :disabled="isLoading"
           placeholder="例如：最近30天告警状态的办公楼，EUI 大于 80，按总能耗降序。"
@@ -567,15 +567,28 @@ const submitPrompt = async () => {
   gap: 12px;
   align-items: stretch;
   padding: 12px;
-  border: 1px solid #d1dfef;
+  border: 1.5px solid #dbe5ef;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.94);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background: linear-gradient(180deg, #f8fbff 0%, #f1f6fb 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition: border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+}
+
+.command-shell:hover:not(.loading),
+.command-shell:focus-within {
+  border-color: #0b4582;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  box-shadow:
+    0 0 0 4px rgba(11, 69, 130, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
 }
 
 .command-shell.loading {
-  border-color: #8bbbe6;
-  box-shadow: 0 0 0 4px rgba(0, 91, 172, 0.08);
+  border-color: #0b4582;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  box-shadow:
+    0 0 0 4px rgba(11, 69, 130, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
 }
 
 .prompt-mark {
@@ -593,9 +606,24 @@ const submitPrompt = async () => {
 }
 
 .prompt-input {
+  --themed-input-height: 78px;
+  --themed-input-padding-x: 0;
+  --themed-input-padding-y: 0;
+  --themed-input-radius: 0;
+  --themed-input-border: transparent;
+  --themed-input-bg: transparent;
+  --themed-input-hover-bg: transparent;
+  --themed-input-focus-bg: transparent;
+  --themed-input-focus-shadow: 0 0 0 0 rgba(11, 69, 130, 0);
+  --themed-input-placeholder: #8aa0b5;
+  --themed-input-font-size: 14px;
+  --themed-input-font-weight: 600;
+  --themed-input-color: #16324f;
   width: 100%;
   min-height: 78px;
   border: none;
+  box-shadow: none;
+  padding: 0;
   resize: none;
   outline: none;
   font: 600 14px/1.7 var(--font-sans);

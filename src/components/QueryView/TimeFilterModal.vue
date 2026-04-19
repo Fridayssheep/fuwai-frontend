@@ -32,14 +32,12 @@
             <span>快捷范围</span>
           </div>
           <div class="quick-range">
-            <button 
-              v-for="range in timeRanges" 
-              :key="range.value"
-              @click="form.timeRange = range.value"
-              :class="['range-btn', { active: form.timeRange === range.value }]"
-            >
-              {{ range.label }}
-            </button>
+            <SlidingOptionGroup
+              v-model="form.timeRange"
+              :options="timeRanges"
+              wrap
+              aria-label="统计时间快捷范围"
+            />
           </div>
         </div>
 
@@ -53,26 +51,26 @@
             <div class="time-block">
               <label>开始时间</label>
               <div class="time-inputs">
-                <input type="text" v-model="form.startTime.year" class="time-input" placeholder="2023" />
+                <input type="text" v-model="form.startTime.year" class="themed-input time-input" placeholder="2023" />
                 <span class="time-unit">年</span>
-                <input type="text" v-model="form.startTime.month" class="time-input" placeholder="10" />
+                <input type="text" v-model="form.startTime.month" class="themed-input time-input" placeholder="10" />
                 <span class="time-unit">月</span>
-                <input type="text" v-model="form.startTime.day" class="time-input" placeholder="01" />
+                <input type="text" v-model="form.startTime.day" class="themed-input time-input" placeholder="01" />
                 <span class="time-unit">日</span>
-                <input type="text" v-model="form.startTime.hour" class="time-input" placeholder="00" />
+                <input type="text" v-model="form.startTime.hour" class="themed-input time-input" placeholder="00" />
                 <span class="time-unit">时</span>
               </div>
             </div>
             <div class="time-block">
               <label>结束时间</label>
               <div class="time-inputs">
-                <input type="text" v-model="form.endTime.year" class="time-input" placeholder="2023" />
+                <input type="text" v-model="form.endTime.year" class="themed-input time-input" placeholder="2023" />
                 <span class="time-unit">年</span>
-                <input type="text" v-model="form.endTime.month" class="time-input" placeholder="10" />
+                <input type="text" v-model="form.endTime.month" class="themed-input time-input" placeholder="10" />
                 <span class="time-unit">月</span>
-                <input type="text" v-model="form.endTime.day" class="time-input" placeholder="31" />
+                <input type="text" v-model="form.endTime.day" class="themed-input time-input" placeholder="31" />
                 <span class="time-unit">日</span>
-                <input type="text" v-model="form.endTime.hour" class="time-input" placeholder="23" />
+                <input type="text" v-model="form.endTime.hour" class="themed-input time-input" placeholder="23" />
                 <span class="time-unit">时</span>
               </div>
             </div>
@@ -90,33 +88,45 @@
               <input type="checkbox" v-model="form.timeFeatures.workday" />
               <span class="check-box"></span>
               <span>工作日</span>
-              <select v-model="form.timeFeatures.workdayPrice" class="feature-select">
-                <option value="peak">电价高峰</option>
-                <option value="valley">电价低谷</option>
-                <option value="normal">全部</option>
-              </select>
+              <span class="feature-select-holder" @click.stop>
+                <ThemedSelect
+                  v-model="form.timeFeatures.workdayPrice"
+                  class="feature-select"
+                  size="sm"
+                  aria-label="工作日电价类型"
+                  :options="workdayPriceOptions"
+                />
+              </span>
             </label>
             
             <label class="feature-checkbox">
               <input type="checkbox" v-model="form.timeFeatures.weekend" />
               <span class="check-box"></span>
               <span>周末</span>
-              <select v-model="form.timeFeatures.weekendPrice" class="feature-select">
-                <option value="valley">电价低谷</option>
-                <option value="peak">电价高峰</option>
-                <option value="normal">全部</option>
-              </select>
+              <span class="feature-select-holder" @click.stop>
+                <ThemedSelect
+                  v-model="form.timeFeatures.weekendPrice"
+                  class="feature-select"
+                  size="sm"
+                  aria-label="周末电价类型"
+                  :options="weekendPriceOptions"
+                />
+              </span>
             </label>
             
             <label class="feature-checkbox">
               <input type="checkbox" v-model="form.timeFeatures.holiday" />
               <span class="check-box"></span>
               <span>节假日</span>
-              <select v-model="form.timeFeatures.holidayPrice" class="feature-select">
-                <option value="valley">电价低谷</option>
-                <option value="peak">电价高峰</option>
-                <option value="normal">全部</option>
-              </select>
+              <span class="feature-select-holder" @click.stop>
+                <ThemedSelect
+                  v-model="form.timeFeatures.holidayPrice"
+                  class="feature-select"
+                  size="sm"
+                  aria-label="节假日电价类型"
+                  :options="holidayPriceOptions"
+                />
+              </span>
             </label>
           </div>
         </div>
@@ -141,8 +151,10 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { reactive, watch } from 'vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
+import SlidingOptionGroup from '../common/SlidingOptionGroup.vue'
+import ThemedSelect from '../common/ThemedSelect.vue'
 
 const props = defineProps<{
   visible: boolean
@@ -158,6 +170,21 @@ const timeRanges = [
   { label: '上月', value: 'lastMonth' },
   { label: '本季度', value: 'quarter' },
   { label: '本年', value: 'year' }
+]
+const workdayPriceOptions = [
+  { value: 'peak', label: '电价高峰' },
+  { value: 'valley', label: '电价低谷' },
+  { value: 'normal', label: '全部' }
+]
+const weekendPriceOptions = [
+  { value: 'valley', label: '电价低谷' },
+  { value: 'peak', label: '电价高峰' },
+  { value: 'normal', label: '全部' }
+]
+const holidayPriceOptions = [
+  { value: 'valley', label: '电价低谷' },
+  { value: 'peak', label: '电价高峰' },
+  { value: 'normal', label: '全部' }
 ]
 
 const now = new Date(getCurrentTimeString())
@@ -385,30 +412,33 @@ h3 {
 
 .quick-range {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
-.range-btn {
+.quick-range :deep(.sliding-group.track) {
+  background: transparent;
+  padding: 0;
+  gap: 8px;
+}
+
+.quick-range :deep(.sliding-indicator) {
+  border-radius: 8px;
+  background: #002B54;
+  box-shadow: 0 8px 18px rgba(0, 43, 84, 0.16);
+}
+
+.quick-range :deep(.sliding-option) {
+  min-height: 38px;
   padding: 8px 16px;
   border: 1px solid #D1D5DB;
-  background: white;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: 8px;
   color: #374151;
-  cursor: pointer;
-  transition: all 0.2s;
+  background: white;
 }
 
-.range-btn:hover {
-  border-color: #005BAC;
-  color: #005BAC;
-}
-
-.range-btn.active {
-  background: #002B54;
+.quick-range :deep(.sliding-option.active) {
+  background: transparent;
   color: white;
-  border-color: #002B54;
+  border-color: transparent;
 }
 
 .precise-time {
@@ -439,17 +469,16 @@ h3 {
 
 .time-input {
   width: 60px;
-  height: 36px;
-  border: 1px solid #D1D5DB;
-  border-radius: 4px;
+  --themed-input-height: 36px;
+  --themed-input-width: 60px;
+  --themed-input-padding-x: 0;
+  --themed-input-radius: 10px;
+  --themed-input-font-size: 14px;
+  --themed-input-font-weight: 500;
+  --themed-input-border: #d1d5db;
+  --themed-input-bg: #ffffff;
+  --themed-input-hover-bg: #f8fbff;
   text-align: center;
-  font-size: 14px;
-  color: #374151;
-  outline: none;
-}
-
-.time-input:focus {
-  border-color: #005BAC;
 }
 
 .time-unit {
@@ -505,13 +534,23 @@ h3 {
 
 .feature-select {
   margin-left: 8px;
-  padding: 4px 8px;
-  border: 1px solid #D1D5DB;
-  border-radius: 4px;
-  font-size: 13px;
-  color: #374151;
-  background: white;
-  outline: none;
+  --select-width: auto;
+  --select-min-width: 132px;
+  --select-height: 36px;
+  --select-padding-x: 12px;
+  --select-radius: 10px;
+  --select-font-size: 13px;
+  --select-font-weight: 500;
+  --select-border-color: #d1d5db;
+  --select-bg: #ffffff;
+  --select-hover-bg: #f8fbff;
+  --select-menu-radius: 14px;
+  --select-option-padding-y: 9px;
+  --select-option-padding-x: 12px;
+}
+
+.feature-select-holder {
+  display: inline-flex;
 }
 
 .modal-footer {

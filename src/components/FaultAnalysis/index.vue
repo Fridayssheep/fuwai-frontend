@@ -12,15 +12,12 @@
       <div class="header-right">
         <!-- 时间范围切换 -->
         <div class="range-selector">
-          <button
-            v-for="r in rangeOptions"
-            :key="r.value"
-            class="range-btn"
-            :class="{ active: chartRange === r.value }"
-            @click="setChartRange(r.value)"
-          >
-            {{ r.label }}
-          </button>
+          <SlidingOptionGroup
+            v-model="chartRange"
+            :options="rangeOptions"
+            aria-label="故障分析时间范围"
+            @change="handleRangeChange"
+          />
         </div>
 
         <button
@@ -112,6 +109,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
+import SlidingOptionGroup from '../common/SlidingOptionGroup.vue'
 import OverviewCards from './OverviewCards.vue'
 import AnomalyList from './AnomalyList.vue'
 import AnomalyDetail from './AnomalyDetail.vue'
@@ -124,6 +122,10 @@ const rangeOptions: { value: ChartRange; label: string }[] = [
   { value: 'week', label: '近 1 周' },
   { value: 'month', label: '近 1 月' }
 ]
+
+const handleRangeChange = (value: string | number) => {
+  setChartRange(value as ChartRange)
+}
 
 const {
   chartRange,
@@ -205,6 +207,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  background: #f4f7f9;
   height: 100%;
   box-sizing: border-box;
   overflow-y: auto;
@@ -237,40 +240,22 @@ onMounted(() => {
 /* Range selector */
 .range-selector {
   display: flex;
+}
+.range-selector :deep(.sliding-group.track) {
+  padding: 4px;
+  border-radius: 10px;
   background: white;
   border: 1.5px solid #e2e8f0;
-  border-radius: 10px;
-  overflow: hidden;
 }
-.range-btn {
-  padding: 8px 16px;
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  font-weight: 600;
-  color: #666;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
+.range-selector :deep(.sliding-indicator) {
+  background: linear-gradient(135deg, #0f4d93, #0b4582);
+  box-shadow: 0 8px 20px rgba(11, 69, 130, 0.18);
 }
-.range-btn:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  top: 20%;
-  height: 60%;
-  width: 1px;
-  background: #e2e8f0;
+.range-selector :deep(.sliding-option) {
+  min-width: 84px;
+  justify-content: center;
 }
-.range-btn:hover {
-  color: #0b4582;
-  background: #f8faff;
-}
-.range-btn.active {
-  background: #0b4582;
-  color: white;
-}
-.range-btn.active::after { display: none; }
+.range-selector :deep(.sliding-option.active) { color: white; }
 
 .trigger-btn {
   display: flex;

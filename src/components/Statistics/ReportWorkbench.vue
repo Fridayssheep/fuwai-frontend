@@ -17,25 +17,73 @@
     </div>
 
     <div class="layout">
-      <section class="card left">
-        <div class="subhead"><strong>已有报表</strong></div>
+      <section class="card left report-sidebar">
+        <div class="report-sidebar-header">
+          <span class="header-icon"><Icon icon="lucide:file-stack" /></span>
+          <strong>已有报表</strong>
+        </div>
         <div class="filters">
-          <label><span>类型</span><select v-model="reportFilters.report_type" @change="applyFilters"><option value="">全部</option><option v-for="item in reportTypeOptions" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-          <label><span>状态</span><select v-model="reportFilters.status" @change="applyFilters"><option value="">全部</option><option v-for="item in reportStatusOptions" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-          <label><span>每页数量</span><select v-model.number="reportFilters.page_size" @change="applyFilters"><option :value="5">5</option><option :value="10">10</option><option :value="20">20</option></select></label>
+          <label>
+            <span>类型</span>
+            <ThemedSelect
+              v-model="reportFilters.report_type"
+              class="workbench-select"
+              aria-label="报表类型筛选"
+              :options="allReportTypeOptions"
+              @change="applyFilters"
+            />
+          </label>
+          <label>
+            <span>状态</span>
+            <ThemedSelect
+              v-model="reportFilters.status"
+              class="workbench-select"
+              aria-label="报表状态筛选"
+              :options="allReportStatusOptions"
+              @change="applyFilters"
+            />
+          </label>
+          <label>
+            <span>每页数量</span>
+            <ThemedSelect
+              v-model="reportFilters.page_size"
+              class="workbench-select"
+              aria-label="每页数量"
+              :options="pageSizeOptions"
+              @change="applyFilters"
+            />
+          </label>
         </div>
         <div v-if="reportListError" class="msg err"><Icon icon="lucide:alert-circle" />{{ reportListError }}</div>
-        <div v-if="reportListLoading" class="state"><Icon icon="lucide:loader-2" class="spin" /><span>正在加载报表列表...</span></div>
-        <div v-else-if="!reportList.length" class="state"><Icon icon="lucide:file-search" /><span>当前筛选条件下暂无报表。</span></div>
-        <div v-else class="list">
-          <button v-for="item in reportList" :key="item.report_id" class="item" :class="{ active: item.report_id === selectedReportId }" @click="selectReport(item.report_id)">
-            <div class="row"><strong>{{ getReportTypeLabel(item.report_type) }}</strong><span class="pill" :class="item.status">{{ getReportStatusLabel(item.status) }}</span></div>
-            <small>{{ formatTimeRange(item.time_range) }}</small>
-            <small>建筑：{{ item.building_id || activeSourceContext?.buildingId || '-' }}</small>
-            <small v-if="getSourceText(item.report_id)">{{ getSourceText(item.report_id) }}</small>
-            <small>生成时间：{{ formatGeneratedAt(item.generated_at) }}</small>
-          </button>
-        </div>
+        <Transition name="report-list-state" mode="out-in">
+          <div v-if="reportListLoading" key="loading" class="state"><Icon icon="lucide:loader-2" class="spin" /><span>正在加载报表列表...</span></div>
+          <div v-else-if="!reportList.length" key="empty" class="state"><Icon icon="lucide:file-search" /><span>当前筛选条件下暂无报表。</span></div>
+          <SlidingOptionGroup
+            v-else
+            key="list"
+            :model-value="selectedReportId"
+            :options="reportNavOptions"
+            orientation="vertical"
+            variant="list"
+            aria-label="已有报表"
+            class="report-list-nav"
+            @update:model-value="(value) => selectReport(String(value))"
+          >
+            <template #option="{ option, active }">
+              <span class="report-option-icon" :class="{ active }"><Icon icon="lucide:file-text" /></span>
+              <span class="report-option-main">
+                <span class="report-option-head">
+                  <strong>{{ option.label }}</strong>
+                  <span class="pill" :class="String(option.status)">{{ option.statusLabel }}</span>
+                </span>
+                <small>{{ option.timeText }}</small>
+                <small>{{ option.buildingText }}</small>
+                <small v-if="option.sourceText">{{ option.sourceText }}</small>
+                <small>{{ option.generatedText }}</small>
+              </span>
+            </template>
+          </SlidingOptionGroup>
+        </Transition>
         <div class="pager">
           <button class="secondary small" :disabled="reportFilters.page <= 1 || reportListLoading" @click="changePage(-1)">上一页</button>
           <span>第 {{ reportPagination.page }} / {{ totalPages }} 页</span>
@@ -55,21 +103,23 @@
             </div>
           </div>
           <div v-if="reportDetailError" class="msg err"><Icon icon="lucide:alert-circle" />{{ reportDetailError }}</div>
-          <div v-if="reportDetailLoading" class="state"><Icon icon="lucide:loader-2" class="spin" /><span>正在加载报表详情...</span></div>
-          <div v-else-if="reportDetail" class="stack">
-            <div class="detail-grid">
-              <div class="detail-item mono"><span>报表 ID</span><strong :title="reportDetail.report_id">{{ reportDetail.report_id }}</strong></div>
-              <div class="detail-item"><span>状态</span><strong>{{ getReportStatusLabel(reportDetail.status) }}</strong></div>
-              <div class="detail-item"><span>类型</span><strong>{{ getReportTypeLabel(reportDetail.report_type) }}</strong></div>
-              <div class="detail-item"><span>所属建筑</span><strong :title="reportDetail.building_id || activeSourceContext?.buildingId || '-'">{{ reportDetail.building_id || activeSourceContext?.buildingId || '-' }}</strong></div>
-              <div class="detail-item"><span>来源对象</span><strong :title="activeSourceLabel">{{ activeSourceLabel }}</strong></div>
-              <div class="detail-item range"><span>时间范围</span><strong>{{ formatTimeRange(reportDetail.time_range) }}</strong></div>
+          <Transition name="report-detail-swap" mode="out-in">
+            <div v-if="reportDetailLoading" key="loading" class="state"><Icon icon="lucide:loader-2" class="spin" /><span>正在加载报表详情...</span></div>
+            <div v-else-if="reportDetail" :key="`detail-${reportDetail.report_id}`" class="stack">
+              <div class="detail-grid">
+                <div class="detail-item mono"><span>报表 ID</span><strong :title="reportDetail.report_id">{{ reportDetail.report_id }}</strong></div>
+                <div class="detail-item"><span>状态</span><strong>{{ getReportStatusLabel(reportDetail.status) }}</strong></div>
+                <div class="detail-item"><span>类型</span><strong>{{ getReportTypeLabel(reportDetail.report_type) }}</strong></div>
+                <div class="detail-item"><span>所属建筑</span><strong :title="reportDetail.building_id || activeSourceContext?.buildingId || '-'">{{ reportDetail.building_id || activeSourceContext?.buildingId || '-' }}</strong></div>
+                <div class="detail-item"><span>来源对象</span><strong :title="activeSourceLabel">{{ activeSourceLabel }}</strong></div>
+                <div class="detail-item range"><span>时间范围</span><strong>{{ formatTimeRange(reportDetail.time_range) }}</strong></div>
+              </div>
+              <div v-if="baseReportSummary" class="box"><div class="title"><Icon icon="lucide:file-text" />报表摘要</div><p>{{ baseReportSummary }}</p></div>
+              <div v-if="reportHourlyData.length" class="box"><div class="title"><Icon icon="lucide:clock" />小时数据</div><table class="table"><thead><tr><th>时间</th><th>总能耗</th><th>峰值</th><th>平均</th></tr></thead><tbody><tr v-for="(item, idx) in reportHourlyData" :key="idx"><td>{{ item.hour }}</td><td>{{ formatNumber(item.total) }}</td><td>{{ formatNumber(item.peak) }}</td><td>{{ formatNumber(item.average) }}</td></tr></tbody></table></div>
+              <div v-if="reportSummaryMetrics.length" class="box"><div class="title"><Icon icon="lucide:bar-chart-3" />指标摘要</div><div class="metrics"><div v-for="metric in reportSummaryMetrics" :key="metric.key" class="metric"><span>{{ metric.label }}</span><strong>{{ formatNumber(metric.value) }}<small v-if="metric.unit">{{ metric.unit }}</small></strong></div></div></div>
             </div>
-            <div v-if="baseReportSummary" class="box"><div class="title"><Icon icon="lucide:file-text" />报表摘要</div><p>{{ baseReportSummary }}</p></div>
-            <div v-if="reportHourlyData.length" class="box"><div class="title"><Icon icon="lucide:clock" />小时数据</div><table class="table"><thead><tr><th>时间</th><th>总能耗</th><th>峰值</th><th>平均</th></tr></thead><tbody><tr v-for="(item, idx) in reportHourlyData" :key="idx"><td>{{ item.hour }}</td><td>{{ formatNumber(item.total) }}</td><td>{{ formatNumber(item.peak) }}</td><td>{{ formatNumber(item.average) }}</td></tr></tbody></table></div>
-            <div v-if="reportSummaryMetrics.length" class="box"><div class="title"><Icon icon="lucide:bar-chart-3" />指标摘要</div><div class="metrics"><div v-for="metric in reportSummaryMetrics" :key="metric.key" class="metric"><span>{{ metric.label }}</span><strong>{{ formatNumber(metric.value) }}<small v-if="metric.unit">{{ metric.unit }}</small></strong></div></div></div>
-          </div>
-          <div v-else class="state"><Icon icon="lucide:file-stack" /><span>从左侧报表列表中选择一条记录查看详情。</span></div>
+            <div v-else key="empty" class="state"><Icon icon="lucide:file-stack" /><span>从左侧报表列表中选择一条记录查看详情。</span></div>
+          </Transition>
         </section>
 
         <section class="card">
@@ -80,7 +130,7 @@
               生成总结
             </button>
           </div>
-          <label><span>提问内容</span><textarea v-model="reportQuestion" rows="3" placeholder="例如：这份报表最值得关注的风险是什么？接下来建议做哪些排查？" /></label>
+          <label><span>提问内容</span><textarea class="themed-textarea workbench-textarea" v-model="reportQuestion" rows="3" placeholder="例如：这份报表最值得关注的风险是什么？接下来建议做哪些排查？" /></label>
           <div v-if="reportAiError" class="msg err"><Icon icon="lucide:alert-circle" />{{ reportAiError }}</div>
           <div class="actions question-actions"><button class="primary" :disabled="summarizing || !isSelectedReportReady" @click="askReportQuestion(reportQuestion)"><Icon :icon="summarizing ? 'lucide:loader-2' : 'lucide:messages-square'" :class="{ spin: summarizing }" />{{ summarizing ? '提问中...' : '提交问题' }}</button></div>
           <div v-if="reportAiResponse" class="stack">
@@ -111,10 +161,15 @@ import { Icon } from '@iconify/vue'
 import { deleteReport, downloadReport, getReportDetail, listReports, summarizeReport, type GenerateReportRequest, type ReportDetailResponse, type ReportListItem, type ReportStatus, type ReportSummaryResponse } from '../../api/statistics'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
 import ReportPreviewModal from './ReportPreviewModal.vue'
+import ThemedSelect from '../common/ThemedSelect.vue'
+import SlidingOptionGroup from '../common/SlidingOptionGroup.vue'
 
 type ReportType = GenerateReportRequest['report_type']
 const reportTypeOptions = [{ value: 'daily_summary', label: '日报' }, { value: 'weekly_summary', label: '周报' }, { value: 'monthly_summary', label: '月报' }, { value: 'custom_summary', label: '自定义报表' }, { value: 'anomaly_report', label: '异常分析报告' }] as { value: ReportType; label: string }[]
 const reportStatusOptions = [{ value: 'queued', label: '排队中' }, { value: 'processing', label: '处理中' }, { value: 'ready', label: '已完成' }, { value: 'failed', label: '失败' }] as { value: ReportStatus; label: string }[]
+const allReportTypeOptions = [{ value: '', label: '全部' }, ...reportTypeOptions]
+const allReportStatusOptions = [{ value: '', label: '全部' }, ...reportStatusOptions]
+const pageSizeOptions = [{ value: 5, label: '5' }, { value: 10, label: '10' }, { value: 20, label: '20' }]
 
 const props = defineProps<{ selectedReportId?: string; selectionVersion?: number; sourceContext?: ReportSourceContext | null }>()
 const reportListLoading = ref(false)
@@ -173,6 +228,16 @@ const getSourceText = (reportId: string) => {
   const context = reportContextMap.value[reportId]
   return !context ? '' : context.sourceType === 'meter' ? `来源设备：${context.sourceLabel}` : `来源建筑：${context.sourceLabel}`
 }
+const reportNavOptions = computed(() => reportList.value.map(item => ({
+  value: item.report_id,
+  label: getReportTypeLabel(item.report_type),
+  status: item.status || '',
+  statusLabel: getReportStatusLabel(item.status),
+  timeText: formatTimeRange(item.time_range),
+  buildingText: `建筑：${item.building_id || activeSourceContext.value?.buildingId || '-'}`,
+  sourceText: getSourceText(item.report_id),
+  generatedText: `生成时间：${formatGeneratedAt(item.generated_at)}`
+})))
 const resolveReportUrl = () => reportDetail.value?.download_url || reportDetail.value?.exports?.[0]?.download_url || selectedReportListItem.value?.download_url || ''
 const canViewReportFile = computed(() => isSelectedReportReady.value && (Boolean(resolveReportUrl()) || Boolean(selectedReportId.value)))
 const clearReportInteraction = () => { reportDetailError.value = ''; reportAiError.value = ''; reportAiResponse.value = null }
@@ -389,8 +454,7 @@ onUnmounted(() => { if (reportPollingTimer) clearInterval(reportPollingTimer) })
 }
 
 .right,
-.stack,
-.list {
+.stack {
   display: flex;
   flex-direction: column;
 }
@@ -400,8 +464,7 @@ onUnmounted(() => { if (reportPollingTimer) clearInterval(reportPollingTimer) })
   min-width: 0;
 }
 
-.stack,
-.list {
+.stack {
   gap: 14px;
 }
 
@@ -424,6 +487,41 @@ onUnmounted(() => { if (reportPollingTimer) clearInterval(reportPollingTimer) })
 .left {
   position: sticky;
   top: 14px;
+}
+
+.report-sidebar {
+  padding: 20px 16px;
+  border-color: #e3edf6;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.02);
+}
+
+.report-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-left: 8px;
+}
+
+.report-sidebar-header .header-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #eef6ff;
+  color: var(--report-blue);
+  font-size: 16px;
+}
+
+.report-sidebar-header strong {
+  color: #12233d;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
 }
 
 .box {
@@ -461,9 +559,13 @@ onUnmounted(() => { if (reportPollingTimer) clearInterval(reportPollingTimer) })
 
 .filters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #e3edf6;
+  border-radius: 16px;
+  background: #f8fbff;
 }
 
 label {
@@ -479,81 +581,102 @@ label span {
   font-weight: 800;
 }
 
-select,
 textarea {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  border: 1px solid var(--report-line-strong);
-  border-radius: 12px;
-  background: #fff;
-  color: var(--report-ink);
-  font: inherit;
-  font-size: 13px;
-  outline: none;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-select {
-  min-height: 40px;
-  padding: 0 10px;
+.workbench-select {
+  --select-width: 100%;
+  --select-height: 38px;
+  --select-padding-x: 12px;
+  --select-radius: 12px;
+  --select-font-size: 13px;
+  --select-font-weight: 600;
+  --select-border-color: var(--report-line-strong);
+  --select-bg: #ffffff;
+  --select-hover-bg: #f8fbff;
+  --select-option-active-bg: var(--report-blue);
 }
 
-textarea {
-  min-height: 92px;
-  padding: 12px;
-  resize: vertical;
-  line-height: 1.6;
+.workbench-textarea {
+  --themed-input-height: 96px;
+  --themed-input-padding-x: 12px;
+  --themed-input-padding-y: 12px;
+  --themed-input-radius: 12px;
+  --themed-input-font-size: 13px;
+  --themed-input-font-weight: 500;
+  --themed-input-border: var(--report-line-strong);
+  --themed-input-bg: #ffffff;
+  --themed-input-hover-bg: #f8fbff;
 }
 
-select:focus,
-textarea:focus {
-  border-color: var(--report-blue);
-  box-shadow: 0 0 0 3px rgba(11, 69, 130, 0.08);
+.report-list-nav {
+  margin: 0;
+  gap: 6px;
 }
 
-.item {
-  width: 100%;
-  min-width: 0;
-  padding: 14px;
-  text-align: left;
-  cursor: pointer;
-  color: inherit;
-  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+.report-list-nav :deep(.sliding-indicator) {
+  border-radius: 14px;
+  background: var(--report-blue);
+  box-shadow: 0 16px 30px rgba(7, 34, 73, 0.16);
 }
 
-.item:hover {
-  transform: translateY(-1px);
-  border-color: rgba(11, 69, 130, 0.32);
-  box-shadow: 0 10px 22px rgba(11, 69, 130, 0.08);
-}
-
-.item.active {
-  border-color: var(--report-blue);
-  background:
-    linear-gradient(135deg, rgba(11, 69, 130, 0.1), rgba(255, 255, 255, 0.96));
-  box-shadow: inset 4px 0 0 var(--report-blue);
-}
-
-.row {
-  min-width: 0;
-  display: flex;
-  justify-content: space-between;
+.report-list-nav :deep(.sliding-option) {
   align-items: flex-start;
+  min-height: 102px;
+  padding: 13px 14px;
+  border-radius: 14px;
+  color: #56708e;
+}
+
+.report-list-nav :deep(.sliding-option:hover:not(.active):not(.disabled)) {
+  color: #12233d;
+  background: #f7fbff;
+  transform: translateX(2px);
+}
+
+.report-option-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  color: #92a5b8;
+  font-size: 16px;
+  transition: color 0.22s ease, transform 0.22s ease;
+}
+
+.report-option-main {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.report-option-head {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 10px;
 }
 
-.item .row strong {
+.report-option-head strong {
   min-width: 0;
-  color: var(--report-ink);
+  color: #12233d;
   font-size: 15px;
   font-weight: 900;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color 0.22s ease;
 }
 
-.item small {
+.report-option-main small {
   display: block;
   min-width: 0;
   margin-top: 6px;
@@ -563,11 +686,29 @@ textarea:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color 0.22s ease;
+}
+
+.report-list-nav :deep(.sliding-option.active) .report-option-icon,
+.report-list-nav :deep(.sliding-option.active) .report-option-head strong,
+.report-list-nav :deep(.sliding-option.active) .report-option-main small {
+  color: #ffffff;
+}
+
+.report-list-nav :deep(.sliding-option.active) .report-option-icon {
+  transform: scale(1.03);
+}
+
+.report-list-nav :deep(.sliding-option.active) .pill {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
 }
 
 .pill {
   flex: 0 0 auto;
   padding: 4px 9px;
+  border: 1px solid transparent;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 800;
@@ -725,6 +866,35 @@ textarea:focus {
   background: var(--report-soft);
   color: var(--report-muted);
   text-align: center;
+}
+
+.report-list-state-enter-active,
+.report-list-state-leave-active,
+.report-detail-swap-enter-active,
+.report-detail-swap-leave-active {
+  transition:
+    opacity 0.22s ease,
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.28s ease;
+}
+
+.report-list-state-enter-from,
+.report-list-state-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+  filter: blur(6px);
+}
+
+.report-detail-swap-enter-from {
+  opacity: 0;
+  transform: translateX(14px);
+  filter: blur(8px);
+}
+
+.report-detail-swap-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
+  filter: blur(8px);
 }
 
 .meta {

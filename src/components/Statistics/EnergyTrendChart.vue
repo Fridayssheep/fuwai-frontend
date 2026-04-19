@@ -9,14 +9,12 @@
         <p class="panel-subtitle">按日统计综合用电总量趋势</p>
       </div>
       <div class="range-tabs">
-        <button
-          v-for="r in rangeOptions"
-          :key="r.value"
-          :class="{ active: currentRange === r.value }"
-          @click="switchRange(r.value)"
-        >
-          {{ r.label }}
-        </button>
+        <SlidingOptionGroup
+          v-model="currentRange"
+          :options="rangeOptions"
+          aria-label="能耗趋势时间粒度"
+          @change="handleRangeChange"
+        />
       </div>
     </div>
 
@@ -39,6 +37,7 @@ import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import * as echarts from 'echarts'
+import SlidingOptionGroup from '../common/SlidingOptionGroup.vue'
 import {
   getEnergyTrendData,
   type EnergySeries,
@@ -322,8 +321,8 @@ const fetchTrend = async () => {
   }
 }
 
-const switchRange = (range: GranularityKey) => {
-  currentRange.value = range
+const handleRangeChange = (range: string | number) => {
+  currentRange.value = range as GranularityKey
   fetchTrend()
 }
 
@@ -411,34 +410,17 @@ onUnmounted(() => {
 
 /* ─── Range Tabs ─────────────────────────────────────────────── */
 .range-tabs {
-  display: flex;
-  background: #f1f5f9;
-  border-radius: 8px;
-  padding: 3px;
   flex-shrink: 0;
 }
 
-.range-tabs button {
-  border: none;
-  background: transparent;
-  padding: 6px 18px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #64748b;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: var(--font-sans);
+.range-tabs :deep(.sliding-group.track) {
+  border-radius: 9px;
+  padding: 3px;
 }
 
-.range-tabs button:hover {
-  color: #0f172a;
-}
-
-.range-tabs button.active {
-  background: #ffffff;
-  color: #0b4582;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+.range-tabs :deep(.sliding-option) {
+  min-width: 52px;
+  justify-content: center;
 }
 
 /* ─── Chart ──────────────────────────────────────────────────── */

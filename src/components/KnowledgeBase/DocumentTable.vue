@@ -7,15 +7,14 @@
       </div>
       <div class="page-size-box">
         <span>每页</span>
-        <div class="custom-select" ref="pageSizeRef" @click.stop="pageSizeOpen = !pageSizeOpen">
-          <div class="custom-select-trigger">
-            <span>{{ pageSize }}</span>
-            <Icon icon="lucide:chevron-down" class="select-arrow" :class="{ open: pageSizeOpen }" />
-          </div>
-          <ul class="custom-select-options" v-show="pageSizeOpen">
-            <li v-for="opt in pageSizeOptions" :key="opt" :class="{ selected: pageSize === opt }" @click.stop="setPageSize(opt)">{{ opt }}</li>
-          </ul>
-        </div>
+        <ThemedSelect
+          :model-value="pageSize"
+          class="page-size-select"
+          size="sm"
+          aria-label="知识库每页数量"
+          :options="pageSizeOptions"
+          @change="(value) => setPageSize(Number(value))"
+        />
         <span>条</span>
       </div>
     </div>
@@ -108,10 +107,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import type { KnowledgeDocument } from '../../api/knowledge'
 import { formatDateTime, formatSourceType, getFileIcon, getFileColorClass, getFileTagClass } from './utils'
+import ThemedSelect from '../common/ThemedSelect.vue'
 
 const props = defineProps<{
   documents: KnowledgeDocument[]
@@ -130,9 +130,7 @@ const emit = defineEmits<{
   (e: 'download', doc: KnowledgeDocument): void
 }>()
 
-const pageSizeOpen = ref(false)
-const pageSizeRef = ref<HTMLElement | null>(null)
-const pageSizeOptions = [10, 20, 50, 100]
+const pageSizeOptions = [10, 20, 50, 100].map((value) => ({ value, label: String(value) }))
 
 const paginationText = computed(() => {
   if (!props.pagination.total) return '当前没有数据'
@@ -142,23 +140,8 @@ const paginationText = computed(() => {
 })
 
 const setPageSize = (val: number) => {
-  pageSizeOpen.value = false
   emit('setPageSize', val)
 }
-
-const closeDropdown = (e: MouseEvent) => {
-  if (pageSizeRef.value && !pageSizeRef.value.contains(e.target as Node)) {
-    pageSizeOpen.value = false
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('click', closeDropdown)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', closeDropdown)
-})
 </script>
 
 <style scoped>
@@ -207,73 +190,18 @@ onUnmounted(() => {
   color: #58718d;
 }
 
-.custom-select {
-  position: relative;
-  user-select: none;
-}
-.custom-select-trigger {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid #dbe5ef;
-  background: #f5f8fc;
-  cursor: pointer;
-  font-size: 13px;
-  color: #16304d;
-  font-weight: 600;
-  transition: all 0.2s;
-  min-width: 56px;
-  justify-content: center;
-}
-.custom-select-trigger:hover {
-  border-color: #0b4582;
-  background: #eef5fd;
-}
-.select-arrow {
-  font-size: 14px;
-  color: #6a8098;
-  transition: transform 0.2s;
-}
-.select-arrow.open {
-  transform: rotate(180deg);
-}
-.custom-select-options {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #e3edf6;
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(11, 69, 130, 0.12);
-  list-style: none;
-  padding: 4px;
-  margin: 0;
-  z-index: 20;
-  animation: dropdown-in 0.15s ease;
-}
-@keyframes dropdown-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.custom-select-options li {
-  padding: 8px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  color: #334155;
-  transition: all 0.15s;
-}
-.custom-select-options li:hover {
-  background: #f0f5fb;
-  color: #0b4582;
-}
-.custom-select-options li.selected {
-  background: #0b4582;
-  color: white;
-  font-weight: 600;
+.page-size-select {
+  --select-width: 88px;
+  --select-min-width: 88px;
+  --select-height: 36px;
+  --select-padding-x: 12px;
+  --select-radius: 14px;
+  --select-font-size: 13px;
+  --select-font-weight: 600;
+  --select-border-color: #dbe5ef;
+  --select-bg: #f5f8fc;
+  --select-hover-bg: #eef5fd;
+  --select-option-active-bg: #0b4582;
 }
 
 .document-table {

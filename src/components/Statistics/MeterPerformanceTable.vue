@@ -3,17 +3,22 @@
     <div class="head">
       <h3>设备运行监测表</h3>
       <div class="head-right">
-        <select v-model="filterMeterType" @change="onFilterChange">
-          <option value="">全部类型</option>
-          <option v-for="t in meterTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
-        </select>
-        <select v-model="filterStatus" @change="onFilterChange">
-          <option value="">全部状态</option>
-          <option value="online">在线</option>
-          <option value="warning">告警</option>
-          <option value="fault">故障</option>
-          <option value="offline">离线</option>
-        </select>
+        <ThemedSelect
+          v-model="filterMeterType"
+          class="head-select"
+          size="sm"
+          aria-label="设备类型筛选"
+          :options="meterTypeOptions"
+          @change="onFilterChange"
+        />
+        <ThemedSelect
+          v-model="filterStatus"
+          class="head-select"
+          size="sm"
+          aria-label="设备状态筛选"
+          :options="statusOptions"
+          @change="onFilterChange"
+        />
         <span class="update-time">统计截止 {{ statisticsEndText }}</span>
         <button class="icon-btn" @click="fetchData" :disabled="loading">
           <Icon icon="lucide:refresh-cw" :class="{ spin: loading }" />
@@ -82,6 +87,7 @@ import { Icon } from '@iconify/vue'
 import { getMeters } from '../../api/statistics'
 import MeterDetailsModal from './MeterDetailsModal.vue'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
+import ThemedSelect from '../common/ThemedSelect.vue'
 
 interface MeterTableCacheEntry {
   items: MeterRow[]
@@ -105,6 +111,14 @@ interface MeterRow {
 const meterTypes = [
   { value: 'electricity', label: '电力' }, { value: 'chilledwater', label: '冷冻水' }, { value: 'steam', label: '蒸汽' }, { value: 'gas', label: '燃气' },
   { value: 'hotwater', label: '热水' }, { value: 'water', label: '水' }, { value: 'irrigation', label: '灌溉' }, { value: 'solar', label: '光伏' }
+]
+const meterTypeOptions = [{ value: '', label: '全部类型' }, ...meterTypes]
+const statusOptions = [
+  { value: '', label: '全部状态' },
+  { value: 'online', label: '在线' },
+  { value: 'warning', label: '告警' },
+  { value: 'fault', label: '故障' },
+  { value: 'offline', label: '离线' }
 ]
 
 const tableData = ref<MeterRow[]>([])
@@ -204,5 +218,7 @@ onMounted(fetchData)
 
 <style scoped>
 .panel{background:#fff;border:1px solid #e8ecf1;border-radius:14px;padding:24px;box-shadow:0 1px 3px rgba(15,23,42,.04),0 4px 14px rgba(15,23,42,.03)}
-.head,.head-right,.pager,.pager-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.head{margin-bottom:20px;flex-wrap:wrap}.head h3{margin:0;font-size:16px;color:#0f172a}.head-right{flex-wrap:wrap}.head-right select{min-height:36px;border:1px solid #cbd5e1;border-radius:8px;padding:0 10px}.update-time{font-size:12px;color:#94a3b8}.icon-btn,.page-btn,.link,.retry-btn{border:none;background:transparent;cursor:pointer}.icon-btn{padding:4px;color:#0b4582}.error-banner{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px 14px;border:1px solid #fecaca;border-radius:10px;background:#fff5f5;color:#b42318;font-size:13px}.retry-btn{color:#b42318;font-weight:700}.table-wrap{overflow:auto}.table{width:100%;min-width:920px;border-collapse:collapse}.table th,.table td{padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px;vertical-align:middle}.table th{font-size:12px;color:#64748b}.action-col,.action-cell{width:132px;min-width:132px;white-space:nowrap}.row-actions{display:inline-flex;align-items:center;justify-content:flex-start;gap:18px;white-space:nowrap}.state{text-align:center;color:#64748b}.strong{font-weight:700}.status{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}.status.online{background:#ecfdf5;color:#059669}.status.warning{background:#fff7ed;color:#c2410c}.status.fault{background:#fef2f2;color:#dc2626}.status.offline{background:#f1f5f9;color:#475569}.link{color:#0b4582;padding:0;line-height:1;white-space:nowrap}.primary-link{font-weight:700}.pager{margin-top:16px}.page-btn{padding:6px 12px;border-radius:8px;background:#eef2f7}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.head,.head-right,.pager,.pager-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.head{margin-bottom:20px;flex-wrap:wrap}.head h3{margin:0;font-size:16px;color:#0f172a}.head-right{flex-wrap:wrap}
+.head-select{--select-width:auto;--select-min-width:118px;--select-height:36px;--select-padding-x:12px;--select-radius:12px;--select-font-size:13px;--select-font-weight:600;--select-border-color:#cbd5e1;--select-bg:#f8fbff;--select-hover-bg:#eef5fd}
+.update-time{font-size:12px;color:#94a3b8}.icon-btn,.page-btn,.link,.retry-btn{border:none;background:transparent;cursor:pointer}.icon-btn{padding:4px;color:#0b4582}.error-banner{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px 14px;border:1px solid #fecaca;border-radius:10px;background:#fff5f5;color:#b42318;font-size:13px}.retry-btn{color:#b42318;font-weight:700}.table-wrap{overflow:auto}.table{width:100%;min-width:920px;border-collapse:collapse}.table th,.table td{padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px;vertical-align:middle}.table th{font-size:12px;color:#64748b}.action-col,.action-cell{width:132px;min-width:132px;white-space:nowrap}.row-actions{display:inline-flex;align-items:center;justify-content:flex-start;gap:18px;white-space:nowrap}.state{text-align:center;color:#64748b}.strong{font-weight:700}.status{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}.status.online{background:#ecfdf5;color:#059669}.status.warning{background:#fff7ed;color:#c2410c}.status.fault{background:#fef2f2;color:#dc2626}.status.offline{background:#f1f5f9;color:#475569}.link{color:#0b4582;padding:0;line-height:1;white-space:nowrap}.primary-link{font-weight:700}.pager{margin-top:16px}.page-btn{padding:6px 12px;border-radius:8px;background:#eef2f7}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 </style>
