@@ -49,16 +49,8 @@
             <strong>报表详情</strong>
             <div class="actions">
               <button class="secondary small" :disabled="!selectedReportId || reportDetailLoading" @click="reloadSelectedReport"><Icon :icon="reportDetailLoading ? 'lucide:loader-2' : 'lucide:refresh-cw'" :class="{ spin: reportDetailLoading }" />刷新</button>
-              <button
-  class="secondary small"
-  :disabled="!canViewReportFile"
-  @click="viewReportDetail"
->
-  <Icon icon="lucide:external-link" />
-  查看
-</button>
-
-              <button class="primary small" :disabled="!selectedReportId" @click="downloadReportFile"><Icon icon="lucide:download" />下载</button>
+              <button class="secondary small" :disabled="!canViewReportFile" @click="viewReportDetail"><Icon icon="lucide:external-link" />查看</button>
+              <button class="primary small" :disabled="!isSelectedReportReady" @click="downloadReportFile"><Icon icon="lucide:download" />下载</button>
               <button class="secondary small danger" :disabled="!selectedReportId || deletingReport" @click="removeSelectedReport"><Icon :icon="deletingReport ? 'lucide:loader-2' : 'lucide:trash-2'" :class="{ spin: deletingReport }" />{{ deletingReport ? '删除中' : '删除' }}</button>
             </div>
           </div>
@@ -83,14 +75,14 @@
         <section class="card">
           <div class="subhead">
             <strong>AI 报表追问</strong>
-            <button class="secondary small" :disabled="summarizing || !reportDetail" @click="askReportQuestion('')">
+            <button class="secondary small" :disabled="summarizing || !isSelectedReportReady" @click="askReportQuestion('')">
               <Icon :icon="summarizing ? 'lucide:loader-2' : 'lucide:sparkles'" :class="{ spin: summarizing }" />
               生成总结
             </button>
           </div>
           <label><span>提问内容</span><textarea v-model="reportQuestion" rows="3" placeholder="例如：这份报表最值得关注的风险是什么？接下来建议做哪些排查？" /></label>
           <div v-if="reportAiError" class="msg err"><Icon icon="lucide:alert-circle" />{{ reportAiError }}</div>
-          <div class="actions question-actions"><button class="primary" :disabled="summarizing || !reportDetail" @click="askReportQuestion(reportQuestion)"><Icon :icon="summarizing ? 'lucide:loader-2' : 'lucide:messages-square'" :class="{ spin: summarizing }" />{{ summarizing ? '提问中...' : '提交问题' }}</button></div>
+          <div class="actions question-actions"><button class="primary" :disabled="summarizing || !isSelectedReportReady" @click="askReportQuestion(reportQuestion)"><Icon :icon="summarizing ? 'lucide:loader-2' : 'lucide:messages-square'" :class="{ spin: summarizing }" />{{ summarizing ? '提问中...' : '提交问题' }}</button></div>
           <div v-if="reportAiResponse" class="stack">
             <div v-if="reportAiResponse.summary" class="box"><div class="title"><Icon icon="lucide:sparkles" />AI 总结</div><p>{{ reportAiResponse.summary }}</p></div>
             <section v-if="reportAiResponse.highlights?.length" class="box"><div class="title"><Icon icon="lucide:star" />关键亮点</div><ul><li v-for="(item, index) in reportAiResponse.highlights" :key="`highlight-${index}`">{{ item }}</li></ul></section>
@@ -114,14 +106,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { deleteReport, downloadReport, getReportDetail, listReports, summarizeReport, type GenerateReportRequest, type ReportDetailResponse, type ReportListItem, type ReportStatus, type ReportSummaryResponse } from '../../api/statistics'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
 import ReportPreviewModal from './ReportPreviewModal.vue'
 
 type ReportType = GenerateReportRequest['report_type']
-const reportTypeOptions = [{ value: 'daily_summary', label: '日报' }, { value: 'weekly_summary', label: '周报' }, { value: 'monthly_summary', label: '月报' }, { value: 'anomaly_report', label: '异常分析报告' }] as { value: ReportType; label: string }[]
+const reportTypeOptions = [{ value: 'daily_summary', label: '日报' }, { value: 'weekly_summary', label: '周报' }, { value: 'monthly_summary', label: '月报' }, { value: 'custom_summary', label: '自定义报表' }, { value: 'anomaly_report', label: '异常分析报告' }] as { value: ReportType; label: string }[]
 const reportStatusOptions = [{ value: 'queued', label: '排队中' }, { value: 'processing', label: '处理中' }, { value: 'ready', label: '已完成' }, { value: 'failed', label: '失败' }] as { value: ReportStatus; label: string }[]
 
 const props = defineProps<{ selectedReportId?: string; selectionVersion?: number; sourceContext?: ReportSourceContext | null }>()
@@ -147,6 +139,9 @@ const previewLoading = ref(false)
 const previewError = ref('')
 const previewContent = ref('')
 const previewTitle = ref('')
+const REPORT_POLL_INTERVAL_MS = 15000
+let reportPollingTimer: ReturnType<typeof setInterval> | null = null
+let reportPollingInFlight = false
 
 const unwrap = <T>(payload: T | { data?: T }) => ((payload as { data?: T })?.data ?? payload) as T
 const formatNumber = (val: number | null | undefined) => val == null || Number.isNaN(val) ? '0.0' : val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
@@ -161,6 +156,8 @@ const activeSourceLabel = computed(() => !activeSourceContext.value ? reportDeta
 const baseReportSummary = computed(() => reportDetail.value?.summary || reportDetail.value?.ai_summary || selectedReportListItem.value?.summary || '')
 const reportHourlyData = computed(() => reportDetail.value?.data?.hourly_data || [])
 const reportSummaryMetrics = computed(() => reportDetail.value?.data?.summary_metrics || [])
+const selectedReportStatus = computed(() => reportDetail.value?.status || selectedReportListItem.value?.status || '')
+const isSelectedReportReady = computed(() => selectedReportStatus.value === 'ready')
 const reportAiMetaText = computed(() => {
   const meta = reportAiResponse.value?.meta
   if (!meta) return []
@@ -177,31 +174,72 @@ const getSourceText = (reportId: string) => {
   return !context ? '' : context.sourceType === 'meter' ? `来源设备：${context.sourceLabel}` : `来源建筑：${context.sourceLabel}`
 }
 const resolveReportUrl = () => reportDetail.value?.download_url || reportDetail.value?.exports?.[0]?.download_url || selectedReportListItem.value?.download_url || ''
-const canViewReportFile = computed(() => Boolean(resolveReportUrl()) || Boolean(selectedReportId.value))
+const canViewReportFile = computed(() => isSelectedReportReady.value && (Boolean(resolveReportUrl()) || Boolean(selectedReportId.value)))
 const clearReportInteraction = () => { reportDetailError.value = ''; reportAiError.value = ''; reportAiResponse.value = null }
 const registerContext = (context?: ReportSourceContext | null) => {
   if (!context?.reportId) return
   reportContextMap.value = { ...reportContextMap.value, [context.reportId]: context }
 }
-const loadReportList = async (selectFirst = false) => {
-  reportListLoading.value = true
-  reportListError.value = ''
+const loadReportList = async (selectFirst = false, options: { silent?: boolean } = {}) => {
+  if (!options.silent) {
+    reportListLoading.value = true
+    reportListError.value = ''
+  }
   try {
     const response = unwrap(await listReports({ report_type: reportFilters.value.report_type || undefined, status: reportFilters.value.status || undefined, page: reportFilters.value.page, page_size: reportFilters.value.page_size }))
     reportList.value = response?.items || []
     reportPagination.value = response?.pagination || { page: reportFilters.value.page, page_size: reportFilters.value.page_size, total: reportList.value.length }
     if (selectedReportId.value && !reportList.value.some(item => item.report_id === selectedReportId.value)) { selectedReportId.value = ''; reportDetail.value = null }
     if (!selectedReportId.value && (selectFirst || reportList.value.length)) { const targetId = reportList.value[0]?.report_id; if (targetId) await selectReport(targetId) }
+    syncReportPolling()
   } catch (error: any) {
-    reportListError.value = error?.message || '报表列表加载失败'
+    if (options.silent) {
+      console.warn('报表后台刷新失败:', error)
+    } else {
+      reportListError.value = error?.message || '报表列表加载失败'
+    }
   } finally {
-    reportListLoading.value = false
+    if (!options.silent) reportListLoading.value = false
   }
 }
-const fetchReportDetail = async (reportId: string) => {
-  reportDetailLoading.value = true
-  reportDetailError.value = ''
-  try { reportDetail.value = unwrap(await getReportDetail(reportId)) } catch (error: any) { reportDetailError.value = error?.message || '报表详情加载失败'; reportDetail.value = null } finally { reportDetailLoading.value = false }
+const fetchReportDetail = async (reportId: string, options: { silent?: boolean } = {}) => {
+  if (!options.silent) {
+    reportDetailLoading.value = true
+    reportDetailError.value = ''
+  }
+  try {
+    reportDetail.value = unwrap(await getReportDetail(reportId))
+  } catch (error: any) {
+    if (options.silent) {
+      console.warn('报表详情后台刷新失败:', error)
+    } else {
+      reportDetailError.value = error?.message || '报表详情加载失败'
+      reportDetail.value = null
+    }
+  } finally {
+    if (!options.silent) reportDetailLoading.value = false
+  }
+}
+const hasPendingReports = () => reportList.value.some(item => item.status === 'queued' || item.status === 'processing')
+const refreshPendingReports = async () => {
+  if (reportListLoading.value || reportPollingInFlight) return
+  reportPollingInFlight = true
+  try {
+    await loadReportList(false, { silent: true })
+    if (selectedReportId.value) await fetchReportDetail(selectedReportId.value, { silent: true })
+  } finally {
+    reportPollingInFlight = false
+  }
+}
+const syncReportPolling = () => {
+  if (hasPendingReports()) {
+    if (!reportPollingTimer) reportPollingTimer = setInterval(refreshPendingReports, REPORT_POLL_INTERVAL_MS)
+    return
+  }
+  if (reportPollingTimer) {
+    clearInterval(reportPollingTimer)
+    reportPollingTimer = null
+  }
 }
 const selectReport = async (reportId: string) => { if (!reportId) return; selectedReportId.value = reportId; reportQuestion.value = ''; clearReportInteraction(); await fetchReportDetail(reportId) }
 const applyFilters = async () => { reportFilters.value.page = 1; await loadReportList(true) }
@@ -209,7 +247,7 @@ const changePage = async (step: number) => { const nextPage = reportFilters.valu
 const refreshReports = async () => { await loadReportList(); if (selectedReportId.value) await fetchReportDetail(selectedReportId.value) }
 const reloadSelectedReport = async () => { if (selectedReportId.value) await fetchReportDetail(selectedReportId.value) }
 const viewReportDetail = async () => {
-  if (!selectedReportId.value) return
+  if (!selectedReportId.value || !isSelectedReportReady.value) return
   previewVisible.value = true
   previewLoading.value = true
   previewError.value = ''
@@ -233,7 +271,7 @@ const viewReportDetail = async () => {
 }
 const downloadReportFile = async () => {
   const reportId = selectedReportId.value || reportDetail.value?.report_id
-  if (!reportId) return
+  if (!reportId || !isSelectedReportReady.value) return
   try {
     const blob = await downloadReport(reportId, 'md') as unknown as Blob
     const url = window.URL.createObjectURL(blob)
@@ -265,7 +303,7 @@ const removeSelectedReport = async () => {
   }
 }
 const askReportQuestion = async (question: string) => {
-  if (!reportDetail.value) return
+  if (!reportDetail.value || !isSelectedReportReady.value) return
   summarizing.value = true
   reportAiError.value = ''
   try {
@@ -276,9 +314,15 @@ const askReportQuestion = async (question: string) => {
     summarizing.value = false
   }
 }
-const syncExternalSelection = async () => { registerContext(props.sourceContext); if (!props.selectedReportId) return; if (reportList.value.length === 0) await loadReportList(); reportNotice.value = { type: 'ok', text: '已切换到新生成的报表。' }; await selectReport(props.selectedReportId) }
+const syncExternalSelection = async () => {
+  registerContext(props.sourceContext)
+  if (!props.selectedReportId) return
+  await loadReportList()
+  await selectReport(props.selectedReportId)
+}
 watch(() => [props.selectedReportId, props.selectionVersion], syncExternalSelection)
 onMounted(async () => { registerContext(props.sourceContext); await loadReportList(true); if (props.selectedReportId) await syncExternalSelection() })
+onUnmounted(() => { if (reportPollingTimer) clearInterval(reportPollingTimer) })
 </script>
 
 <style scoped>

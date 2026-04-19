@@ -35,9 +35,11 @@
             <td class="strong">{{ formatNumber(row.energyTotal) }}</td>
             <td>{{ formatNumber(row.eui) }} KWH/m²</td>
             <td><span class="status" :class="row.status">{{ row.statusText }}</span></td>
-            <td class="actions">
-              <button class="link" type="button" @click="viewDetails(row)">详情</button>
-              <button class="link primary-link" type="button" @click="emitGenerate(row)">生成报表</button>
+            <td class="action-cell">
+              <div class="row-actions">
+                <button class="link" type="button" @click="viewDetails(row)">详情</button>
+                <button class="link primary-link" type="button" @click="emitGenerate(row)">生成报表</button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -60,7 +62,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
-import { getBuildings, getEnergyQuery, getMeters } from '../../api/statistics'
+import { getBuildings, getBuildingEnergySummary, getMeters } from '../../api/statistics'
 import BuildingDetailsModal from './BuildingDetailsModal.vue'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
 
@@ -76,6 +78,13 @@ interface BuildingRow {
   statusText: string
 }
 
+interface BuildingTableCacheEntry {
+  items: BuildingRow[]
+  total: number
+}
+
+const buildingTableCache = new Map<string, BuildingTableCacheEntry>()
+
 const tableData = ref<BuildingRow[]>([])
 const loading = ref(false)
 const currentPage = ref(1)
@@ -84,11 +93,28 @@ const paginationInfo = ref({ total: 0 })
 const totalPages = computed(() => Math.max(1, Math.ceil(paginationInfo.value.total / pageSize.value)))
 const modalVisible = ref(false)
 const selectedBuildingId = ref('')
+let buildingRequestSeq = 0
 
 const unwrap = (res: any) => res?.data ?? res
 const formatNumber = (val: number | null | undefined) => val == null || Number.isNaN(val) ? '-' : val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 const formatTime = (iso?: string | null) => !iso ? '-' : (Number.isNaN(new Date(iso).getTime()) ? iso : new Date(iso).toLocaleString('zh-CN'))
 const statisticsEndText = computed(() => formatTime(props.endTime))
+const buildBuildingCacheKey = () => `${props.startTime}__${props.endTime}__${currentPage.value}__${pageSize.value}`
+
+const mapWithConcurrency = async <T, R>(items: T[], limit: number, mapper: (item: T) => Promise<R>): Promise<R[]> => {
+  const results: R[] = new Array(items.length)
+  let nextIndex = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex
+      nextIndex += 1
+      const currentItem = items[currentIndex] as T
+      results[currentIndex] = await mapper(currentItem)
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
 
 const changePage = (page: number) => {
   if (page < 1 || page > totalPages.value) return
@@ -98,13 +124,23 @@ const changePage = (page: number) => {
 
 const fetchData = async () => {
   if (!props.startTime || !props.endTime) return
+  const cacheKey = buildBuildingCacheKey()
+  const cached = buildingTableCache.get(cacheKey)
+  if (cached) {
+    tableData.value = cached.items
+    paginationInfo.value.total = cached.total
+    return
+  }
+  const requestId = ++buildingRequestSeq
   loading.value = true
+  tableData.value = []
   try {
     const buildData = unwrap(await getBuildings({ page: currentPage.value, page_size: pageSize.value }))
+    if (requestId !== buildingRequestSeq) return
     const items = buildData?.items || []
     paginationInfo.value.total = buildData?.pagination?.total || 0
 
-    tableData.value = await Promise.all(items.map(async (building: any) => {
+    const rows = await mapWithConcurrency(items, 2, async (building: any) => {
       const bid = building.building_id
       let meterCount = 0
       let status: BuildingRow['status'] = 'normal'
@@ -130,7 +166,7 @@ const fetchData = async () => {
 
       let energyTotal = 0
       try {
-        const queryData = unwrap(await getEnergyQuery({ building_ids: [bid], start_time: props.startTime, end_time: props.endTime, granularity: 'month' }))
+        const queryData = unwrap(await getBuildingEnergySummary(bid, { meter: 'electricity', start_time: props.startTime, end_time: props.endTime, granularity: 'month' }))
         energyTotal = queryData?.summary?.total || 0
       } catch (error) {
         console.error(`Failed to fetch energy for ${bid}`, error)
@@ -138,9 +174,12 @@ const fetchData = async () => {
 
       const sqm = building.sqm || 0
       return { building_id: bid, meterCount, energyTotal, eui: sqm > 0 ? energyTotal / sqm : 0, status, statusText }
-    }))
+    })
+    if (requestId !== buildingRequestSeq) return
+    tableData.value = rows
+    buildingTableCache.set(cacheKey, { items: tableData.value, total: paginationInfo.value.total })
   } finally {
-    loading.value = false
+    if (requestId === buildingRequestSeq) loading.value = false
   }
 }
 
@@ -159,5 +198,5 @@ onMounted(fetchData)
 
 <style scoped>
 .panel{background:#fff;border:1px solid #e8ecf1;border-radius:14px;padding:24px;box-shadow:0 1px 3px rgba(15,23,42,.04),0 4px 14px rgba(15,23,42,.03)}
-.head,.head-right,.pager,.pager-actions,.actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.head{margin-bottom:20px}.head h3{margin:0;font-size:16px;color:#0f172a}.update-time{font-size:12px;color:#94a3b8}.icon-btn,.page-btn,.link{border:none;background:transparent;cursor:pointer}.icon-btn{padding:4px;color:#0b4582}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px}.table th{font-size:12px;color:#64748b}.state{text-align:center;color:#64748b}.strong{font-weight:700}.status{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}.status.normal{background:#ecfdf5;color:#059669}.status.warning{background:#fff7ed;color:#c2410c}.status.fault{background:#fef2f2;color:#dc2626}.actions{justify-content:flex-start}.link{color:#0b4582;padding:0}.primary-link{font-weight:700}.pager{margin-top:16px}.page-btn{padding:6px 12px;border-radius:8px;background:#eef2f7}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.head,.head-right,.pager,.pager-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.head{margin-bottom:20px}.head h3{margin:0;font-size:16px;color:#0f172a}.update-time{font-size:12px;color:#94a3b8}.icon-btn,.page-btn,.link{border:none;background:transparent;cursor:pointer}.icon-btn{padding:4px;color:#0b4582}.table-wrap{overflow:auto}.table{width:100%;min-width:760px;border-collapse:collapse}.table th,.table td{padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px;vertical-align:middle}.table th{font-size:12px;color:#64748b}.action-col,.action-cell{width:132px;min-width:132px;white-space:nowrap}.row-actions{display:inline-flex;align-items:center;justify-content:flex-start;gap:18px;white-space:nowrap}.state{text-align:center;color:#64748b}.strong{font-weight:700}.status{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}.status.normal{background:#ecfdf5;color:#059669}.status.warning{background:#fff7ed;color:#c2410c}.status.fault{background:#fef2f2;color:#dc2626}.link{color:#0b4582;padding:0;line-height:1;white-space:nowrap}.primary-link{font-weight:700}.pager{margin-top:16px}.page-btn{padding:6px 12px;border-radius:8px;background:#eef2f7}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 </style>

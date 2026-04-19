@@ -510,6 +510,7 @@ const reportTypeOptions: { value: ReportType; label: string }[] = [
   { value: 'daily_summary', label: '日报' },
   { value: 'weekly_summary', label: '周报' },
   { value: 'monthly_summary', label: '月报' },
+  { value: 'custom_summary', label: '自定义报表' },
   { value: 'anomaly_report', label: '异常分析报告' }
 ]
 

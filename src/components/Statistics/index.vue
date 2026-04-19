@@ -137,6 +137,21 @@
       @generated="handleReportGenerated"
     />
 
+    <Transition name="report-task-pop">
+      <div v-if="reportTaskNotice" class="report-task-toast">
+        <div class="report-task-icon">
+          <Icon icon="lucide:file-clock" />
+        </div>
+        <div class="report-task-copy">
+          <strong>{{ reportTaskNotice.title }}</strong>
+          <span>{{ reportTaskNotice.text }}</span>
+        </div>
+        <button class="report-task-close" type="button" @click="reportTaskNotice = null">
+          <Icon icon="lucide:x" />
+        </button>
+      </div>
+    </Transition>
+
     <!-- 错误提示 -->
     <div v-if="error" class="error-bar">
       <Icon icon="lucide:alert-circle" class="error-icon" />
@@ -147,7 +162,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import TimeFilterModal from '../QueryView/TimeFilterModal.vue'
@@ -164,6 +179,10 @@ import {
   type CopSummary
 } from '../../api/statistics'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
+
+type SummaryGranularity = 'day' | 'week' | 'month'
+const energySummaryCache = new Map<string, EnergySummary | null>()
+const copSummaryCache = new Map<string, CopSummary | null>()
 
 // ─── State ──────────────────────────────────────────────────────
 const loading = ref(false)
@@ -182,6 +201,8 @@ const pendingReportContext = ref<ReportSourceContext | null>(null)
 const activeReportId = ref('')
 const activeReportContext = ref<ReportSourceContext | null>(null)
 const reportSelectionVersion = ref(0)
+const reportTaskNotice = ref<{ title: string; text: string } | null>(null)
+let reportTaskNoticeTimer: ReturnType<typeof setTimeout> | null = null
 
 // ─── Computed ───────────────────────────────────────────────────
 const formattedTimeRange = computed(() => {
@@ -217,6 +238,7 @@ const budgetPercent = computed(() => {
 const copRatingClass = computed(() => {
   if (!copSummary.value) return ''
   const cop = copSummary.value.avg_cop
+  if (cop == null || !Number.isFinite(Number(cop))) return 'missing'
   if (cop >= 5) return 'outstanding'
   if (cop >= 4) return 'good'
   if (cop >= 3) return 'fair'
@@ -226,6 +248,7 @@ const copRatingClass = computed(() => {
 const copRatingText = computed(() => {
   if (!copSummary.value) return '—'
   const cop = copSummary.value.avg_cop
+  if (cop == null || !Number.isFinite(Number(cop))) return '数据不足'
   if (cop >= 5) return 'Tier 1 (Outstanding)'
   if (cop >= 4) return 'Tier 2 (Good)'
   if (cop >= 3) return 'Tier 3 (Fair)'
@@ -248,6 +271,18 @@ const formatPeakTime = (iso: string | null | undefined): string => {
   const d = new Date(iso)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
 }
+
+const resolveSummaryGranularity = (): SummaryGranularity => {
+  const start = new Date(activeStart.value).getTime()
+  const end = new Date(activeEnd.value).getTime()
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 'day'
+  const days = Math.ceil((end - start) / 86_400_000)
+  if (days > 120) return 'month'
+  if (days > 31) return 'week'
+  return 'day'
+}
+
+const buildSummaryCacheKey = () => `${activeStart.value}__${activeEnd.value}__${resolveSummaryGranularity()}`
 
 // ─── Init time range: default to current month ──────────────────
 const initTimeRange = () => {
@@ -285,45 +320,67 @@ usePageAIContext('statistics', pageAIContext)
 
 // ─── Data fetching ──────────────────────────────────────────────
 const unwrap = (res: any) => res?.data ?? res
+let energyRequestSeq = 0
+let copRequestSeq = 0
 
 const fetchEnergy = async () => {
+  const cacheKey = buildSummaryCacheKey()
+  if (energySummaryCache.has(cacheKey)) {
+    energySummary.value = energySummaryCache.get(cacheKey) ?? null
+    return
+  }
+  const requestId = ++energyRequestSeq
+  energySummary.value = null
   loading.value = true
   try {
     const raw = await getEnergyQuery({
       meter: 'electricity',
       start_time: activeStart.value,
       end_time: activeEnd.value,
-      granularity: 'day',
+      granularity: resolveSummaryGranularity(),
       aggregation: 'sum'
     })
     const data = unwrap(raw)
+    if (requestId !== energyRequestSeq) return
     energySummary.value = data?.summary ?? null
+    energySummaryCache.set(cacheKey, energySummary.value)
   } catch (err: any) {
+    if (requestId !== energyRequestSeq) return
     console.error('能耗查询失败:', err.message)
     error.value = '能耗数据加载失败: ' + (err?.message || '未知错误')
   } finally {
-    loading.value = false
+    if (requestId === energyRequestSeq) loading.value = false
   }
 }
 
 const fetchCop = async () => {
+  const cacheKey = buildSummaryCacheKey()
+  if (copSummaryCache.has(cacheKey)) {
+    copSummary.value = copSummaryCache.get(cacheKey) ?? null
+    return
+  }
+  const requestId = ++copRequestSeq
+  copSummary.value = null
   copLoading.value = true
   try {
     const raw = await getCopAnalysis({
       start_time: activeStart.value,
       end_time: activeEnd.value,
-      granularity: 'day'
+      granularity: resolveSummaryGranularity()
     })
     const data = unwrap(raw)
+    if (requestId !== copRequestSeq) return
     copSummary.value = data?.summary ?? null
+    copSummaryCache.set(cacheKey, copSummary.value)
   } catch (err: any) {
+    if (requestId !== copRequestSeq) return
     console.error('COP 查询失败:', err.message)
     // 不覆盖 energy 错误
     if (!error.value) {
       error.value = 'COP 数据加载失败: ' + (err?.message || '未知错误')
     }
   } finally {
-    copLoading.value = false
+    if (requestId === copRequestSeq) copLoading.value = false
   }
 }
 
@@ -338,16 +395,34 @@ const openGenerateModal = (context: ReportSourceContext) => {
   reportModalVisible.value = true
 }
 
+const showReportTaskNotice = (context: ReportSourceContext) => {
+  if (reportTaskNoticeTimer) clearTimeout(reportTaskNoticeTimer)
+  const subject = context.sourceType === 'meter' ? `设备 ${context.sourceLabel}` : `建筑 ${context.sourceLabel}`
+  reportTaskNotice.value = {
+    title: '报表任务已创建',
+    text: `${subject} 的报表正在后台生成，可在下方报表工作台查看进度。`
+  }
+  reportTaskNoticeTimer = setTimeout(() => {
+    reportTaskNotice.value = null
+    reportTaskNoticeTimer = null
+  }, 5200)
+}
+
 const handleReportGenerated = (payload: { reportId: string; context: ReportSourceContext }) => {
   activeReportId.value = payload.reportId
   activeReportContext.value = payload.context
   reportSelectionVersion.value += 1
+  showReportTaskNotice(payload.context)
 }
 
 // ─── Lifecycle ──────────────────────────────────────────────────
 onMounted(() => {
   initTimeRange()
   fetchAll()
+})
+
+onUnmounted(() => {
+  if (reportTaskNoticeTimer) clearTimeout(reportTaskNoticeTimer)
 })
 </script>
 
@@ -660,6 +735,7 @@ onMounted(() => {
 .kpi-icon-badge.cop.good { background: #eff6ff; color: #2563eb; }
 .kpi-icon-badge.cop.fair { background: #fffbeb; color: #d97706; }
 .kpi-icon-badge.cop.poor { background: #fef2f2; color: #dc2626; }
+.kpi-icon-badge.cop.missing { background: #f1f5f9; color: #64748b; }
 
 .kpi-icon {
   font-size: 22px;
@@ -783,6 +859,7 @@ onMounted(() => {
 .cop-rating-dot.good { background: #2563eb; }
 .cop-rating-dot.fair { background: #d97706; }
 .cop-rating-dot.poor { background: #dc2626; }
+.cop-rating-dot.missing { background: #94a3b8; }
 
 .cop-rating {
   display: flex;
@@ -806,6 +883,7 @@ onMounted(() => {
 .cop-tier-badge.good { background: #eff6ff; color: #2563eb; }
 .cop-tier-badge.fair { background: #fffbeb; color: #d97706; }
 .cop-tier-badge.poor { background: #fef2f2; color: #dc2626; }
+.cop-tier-badge.missing { background: #f1f5f9; color: #64748b; }
 
 /* Skeleton */
 .sk-line {
@@ -850,5 +928,83 @@ onMounted(() => {
   cursor: pointer;
   text-decoration: underline;
   font-size: 13px;
+}
+
+.report-task-toast {
+  position: fixed;
+  top: 104px;
+  right: 34px;
+  z-index: 10020;
+  width: min(420px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px;
+  border: 1px solid rgba(11, 69, 130, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(238, 247, 255, 0.94)),
+    radial-gradient(circle at 0 0, rgba(11, 69, 130, 0.16), transparent 48%);
+  box-shadow: 0 20px 54px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(16px);
+}
+
+.report-task-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: #0b4582;
+  background: #e8f2ff;
+  font-size: 20px;
+}
+
+.report-task-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.report-task-copy strong {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.report-task-copy span {
+  color: #52637a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.report-task-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.report-task-close:hover {
+  background: rgba(11, 69, 130, 0.08);
+  color: #0b4582;
+}
+
+.report-task-pop-enter-active,
+.report-task-pop-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.report-task-pop-enter-from,
+.report-task-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.98);
 }
 </style>

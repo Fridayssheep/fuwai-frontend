@@ -52,9 +52,11 @@
             <td>{{ row.building_id }}</td>
             <td><span class="status" :class="row.status">{{ getStatusText(row.status) }}</span></td>
             <td>{{ formatLastSeen(row.last_seen_at) }}</td>
-            <td class="actions">
-              <button class="link" type="button" @click="viewDetails(row)">详情</button>
-              <button class="link primary-link" type="button" @click="emitGenerate(row)">生成报表</button>
+            <td class="action-cell">
+              <div class="row-actions">
+                <button class="link" type="button" @click="viewDetails(row)">详情</button>
+                <button class="link primary-link" type="button" @click="emitGenerate(row)">生成报表</button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -80,6 +82,13 @@ import { Icon } from '@iconify/vue'
 import { getMeters } from '../../api/statistics'
 import MeterDetailsModal from './MeterDetailsModal.vue'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
+
+interface MeterTableCacheEntry {
+  items: MeterRow[]
+  total: number
+}
+
+const meterTableCache = new Map<string, MeterTableCacheEntry>()
 
 const props = defineProps<{ startTime: string; endTime: string }>()
 const emit = defineEmits<{ (e: 'generate-report', payload: ReportSourceContext): void }>()
@@ -109,12 +118,21 @@ const paginationInfo = ref({ total: 0 })
 const totalPages = computed(() => Math.max(1, Math.ceil(paginationInfo.value.total / pageSize.value)))
 const modalVisible = ref(false)
 const selectedMeterId = ref('')
+let meterRequestSeq = 0
 
 const unwrap = (res: any) => res?.data ?? res
 const getStatusText = (status?: string) => ({ online: '在线', warning: '告警', fault: '故障', offline: '离线' }[status || ''] || status || '-')
 const getMeterTypeLabel = (type: string) => meterTypes.find(item => item.value === type)?.label || type || '-'
 const formatLastSeen = (iso?: string | null) => !iso ? '-' : (Number.isNaN(new Date(iso).getTime()) ? iso : new Date(iso).toLocaleString('zh-CN'))
 const statisticsEndText = computed(() => formatLastSeen(props.endTime))
+const buildMeterCacheKey = () => [
+  props.startTime,
+  props.endTime,
+  currentPage.value,
+  pageSize.value,
+  filterMeterType.value,
+  filterStatus.value
+].join('__')
 
 const changePage = (page: number) => {
   if (page < 1 || page > totalPages.value) return
@@ -128,8 +146,19 @@ const onFilterChange = () => {
 }
 
 const fetchData = async () => {
+  if (!props.startTime || !props.endTime) return
+  const cacheKey = buildMeterCacheKey()
+  const cached = meterTableCache.get(cacheKey)
+  if (cached) {
+    tableData.value = cached.items
+    paginationInfo.value.total = cached.total
+    loadError.value = ''
+    return
+  }
+  const requestId = ++meterRequestSeq
   loading.value = true
   loadError.value = ''
+  tableData.value = []
   try {
     const params: Record<string, any> = { page: currentPage.value, page_size: pageSize.value }
     if (props.startTime) params.start_time = props.startTime
@@ -138,6 +167,7 @@ const fetchData = async () => {
     if (filterStatus.value) params.status = filterStatus.value
 
     const data = unwrap(await getMeters(params))
+    if (requestId !== meterRequestSeq) return
     paginationInfo.value.total = data?.pagination?.total || 0
     tableData.value = (data?.items || []).map((item: any) => {
       let buildingId = item.building_id
@@ -149,11 +179,13 @@ const fetchData = async () => {
       }
       return { meter_id: item.meter_id, meter_name: item.meter_name || item.meter_id, meter_type: meterType || '', building_id: buildingId || '', status: item.status || 'offline', last_seen_at: item.last_seen_at || null }
     })
+    meterTableCache.set(cacheKey, { items: tableData.value, total: paginationInfo.value.total })
   } catch (error) {
+    if (requestId !== meterRequestSeq) return
     console.error('设备列表获取失败:', error)
     loadError.value = '设备列表加载失败，请稍后重试。'
   } finally {
-    loading.value = false
+    if (requestId === meterRequestSeq) loading.value = false
   }
 }
 
@@ -172,5 +204,5 @@ onMounted(fetchData)
 
 <style scoped>
 .panel{background:#fff;border:1px solid #e8ecf1;border-radius:14px;padding:24px;box-shadow:0 1px 3px rgba(15,23,42,.04),0 4px 14px rgba(15,23,42,.03)}
-.head,.head-right,.pager,.pager-actions,.actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.head{margin-bottom:20px;flex-wrap:wrap}.head h3{margin:0;font-size:16px;color:#0f172a}.head-right{flex-wrap:wrap}.head-right select{min-height:36px;border:1px solid #cbd5e1;border-radius:8px;padding:0 10px}.update-time{font-size:12px;color:#94a3b8}.icon-btn,.page-btn,.link,.retry-btn{border:none;background:transparent;cursor:pointer}.icon-btn{padding:4px;color:#0b4582}.error-banner{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px 14px;border:1px solid #fecaca;border-radius:10px;background:#fff5f5;color:#b42318;font-size:13px}.retry-btn{color:#b42318;font-weight:700}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px}.table th{font-size:12px;color:#64748b}.state{text-align:center;color:#64748b}.strong{font-weight:700}.status{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}.status.online{background:#ecfdf5;color:#059669}.status.warning{background:#fff7ed;color:#c2410c}.status.fault{background:#fef2f2;color:#dc2626}.status.offline{background:#f1f5f9;color:#475569}.actions{justify-content:flex-start}.link{color:#0b4582;padding:0}.primary-link{font-weight:700}.pager{margin-top:16px}.page-btn{padding:6px 12px;border-radius:8px;background:#eef2f7}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.head,.head-right,.pager,.pager-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.head{margin-bottom:20px;flex-wrap:wrap}.head h3{margin:0;font-size:16px;color:#0f172a}.head-right{flex-wrap:wrap}.head-right select{min-height:36px;border:1px solid #cbd5e1;border-radius:8px;padding:0 10px}.update-time{font-size:12px;color:#94a3b8}.icon-btn,.page-btn,.link,.retry-btn{border:none;background:transparent;cursor:pointer}.icon-btn{padding:4px;color:#0b4582}.error-banner{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px 14px;border:1px solid #fecaca;border-radius:10px;background:#fff5f5;color:#b42318;font-size:13px}.retry-btn{color:#b42318;font-weight:700}.table-wrap{overflow:auto}.table{width:100%;min-width:920px;border-collapse:collapse}.table th,.table td{padding:12px 16px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:13px;vertical-align:middle}.table th{font-size:12px;color:#64748b}.action-col,.action-cell{width:132px;min-width:132px;white-space:nowrap}.row-actions{display:inline-flex;align-items:center;justify-content:flex-start;gap:18px;white-space:nowrap}.state{text-align:center;color:#64748b}.strong{font-weight:700}.status{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}.status.online{background:#ecfdf5;color:#059669}.status.warning{background:#fff7ed;color:#c2410c}.status.fault{background:#fef2f2;color:#dc2626}.status.offline{background:#f1f5f9;color:#475569}.link{color:#0b4582;padding:0;line-height:1;white-space:nowrap}.primary-link{font-weight:700}.pager{margin-top:16px}.page-btn{padding:6px 12px;border-radius:8px;background:#eef2f7}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 </style>

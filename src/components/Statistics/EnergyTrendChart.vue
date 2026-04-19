@@ -45,6 +45,8 @@ import {
   type EnergyTrendParams
 } from '../../api/statistics'
 
+const trendCache = new Map<string, EnergySeries[]>()
+
 // ─── Props ──────────────────────────────────────────────────────
 const props = defineProps<{
   startTime: string
@@ -56,6 +58,7 @@ const loading = ref(false)
 const isEmpty = ref(false)
 const chartRef = ref<HTMLElement | null>(null)
 let chart: echarts.ECharts | null = null
+let trendRequestSeq = 0
 
 type GranularityKey = 'day' | 'week' | 'month'
 const currentRange = ref<GranularityKey>('day')
@@ -73,6 +76,8 @@ const granularityMap: Record<GranularityKey, EnergyTrendParams['granularity']> =
   week: 'week',
   month: 'month'
 }
+
+const buildTrendCacheKey = () => `${props.startTime}__${props.endTime}__${granularityMap[currentRange.value]}`
 
 const formatTimestamp = (ts: string, granularity: string): string => {
   const d = new Date(ts)
@@ -277,6 +282,17 @@ const renderChart = (seriesData: EnergySeries[], granularity: string) => {
 
 // ─── Data Fetching ──────────────────────────────────────────────
 const fetchTrend = async () => {
+  const cacheKey = buildTrendCacheKey()
+  const granularity = granularityMap[currentRange.value]!
+  if (trendCache.has(cacheKey)) {
+    const cachedSeries = trendCache.get(cacheKey) ?? []
+    loading.value = false
+    await nextTick()
+    initChart()
+    renderChart(cachedSeries, granularity)
+    return
+  }
+  const requestId = ++trendRequestSeq
   loading.value = true
   isEmpty.value = false
   try {
@@ -284,16 +300,19 @@ const fetchTrend = async () => {
       meter: 'electricity',
       start_time: props.startTime,
       end_time: props.endTime,
-      granularity: granularityMap[currentRange.value]
+      granularity
     })
     const data = unwrap(raw)
     const series: EnergySeries[] = data?.series ?? []
+    if (requestId !== trendRequestSeq) return
+    trendCache.set(cacheKey, series)
 
     loading.value = false
     await nextTick()
     initChart()
-    renderChart(series, granularityMap[currentRange.value]!)
+    renderChart(series, granularity)
   } catch (err: any) {
+    if (requestId !== trendRequestSeq) return
     console.error('趋势数据加载失败:', err.message)
     loading.value = false
     isEmpty.value = true
